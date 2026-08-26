@@ -362,13 +362,13 @@
         </div>
         <div class="nav-sub">
           <div class="nav-sub-item" data-sub="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
+          <div class="nav-sub-item" data-sub="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
           <div class="nav-sub-item" data-sub="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨案件</div>
           <div class="nav-sub-item" data-sub="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
           <div class="nav-sub-item" data-sub="epc-done" onclick="showEpcTab('epc-done')">已完工</div>
           <div class="nav-sub-item" data-sub="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
           <div class="nav-sub-item" data-sub="epc-issue" onclick="showEpcTab('epc-issue')">異常案件</div>
           <div class="nav-sub-item" data-sub="epc-archive" onclick="showEpcTab('epc-archive')">歷史紀錄</div>
-          <div class="nav-sub-item" data-sub="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
         </div>
       </div>
     </div>
@@ -511,13 +511,13 @@
 
       <div class="tabs">
         <div class="tab active" data-tab="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
+        <div class="tab" data-tab="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
         <div class="tab" data-tab="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨案件</div>
         <div class="tab" data-tab="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
         <div class="tab" data-tab="epc-done" onclick="showEpcTab('epc-done')">已完工</div>
         <div class="tab" data-tab="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
         <div class="tab" data-tab="epc-issue" onclick="showEpcTab('epc-issue')">異常案件</div>
         <div class="tab" data-tab="epc-archive" onclick="showEpcTab('epc-archive')">歷史紀錄</div>
-        <div class="tab" data-tab="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
       </div>
 
       <!-- 近一週安排 -->
@@ -696,44 +696,10 @@
 
       <!-- 異常案件（已完工但目前卡住無法安排/完成掛表） -->
       <div class="subview" id="tab-epc-issue">
-        <div class="panel" style="margin-bottom:20px;">
-          <div class="panel-title">
-            撤案清單
-            <span class="module-tag tag-cloud" style="margin-left:6px;" id="withdrawnCountTag">共 0 筆</span>
-          </div>
-          <div class="pending-toolbar">
-            <input type="text" class="quick-mark-input" id="withdrawnFilterInput" placeholder="篩選案號或地址…" oninput="tableSearchInput('withdrawn')" style="max-width:260px;">
-          </div>
-          <table>
-            <thead><tr>
-              <th class="sortable-th" onclick="sortTableBy('withdrawn','case')">案號 <span id="withdrawnSortIcon_case">↕</span></th>
-              <th class="filter-th" onclick="toggleTableVendorDropdown('withdrawn',event)">
-                廠商<span id="withdrawnVendorFilterLabel"></span> ▾
-                <div class="vendor-dropdown" id="withdrawnVendorDropdown">
-                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="selectTableVendor('withdrawn',event,'all')">全部廠商</div>
-                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('withdrawn',event,'三創')">三創</div>
-                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('withdrawn',event,'尚展')">尚展</div>
-                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('withdrawn',event,'曙光')">曙光</div>
-                </div>
-              </th>
-              <th>案場地址</th>
-              <th>撤案原因</th>
-              <th>撤案日期</th>
-              <th>操作</th>
-            </tr></thead>
-            <tbody id="withdrawnRows">
-              <tr>
-                <td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有撤案案件</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="login-note">
-            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。在「異常案件」按下「撤案」的案件會移到這裡；按「取消撤案」可以移回「異常案件」清單。
-          </div>
-        </div>
         <div class="panel">
           <div class="panel-title">
             異常案件
+            <button class="btn btn-ghost notes-trigger-btn" onclick="openWithdrawnModal()">🚫 撤案清單 <span class="module-tag tag-cloud" style="margin-left:4px;" id="withdrawnCountTag">共 0 筆</span></button>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:16px;">
             <input type="text" class="quick-mark-input" id="issueSearchInput" placeholder="輸入案號,例如：工程新竹6號" style="flex:1;" onkeydown="if(event.key==='Enter') addIssueByCaseNumber()">
@@ -767,7 +733,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面;按「撤案」會移到上方「撤案清單」。點「案號」欄位標題可排序,點「廠商」可篩選特定廠商,下方搜尋框可用案號、地址內容篩選。
+            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面;按「撤案」會移到「撤案清單」（點上方按鈕查看）。點「案號」欄位標題可排序,點「廠商」可篩選特定廠商,下方搜尋框可用案號、地址內容篩選。
           </div>
         </div>
       </div>
@@ -1000,6 +966,47 @@
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">備註（只記錄在本機瀏覽器,不會寫回 Airtable）</label>
             <textarea class="quick-mark-input" id="ownerInfoNote" rows="3" style="margin-bottom:18px;width:100%;font-family:inherit;resize:vertical;" placeholder="例如：平日不在家,建議約假日"></textarea>
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmOwnerInfo()">儲存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 撤案清單 modal -->
+      <div class="modal-overlay" id="withdrawnModalOverlay" onclick="if(event.target===this) closeWithdrawnModal()">
+        <div class="modal-box" style="max-width:900px;">
+          <div class="modal-header">
+            <div class="modal-title">🚫 撤案清單</div>
+            <button class="modal-close" onclick="closeWithdrawnModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="pending-toolbar">
+              <input type="text" class="quick-mark-input" id="withdrawnFilterInput" placeholder="篩選案號或地址…" oninput="tableSearchInput('withdrawn')" style="max-width:260px;">
+            </div>
+            <table>
+              <thead><tr>
+                <th class="sortable-th" onclick="sortTableBy('withdrawn','case')">案號 <span id="withdrawnSortIcon_case">↕</span></th>
+                <th class="filter-th" onclick="toggleTableVendorDropdown('withdrawn',event)">
+                  廠商<span id="withdrawnVendorFilterLabel"></span> ▾
+                  <div class="vendor-dropdown" id="withdrawnVendorDropdown">
+                    <div class="vendor-dropdown-item active" data-vendor="all" onclick="selectTableVendor('withdrawn',event,'all')">全部廠商</div>
+                    <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('withdrawn',event,'三創')">三創</div>
+                    <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('withdrawn',event,'尚展')">尚展</div>
+                    <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('withdrawn',event,'曙光')">曙光</div>
+                  </div>
+                </th>
+                <th>案場地址</th>
+                <th>撤案原因</th>
+                <th>撤案日期</th>
+                <th>操作</th>
+              </tr></thead>
+              <tbody id="withdrawnRows">
+                <tr>
+                  <td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有撤案案件</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="login-note">
+              🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。在「異常案件」按下「撤案」的案件會移到這裡；按「取消撤案」可以移回「異常案件」清單。
+            </div>
           </div>
         </div>
       </div>
@@ -1482,6 +1489,13 @@ async function confirmOwnerInfo(){
     btn.disabled = false;
   }
 }
+function openWithdrawnModal(){
+  renderWithdrawnTable();
+  document.getElementById('withdrawnModalOverlay').classList.add('show');
+}
+function closeWithdrawnModal(){
+  document.getElementById('withdrawnModalOverlay').classList.remove('show');
+}
 function renderWithdrawnTable(){
   const tbody = document.getElementById('withdrawnRows');
   const countTag = document.getElementById('withdrawnCountTag');
@@ -1546,6 +1560,12 @@ function fmtDate(iso){
   if(!iso) return '';
   const p = iso.split('-');
   return p.length === 3 ? p[1]+'/'+p[2] : iso;
+}
+// 型號規格文字裡「型號 ×片數」之間如果被空白斷開換行,把最後那個空白換成不換行空白,
+// 避免像「H6QT」跟「×26」被拆到不同行。
+function glueCount(str){
+  if(!str) return str;
+  return str.replace(/[ \t]+(×[\d.]+)/g, '\u00A0$1');
 }
 
 // ===================================================================
@@ -1809,8 +1829,9 @@ function renderEntryTable(){
       const hasContact = cs && (cs.owner_contact_name || cs.owner_contact_phone || cs.owner_contact_note);
       statusPill = `<span class="pm-pill" style="background:var(--success-soft);color:var(--success);">已安排</span>
         <div style="margin-top:5px;">
-          <span class="pm-pill" style="cursor:pointer;background:var(--surface-2);color:var(--text);" onclick="openOwnerInfoModal('${r.record_id}')">🏠 屋主資訊${hasContact ? '' : '（尚未填寫）'}</span>
-        </div>`;
+          <span class="pm-pill" style="cursor:pointer;background:var(--surface-2);color:var(--text);" onclick="openOwnerInfoModal('${r.record_id}')">🏠 屋主資訊</span>
+        </div>
+        ${hasContact ? '' : '<div style="margin-top:3px;font-size:11px;color:var(--text-muted);">（尚未填寫）</div>'}`;
     }
     const actions = r._status === 'waiting'
       ? `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this,'reschedule')">重新安排出貨日期</button>
@@ -1822,7 +1843,7 @@ function renderEntryTable(){
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
-      <td colspan="2">${r.module ? `<div>${r.module}</div>${r.inverter ? `<div style="margin-top:2px;">${r.inverter}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+      <td colspan="2">${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
       <td>${scheduleChips}</td>
       <td>${statusPill}</td>
       <td>${actions}</td>
@@ -1863,7 +1884,7 @@ function renderDoneTable(){
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
-      <td>${r.module ? `<div>${r.module}</div>${r.inverter ? `<div style="margin-top:2px;">${r.inverter}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+      <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
       <td>${shipText}</td>
       <td>${fmtDate(r.entry_date)}</td>
       <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openCompleteModal('${r.record_id}')">${fmtDate(cs.completed_date)}　✎</button></td>
@@ -1906,7 +1927,7 @@ function renderMeterTable(){
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
-      <td>${r.module ? `<div>${r.module}</div>${r.inverter ? `<div style="margin-top:2px;">${r.inverter}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+      <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
       <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openPlanMeterModal('${r.record_id}')">${fmtDate(cs.meter_planned_date)}　✎</button></td>
       <td>
         <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="openMeterModal('${r.record_id}')">完成掛表</button>
@@ -1994,7 +2015,7 @@ function renderArchiveTable(){
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
-      <td>${r.module ? `<div>${r.module}</div>${r.inverter ? `<div style="margin-top:2px;">${r.inverter}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+      <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
       <td>${shipText}</td>
       <td>${fmtDate(r.entry_date)}</td>
       <td>${fmtDate(r.meter_date)}</td>
@@ -2583,13 +2604,13 @@ function renderDayDetail(dateStr){
   rows.innerHTML = events.map(e => {
     let specLine = '';
     if(e.type === 'ship-module' && e.module){
-      specLine = `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">模組：${e.module}</div>`;
+      specLine = `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">模組：${glueCount(e.module)}</div>`;
     } else if(e.type === 'ship-inverter' && e.inverter){
-      specLine = `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">變流器：${e.inverter}</div>`;
+      specLine = `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">變流器：${glueCount(e.inverter)}</div>`;
     } else if(e.type === 'ship-both'){
       const parts = [];
-      if(e.module) parts.push('模組：' + e.module);
-      if(e.inverter) parts.push('變流器：' + e.inverter);
+      if(e.module) parts.push('模組：' + glueCount(e.module));
+      if(e.inverter) parts.push('變流器：' + glueCount(e.inverter));
       if(parts.length) specLine = `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">${parts.join('　')}</div>`;
     }
     return `
