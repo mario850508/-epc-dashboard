@@ -123,6 +123,8 @@
   .btn-primary{background:var(--primary);color:#fff;}
   .btn-primary:hover{background:var(--primary-dark);}
   .btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--text);}
+  .btn-danger{background:#E5484D;color:#fff;}
+  .btn-danger:hover{background:#C9383D;}
 
   .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
   .panel-title{font-size:14px;font-weight:700;margin:0 0 14px;display:flex;align-items:center;gap:8px;}
@@ -701,6 +703,41 @@
 
       <!-- 異常案件（已完工但目前卡住無法安排/完成掛表） -->
       <div class="subview" id="tab-epc-issue">
+        <div class="panel" style="margin-bottom:20px;">
+          <div class="panel-title">
+            撤案清單
+            <span class="module-tag tag-cloud" style="margin-left:6px;" id="withdrawnCountTag">共 0 筆</span>
+          </div>
+          <div class="pending-toolbar">
+            <input type="text" class="quick-mark-input" id="withdrawnFilterInput" placeholder="篩選案號或地址…" oninput="tableSearchInput('withdrawn')" style="max-width:260px;">
+          </div>
+          <table>
+            <thead><tr>
+              <th class="sortable-th" onclick="sortTableBy('withdrawn','case')">案號 <span id="withdrawnSortIcon_case">↕</span></th>
+              <th class="filter-th" onclick="toggleTableVendorDropdown('withdrawn',event)">
+                廠商<span id="withdrawnVendorFilterLabel"></span> ▾
+                <div class="vendor-dropdown" id="withdrawnVendorDropdown">
+                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="selectTableVendor('withdrawn',event,'all')">全部廠商</div>
+                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('withdrawn',event,'三創')">三創</div>
+                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('withdrawn',event,'尚展')">尚展</div>
+                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('withdrawn',event,'曙光')">曙光</div>
+                </div>
+              </th>
+              <th>案場地址</th>
+              <th>撤案原因</th>
+              <th>撤案日期</th>
+              <th>操作</th>
+            </tr></thead>
+            <tbody id="withdrawnRows">
+              <tr>
+                <td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有撤案案件</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="login-note">
+            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。在「異常案件」按下「撤案」的案件會移到這裡；按「取消撤案」可以移回「異常案件」清單。
+          </div>
+        </div>
         <div class="panel">
           <div class="panel-title">
             異常案件
@@ -737,7 +774,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面。點「案號」欄位標題可排序,點「廠商」可篩選特定廠商,下方搜尋框可用案號、地址內容篩選。
+            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面;按「撤案」會移到上方「撤案清單」。點「案號」欄位標題可排序,點「廠商」可篩選特定廠商,下方搜尋框可用案號、地址內容篩選。
           </div>
         </div>
       </div>
@@ -919,6 +956,29 @@
           </div>
         </div>
       </div>
+
+      <!-- 撤案 modal（只記錄在本機，不寫回 Airtable） -->
+      <div class="modal-overlay" id="withdrawModalOverlay" onclick="if(event.target===this) closeWithdrawModal()">
+        <div class="modal-box" style="max-width:440px;">
+          <div class="modal-header">
+            <div class="modal-title">🚫 撤案</div>
+            <button class="modal-close" onclick="closeWithdrawModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="withdrawCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="withdrawCaseAddr">—</div>
+            </div>
+            <div style="background:#FDF1F1;color:#C9383D;font-size:12.5px;padding:10px 12px;border-radius:10px;margin-bottom:14px;">
+              確認撤案後,此案件會從「異常案件」清單移到下方「撤案清單」,不會再出現在待出貨/進場/完工等一般流程中。
+            </div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">撤案原因（只記錄在本機瀏覽器,不會寫回 Airtable）</label>
+            <textarea class="quick-mark-input" id="withdrawNote" rows="4" style="margin-bottom:18px;width:100%;font-family:inherit;resize:vertical;" placeholder="例如：屋主取消合作、案場條件不符…"></textarea>
+            <button class="btn btn-danger" style="width:100%;justify-content:center;padding:11px;" onclick="confirmWithdraw()">確認撤案</button>
+          </div>
+        </div>
+      </div>
+
 
       <!-- 註記清單 modal (triggered from 待安排出貨案件 button) -->
       <div class="modal-overlay" id="notesModalOverlay" onclick="if(event.target===this) closeNotesModal()">
@@ -1179,6 +1239,7 @@ async function unmarkComplete(recordId){
     renderDoneTable();
     renderMeterTable();
     renderIssueTable();
+    renderWithdrawnTable();
     showToast('已移回案件進場安排');
   }catch(err){
     showToast('操作失敗：' + err.message);
@@ -1351,6 +1412,7 @@ async function confirmIssue(){
     renderDoneTable();
     renderMeterTable();
     renderIssueTable();
+    renderWithdrawnTable();
     showToast('已標記異常，移入「異常案件」');
     showEpcTab('epc-issue');
     loadAppData();
@@ -1372,11 +1434,113 @@ async function resolveIssue(recordId){
     renderDoneTable();
     renderMeterTable();
     renderIssueTable();
+    renderWithdrawnTable();
     showToast('已排除異常');
   }catch(err){
     showToast('操作失敗：' + err.message);
     console.error(err);
   }
+}
+
+let withdrawTargetRecordId = null;
+function openWithdrawModal(recordId){
+  withdrawTargetRecordId = recordId;
+  const cs = getCaseStatus(recordId);
+  const found = findCaseAnywhere(recordId);
+  const caseNo = (found && found.case) || (cs && cs.case_no) || '（找不到案號）';
+  const addr = (found && found.address) || '（找不到即時資料，可能已離開排程池）';
+  const vendor = (found && found.vendor) || '';
+  document.getElementById('withdrawCaseTitle').textContent = caseNo;
+  document.getElementById('withdrawCaseAddr').textContent = addr + (vendor ? '　' + vendor : '');
+  document.getElementById('withdrawNote').value = (cs && cs.withdrawn_note) || '';
+  document.getElementById('withdrawModalOverlay').classList.add('show');
+}
+function closeWithdrawModal(){
+  document.getElementById('withdrawModalOverlay').classList.remove('show');
+}
+async function confirmWithdraw(){
+  const note = document.getElementById('withdrawNote').value.trim();
+  if(!note){ showToast('請填寫撤案原因'); return; }
+  const recordId = withdrawTargetRecordId;
+  const cs = getCaseStatus(recordId);
+  const found = findCaseAnywhere(recordId);
+  const caseNo = (found && found.case) || (cs && cs.case_no) || '';
+  const btn = document.querySelector('#withdrawModalOverlay .btn-danger');
+  const originalText = btn.textContent;
+  btn.textContent = '儲存中…';
+  btn.disabled = true;
+  try{
+    await saveCaseStatusField(recordId, caseNo, {withdrawn_note: note, withdrawn_date: todayStr()});
+    closeWithdrawModal();
+    renderIssueTable();
+    renderWithdrawnTable();
+    showToast('已撤案，移入「撤案清單」');
+  }catch(err){
+    showToast('撤案失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+async function unwithdrawCase(recordId){
+  const cs = getCaseStatus(recordId);
+  const caseNo = (cs && cs.case_no) || '';
+  try{
+    await saveCaseStatusField(recordId, caseNo, {withdrawn_note: null, withdrawn_date: null});
+    renderIssueTable();
+    renderWithdrawnTable();
+    showToast('已取消撤案，移回「異常案件」');
+  }catch(err){
+    showToast('操作失敗：' + err.message);
+    console.error(err);
+  }
+}
+function renderWithdrawnTable(){
+  const tbody = document.getElementById('withdrawnRows');
+  const countTag = document.getElementById('withdrawnCountTag');
+  if(!tbody) return;
+  const ids = Object.keys(APP_CASE_STATUS).filter(id => APP_CASE_STATUS[id].withdrawn_note);
+  if(countTag) countTag.textContent = '共 ' + ids.length + ' 筆';
+  if(ids.length === 0){
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有撤案案件</td></tr>';
+    return;
+  }
+  const baseItems = ids.map(id => {
+    const cs = APP_CASE_STATUS[id];
+    const found = findCaseAnywhere(id);
+    return {
+      id,
+      case: (found && found.case) || cs.case_no || '（找不到案號）',
+      vendor: (found && found.vendor) || '',
+      vendorClass: (found && (VENDOR_CLASS[found.vendor] || 'vendor-other')) || 'vendor-other',
+      address: (found && found.address) || '（找不到即時資料，可能已離開排程池）',
+      withdrawn_note: cs.withdrawn_note,
+      withdrawn_date: cs.withdrawn_date,
+    };
+  });
+  let items = applyTableFilterSort('withdrawn', baseItems);
+  if(!TABLE_STATE.withdrawn.sortKey){
+    items.sort((a,b) => (b.withdrawn_date||'').localeCompare(a.withdrawn_date||''));
+  }
+  if(items.length === 0){
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(it => {
+    return `
+    <tr>
+      <td><div class="case-id">${it.case}</div></td>
+      <td>${it.vendor ? `<span class="vendor-pill ${it.vendorClass}">${it.vendor}</span>` : ''}</td>
+      <td>${it.address}</td>
+      <td style="max-width:260px;white-space:pre-wrap;">${it.withdrawn_note}</td>
+      <td>${fmtDate(it.withdrawn_date)}</td>
+      <td>
+        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="unwithdrawCase('${it.id}')">取消撤案</button>
+      </td>
+    </tr>
+  `;
+  }).join('');
 }
 function addIssueByCaseNumber(){
   const input = document.getElementById('issueSearchInput');
@@ -1420,6 +1584,7 @@ async function loadAppData(){
     renderDoneTable();
     renderMeterTable();
     renderIssueTable();
+    renderWithdrawnTable();
     renderArchiveTable();
     renderEarlyNoteList();
     renderParkedNoteList();
@@ -1469,6 +1634,7 @@ async function loadPendingCases(){
     }));
     renderPendingTable();
     renderIssueTable();
+    renderWithdrawnTable();
     if(data.updated_at) lastKnownUpdatedAt = data.updated_at;
     const label = document.getElementById('pendingUpdatedAt');
     if(label){
@@ -1502,6 +1668,7 @@ async function loadEntryCases(){
     }));
     renderEntryTable();
     renderIssueTable();
+    renderWithdrawnTable();
   }catch(err){
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">連不上後端服務,請確認 Render 服務是否正常運作</td></tr>';
     console.error(err);
@@ -1521,6 +1688,7 @@ async function loadCompletedCases(){
     renderDoneTable();
     renderMeterTable();
     renderIssueTable();
+    renderWithdrawnTable();
   }catch(err){
     console.error(err);
   }
@@ -1751,7 +1919,7 @@ function renderMeterTable(){
 function renderIssueTable(){
   const tbody = document.getElementById('issueRows');
   if(!tbody) return;
-  const ids = Object.keys(APP_CASE_STATUS).filter(id => APP_CASE_STATUS[id].issue_note);
+  const ids = Object.keys(APP_CASE_STATUS).filter(id => APP_CASE_STATUS[id].issue_note && !APP_CASE_STATUS[id].withdrawn_note);
   if(ids.length === 0){
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有異常案件</td></tr>';
     return;
@@ -1789,7 +1957,10 @@ function renderIssueTable(){
       <td>${fmtDate(it.issue_date)}</td>
       <td>
         <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openIssueModal('${it.id}')">編輯</button>
-        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="resolveIssue('${it.id}')">已排除異常</button>
+        <div style="margin-top:6px;">
+          <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="resolveIssue('${it.id}')">已排除異常</button>
+          <button class="btn btn-danger" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openWithdrawModal('${it.id}')">撤案</button>
+        </div>
       </td>
     </tr>
   `;
@@ -1869,6 +2040,7 @@ const TABLE_STATE = {
   meter:   { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
   issue:   { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
   archive: { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
+  withdrawn: { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
 };
 const TABLE_SORT_FIELDS = {
   entry: ['case','module'],
@@ -1876,6 +2048,7 @@ const TABLE_SORT_FIELDS = {
   meter: ['case','module'],
   issue: ['case'],
   archive: ['case','module'],
+  withdrawn: ['case'],
 };
 const TABLE_RENDER_FN = {
   entry: () => renderEntryTable(),
@@ -1883,6 +2056,7 @@ const TABLE_RENDER_FN = {
   meter: () => renderMeterTable(),
   issue: () => renderIssueTable(),
   archive: () => renderArchiveTable(),
+  withdrawn: () => renderWithdrawnTable(),
 };
 function sortTableBy(tab, key){
   const st = TABLE_STATE[tab];
@@ -1938,7 +2112,7 @@ function applyTableFilterSort(tab, rows){
   return out;
 }
 document.addEventListener('click', function(){
-  ['entry','done','meter','issue','archive'].forEach(tab => {
+  ['entry','done','meter','issue','archive','withdrawn'].forEach(tab => {
     const dd = document.getElementById(tab + 'VendorDropdown');
     if(dd) dd.classList.remove('show');
   });
