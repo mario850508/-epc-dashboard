@@ -523,18 +523,9 @@
       <!-- 近一週安排 -->
       <div class="subview active" id="tab-epc-week">
         <div class="panel">
-          <div class="panel-title">近一週安排（08/20 － 08/26）</div>
-          <div class="day-detail-row">
-            <div class="dd-left"><span class="pm-pill" style="background:var(--surface-2);">08/22（六）</span><span class="dot dot-ship"></span><span class="case-id">三06</span> 模組/變流器出貨</div>
-            <span class="vendor-pill vendor-sc">三創</span>
-          </div>
-          <div class="day-detail-row">
-            <div class="dd-left"><span class="pm-pill" style="background:var(--surface-2);">08/22（六）</span><span class="dot dot-enter"></span><span class="case-id">曙03</span> 案場進場</div>
-            <span class="vendor-pill vendor-sg">曙光</span>
-          </div>
-          <div class="day-detail-row">
-            <div class="dd-left"><span class="pm-pill" style="background:var(--surface-2);">08/25（二）</span><span class="dot dot-ship"></span><span class="case-id">曙03</span> 模組/變流器出貨</div>
-            <span class="vendor-pill vendor-sg">曙光</span>
+          <div class="panel-title" id="weekRangeTitle">近一週安排</div>
+          <div id="weekRows">
+            <div class="login-note">載入中…</div>
           </div>
           <div class="login-note">
             🔗 這裡只顯示未來 7 天內的所有排程項目,跨廠商彙整,方便快速掌握近期要出貨/進場的案件,不用逐日翻日曆。
@@ -990,6 +981,29 @@
         </div>
       </div>
 
+      <!-- 屋主資訊 modal（只記錄在本機，不寫回 Airtable） -->
+      <div class="modal-overlay" id="ownerInfoModalOverlay" onclick="if(event.target===this) closeOwnerInfoModal()">
+        <div class="modal-box" style="max-width:440px;">
+          <div class="modal-header">
+            <div class="modal-title">🏠 屋主資訊</div>
+            <button class="modal-close" onclick="closeOwnerInfoModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="ownerInfoCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="ownerInfoCaseAddr">—</div>
+            </div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">聯絡人</label>
+            <input type="text" class="quick-mark-input" id="ownerInfoName" style="margin-bottom:12px;" placeholder="例如：王先生">
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">聯絡電話</label>
+            <input type="text" class="quick-mark-input" id="ownerInfoPhone" style="margin-bottom:12px;" placeholder="例如：0912-345-678">
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">備註（只記錄在本機瀏覽器,不會寫回 Airtable）</label>
+            <textarea class="quick-mark-input" id="ownerInfoNote" rows="3" style="margin-bottom:18px;width:100%;font-family:inherit;resize:vertical;" placeholder="例如：平日不在家,建議約假日"></textarea>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmOwnerInfo()">儲存</button>
+          </div>
+        </div>
+      </div>
+
 
       <!-- 註記清單 modal (triggered from 待安排出貨案件 button) -->
       <div class="modal-overlay" id="notesModalOverlay" onclick="if(event.target===this) closeNotesModal()">
@@ -1425,6 +1439,49 @@ async function unwithdrawCase(recordId){
     console.error(err);
   }
 }
+
+let ownerInfoTargetRecordId = null;
+let ownerInfoTargetCaseNo = '';
+function openOwnerInfoModal(recordId){
+  ownerInfoTargetRecordId = recordId;
+  const found = findCaseAnywhere(recordId);
+  ownerInfoTargetCaseNo = (found && found.case) || '';
+  const cs = getCaseStatus(recordId);
+  document.getElementById('ownerInfoCaseTitle').textContent = ownerInfoTargetCaseNo || '—';
+  document.getElementById('ownerInfoCaseAddr').textContent = found ? (found.address + '　' + found.vendor) : '';
+  document.getElementById('ownerInfoName').value = (cs && cs.owner_contact_name) || '';
+  document.getElementById('ownerInfoPhone').value = (cs && cs.owner_contact_phone) || '';
+  document.getElementById('ownerInfoNote').value = (cs && cs.owner_contact_note) || '';
+  document.getElementById('ownerInfoModalOverlay').classList.add('show');
+}
+function closeOwnerInfoModal(){
+  document.getElementById('ownerInfoModalOverlay').classList.remove('show');
+}
+async function confirmOwnerInfo(){
+  const name = document.getElementById('ownerInfoName').value.trim();
+  const phone = document.getElementById('ownerInfoPhone').value.trim();
+  const note = document.getElementById('ownerInfoNote').value.trim();
+  const btn = document.querySelector('#ownerInfoModalOverlay .btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = '儲存中…';
+  btn.disabled = true;
+  try{
+    await saveCaseStatusField(ownerInfoTargetRecordId, ownerInfoTargetCaseNo, {
+      owner_contact_name: name || null,
+      owner_contact_phone: phone || null,
+      owner_contact_note: note || null,
+    });
+    closeOwnerInfoModal();
+    renderEntryTable();
+    showToast('已更新屋主資訊');
+  }catch(err){
+    showToast('儲存失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
 function renderWithdrawnTable(){
   const tbody = document.getElementById('withdrawnRows');
   const countTag = document.getElementById('withdrawnCountTag');
@@ -1518,6 +1575,7 @@ async function loadAppData(){
     renderEarlyNoteList();
     renderParkedNoteList();
     renderCalendar();
+    renderWeekList();
   }catch(err){
     console.error(err);
   }
@@ -1600,6 +1658,7 @@ async function loadEntryCases(){
     renderIssueTable();
     renderWithdrawnTable();
     renderCalendar();
+    renderWeekList();
   }catch(err){
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">連不上後端服務,請確認 Render 服務是否正常運作</td></tr>';
     console.error(err);
@@ -1621,6 +1680,7 @@ async function loadCompletedCases(){
     renderIssueTable();
     renderWithdrawnTable();
     renderCalendar();
+    renderWeekList();
   }catch(err){
     console.error(err);
   }
@@ -1745,12 +1805,11 @@ function renderEntryTable(){
       statusPill = `<span class="pm-pill">待進場</span>`;
     } else {
       const cs = getCaseStatus(r.record_id);
-      const hasContact = cs && (cs.owner_contact_name || cs.owner_contact_phone);
-      const contactText = hasContact
-        ? [cs.owner_contact_name, cs.owner_contact_phone].filter(Boolean).join('　')
-        : '尚未填寫';
+      const hasContact = cs && (cs.owner_contact_name || cs.owner_contact_phone || cs.owner_contact_note);
       statusPill = `<span class="pm-pill" style="background:var(--success-soft);color:var(--success);">已安排</span>
-        <div style="margin-top:5px;font-size:11px;color:var(--text-muted);">屋主資訊：${contactText}</div>`;
+        <div style="margin-top:5px;">
+          <span class="pm-pill" style="cursor:pointer;background:var(--surface-2);color:var(--text);" onclick="openOwnerInfoModal('${r.record_id}')">🏠 屋主資訊${hasContact ? '' : '（尚未填寫）'}</span>
+        </div>`;
     }
     const actions = r._status === 'waiting'
       ? `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this,'reschedule')">重新安排出貨日期</button>
@@ -2384,6 +2443,7 @@ function showEpcTab(tab){
   document.querySelectorAll('.nav-sub-item').forEach(n=>n.classList.remove('active'));
   document.querySelector('.nav-sub-item[data-sub="'+tab+'"]').classList.add('active');
   if(tab === 'epc-calendar') renderCalendar();
+  if(tab === 'epc-week') renderWeekList();
 }
 function filterVendor(v){
   calVendorFilter = v;
@@ -2535,6 +2595,41 @@ function renderDayDetail(dateStr){
         <div style="display:flex;align-items:center;gap:8px;"><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span> ${CAL_TYPE_LABEL[e.type]}</div>
         ${specLine}
       </div>
+      <span class="vendor-pill ${VENDOR_CLASS[e.vendor] || 'vendor-other'}">${e.vendor||''}</span>
+    </div>
+  `;
+  }).join('');
+}
+function renderWeekList(){
+  const titleEl = document.getElementById('weekRangeTitle');
+  const rowsEl = document.getElementById('weekRows');
+  if(!titleEl || !rowsEl) return;
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const end = new Date(today);
+  end.setDate(end.getDate() + 6);
+  const fmtMD = (d) => (d.getMonth()+1).toString().padStart(2,'0') + '/' + d.getDate().toString().padStart(2,'0');
+  titleEl.textContent = `近一週安排（${fmtMD(today)} － ${fmtMD(end)}）`;
+
+  const startIso = fmtISODate(today.getFullYear(), today.getMonth(), today.getDate());
+  const endIso = fmtISODate(end.getFullYear(), end.getMonth(), end.getDate());
+  const events = collectCalendarEvents()
+    .filter(e => e.date >= startIso && e.date <= endIso)
+    .sort((a,b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : 0));
+
+  if(events.length === 0){
+    rowsEl.innerHTML = '<div class="login-note">未來 7 天內目前沒有排程。</div>';
+    return;
+  }
+  const weekdayNames = ['日','一','二','三','四','五','六'];
+  rowsEl.innerHTML = events.map(e => {
+    const p = e.date.split('-');
+    const d = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]));
+    const dayLabel = p[1] + '/' + p[2] + '（' + weekdayNames[d.getDay()] + '）';
+    return `
+    <div class="day-detail-row">
+      <div class="dd-left"><span class="pm-pill" style="background:var(--surface-2);">${dayLabel}</span><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span> ${CAL_TYPE_LABEL[e.type]}</div>
       <span class="vendor-pill ${VENDOR_CLASS[e.vendor] || 'vendor-other'}">${e.vendor||''}</span>
     </div>
   `;
