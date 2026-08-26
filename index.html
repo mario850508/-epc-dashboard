@@ -620,7 +620,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 案件在「待安排出貨案件」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排完畢」,案件仍會留在這裡,直到你按下「完工」才會移入「已完工」（完工狀態只記錄在本機瀏覽器,不會寫回 Airtable）。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
+            🔗 案件在「待安排出貨案件」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排」,案件仍會留在這裡,直到你按下「完工」才會移入「已完工」（完工狀態只記錄在本機瀏覽器,不會寫回 Airtable）。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
           </div>
         </div>
       </div>
@@ -878,6 +878,15 @@
             </div>
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">進場日期</label>
             <input type="date" class="quick-mark-input" id="entryDate" style="margin-bottom:18px;">
+            <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px;">
+              <label style="font-size:12px;font-weight:700;display:block;margin-bottom:10px;">屋主聯絡資訊（只記錄在本機瀏覽器,不會寫回 Airtable）</label>
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">聯絡人</label>
+              <input type="text" class="quick-mark-input" id="entryContactName" style="margin-bottom:12px;" placeholder="例如：王先生">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">聯絡電話</label>
+              <input type="text" class="quick-mark-input" id="entryContactPhone" style="margin-bottom:12px;" placeholder="例如：0912-345-678">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">備註</label>
+              <textarea class="quick-mark-input" id="entryContactNote" rows="3" style="width:100%;font-family:inherit;resize:vertical;" placeholder="例如：平日不在家,建議約假日"></textarea>
+            </div>
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmEntry()">確認排定，同步到排程日曆</button>
           </div>
         </div>
@@ -1290,7 +1299,7 @@ function deriveStageLabel(recordId){
   if(cs && cs.meter_confirmed) return '歷史紀錄（掛表已完成）';
   if(cs && cs.meter_planned_date) return '掛表安排';
   if(cs && cs.completed_date) return '已完工';
-  if(COMPLETED_CASES.find(c => c.record_id === recordId)) return '案件進場安排（已安排完畢）';
+  if(COMPLETED_CASES.find(c => c.record_id === recordId)) return '案件進場安排（已安排）';
   if(ENTRY_CASES.find(c => c.record_id === recordId)) return '案件進場安排（待進場）';
   if(PENDING_CASES.find(c => c.record_id === recordId)) return '待安排出貨案件';
   return '找不到目前階段（可能已離開排程池）';
@@ -1731,9 +1740,18 @@ function renderEntryTable(){
     if(invDate) chips.push(`<span class="chip chip-ship">變流器 ${fmtDate(invDate)}</span>`);
     if(r._status === 'scheduled' && r.entry_date) chips.push(`<span class="chip chip-enter">進場 ${fmtDate(r.entry_date)}</span>`);
     const scheduleChips = `<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">${chips.join('')}</div>`;
-    const statusPill = r._status === 'waiting'
-      ? `<span class="pm-pill">待進場</span>`
-      : `<span class="pm-pill" style="background:var(--success-soft);color:var(--success);">已安排完畢</span>`;
+    let statusPill;
+    if(r._status === 'waiting'){
+      statusPill = `<span class="pm-pill">待進場</span>`;
+    } else {
+      const cs = getCaseStatus(r.record_id);
+      const hasContact = cs && (cs.owner_contact_name || cs.owner_contact_phone);
+      const contactText = hasContact
+        ? [cs.owner_contact_name, cs.owner_contact_phone].filter(Boolean).join('　')
+        : '尚未填寫';
+      statusPill = `<span class="pm-pill" style="background:var(--success-soft);color:var(--success);">已安排</span>
+        <div style="margin-top:5px;font-size:11px;color:var(--text-muted);">屋主資訊：${contactText}</div>`;
+    }
     const actions = r._status === 'waiting'
       ? `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this,'reschedule')">重新安排出貨日期</button>
          <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openEntryModal(this)">排定進場日期</button>`
@@ -2176,6 +2194,10 @@ function openEntryModal(btn, mode){
   document.getElementById('entryCaseTitle').textContent = row.dataset.case;
   document.getElementById('entryCaseAddr').textContent = row.dataset.addr + '　' + row.dataset.vendor;
   document.getElementById('entryDate').value = mode === 'reschedule' ? (row.dataset.entrydatefull || '') : '';
+  const cs = getCaseStatus(row.dataset.recordId);
+  document.getElementById('entryContactName').value = (cs && cs.owner_contact_name) || '';
+  document.getElementById('entryContactPhone').value = (cs && cs.owner_contact_phone) || '';
+  document.getElementById('entryContactNote').value = (cs && cs.owner_contact_note) || '';
   document.getElementById('entryModalOverlay').classList.add('show');
 }
 function closeEntryModal(){
@@ -2190,6 +2212,11 @@ async function confirmEntry(){
     showToast('這筆案件在 Airtable 找不到「進場屋主預約」里程碑記錄，無法排定。');
     return;
   }
+  const recordId = entryTargetRow.dataset.recordId;
+  const caseNo = entryTargetRow.dataset.case;
+  const contactName = document.getElementById('entryContactName').value.trim();
+  const contactPhone = document.getElementById('entryContactPhone').value.trim();
+  const contactNote = document.getElementById('entryContactNote').value.trim();
   const btn = document.querySelector('#entryModalOverlay .btn-primary');
   const originalText = btn.textContent;
   btn.textContent = '寫入中…';
@@ -2205,9 +2232,16 @@ async function confirmEntry(){
       const err = await res.json().catch(()=>({}));
       throw new Error(err.error || ('HTTP ' + res.status));
     }
+    if(recordId){
+      await saveCaseStatusField(recordId, caseNo, {
+        owner_contact_name: contactName || null,
+        owner_contact_phone: contactPhone || null,
+        owner_contact_note: contactNote || null,
+      });
+    }
     closeEntryModal();
-    showToast('已寫入 Airtable「進場屋主預約」，狀態變更為「已安排完畢」');
-    await Promise.all([loadEntryCases(), loadCompletedCases(), loadAppData()]);  // 這筆案件會從「待進場」變成「已安排完畢」
+    showToast('已寫入 Airtable「進場屋主預約」，狀態變更為「已安排」');
+    await Promise.all([loadEntryCases(), loadCompletedCases(), loadAppData()]);  // 這筆案件會從「待進場」變成「已安排」
   }catch(err){
     showToast('寫入失敗：' + err.message);
     console.error(err);
@@ -2411,12 +2445,23 @@ function collectCalendarEvents(){
       vendor: r.vendor,
       vendorCode: VENDOR_CODE[r.vendor] || 'other',
       address: r.address,
+      module: r.module || '',
+      inverter: r.inverter || '',
     });
   }
+  // 模組出貨與變流器出貨：同一天到貨就合併成一筆「模組&變流器」事件,不同天則各自獨立顯示
+  function addShipEvents(r, recordId){
+    const moduleDate = r.ship_date;
+    const invDate = getInverterDate(recordId || r.record_id);
+    if(moduleDate && invDate && moduleDate === invDate){
+      add(moduleDate, 'ship-both', r, recordId);
+    } else {
+      if(moduleDate) add(moduleDate, 'ship-module', r, recordId);
+      if(invDate) add(invDate, 'ship-inverter', r, recordId);
+    }
+  }
   [...ENTRY_CASES, ...COMPLETED_CASES].forEach(r => {
-    add(r.ship_date, 'ship', r, r.record_id);
-    const invDate = getInverterDate(r.record_id);
-    if(invDate) add(invDate, 'ship', r, r.record_id);
+    addShipEvents(r, r.record_id);
   });
   COMPLETED_CASES.forEach(r => {
     if(r.entry_date) add(r.entry_date, 'enter', r, r.record_id);
@@ -2425,17 +2470,24 @@ function collectCalendarEvents(){
   });
   APP_ARCHIVED.forEach(r => {
     const rid = r.case_record_id;
-    add(r.ship_date, 'ship', r, rid);
-    const invDate = getInverterDate(rid);
-    if(invDate) add(invDate, 'ship', r, rid);
+    addShipEvents(r, rid);
     if(r.entry_date) add(r.entry_date, 'enter', r, rid);
     if(r.meter_date) add(r.meter_date, 'meter', r, rid);
   });
   return Array.from(map.values());
 }
-const CAL_TYPE_LABEL = {ship:'出貨', enter:'進場', meter:'掛表', 'meter-planned':'預計掛表'};
-const CAL_TYPE_DOT = {ship:'dot-ship', enter:'dot-enter', meter:'dot-meter', 'meter-planned':'dot-meter'};
-const CAL_TYPE_CHIP = {ship:'chip-ship', enter:'chip-enter', meter:'chip-meter', 'meter-planned':'chip-meter'};
+const CAL_TYPE_LABEL = {
+  'ship-module': '模組出貨', 'ship-inverter': '變流器出貨', 'ship-both': '模組&變流器出貨',
+  enter: '進場', meter: '掛表', 'meter-planned': '預計掛表',
+};
+const CAL_TYPE_DOT = {
+  'ship-module': 'dot-ship', 'ship-inverter': 'dot-ship', 'ship-both': 'dot-ship',
+  enter: 'dot-enter', meter: 'dot-meter', 'meter-planned': 'dot-meter',
+};
+const CAL_TYPE_CHIP = {
+  'ship-module': 'chip-ship', 'ship-inverter': 'chip-ship', 'ship-both': 'chip-ship',
+  enter: 'chip-enter', meter: 'chip-meter', 'meter-planned': 'chip-meter',
+};
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
 let calVendorFilter = 'all';
@@ -2465,12 +2517,28 @@ function renderDayDetail(dateStr){
     rows.innerHTML = '<div class="login-note">這天目前沒有排程。</div>';
     return;
   }
-  rows.innerHTML = events.map(e => `
-    <div class="day-detail-row">
-      <div class="dd-left"><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span> ${CAL_TYPE_LABEL[e.type]}</div>
+  rows.innerHTML = events.map(e => {
+    let specLine = '';
+    if(e.type === 'ship-module' && e.module){
+      specLine = `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">模組：${e.module}</div>`;
+    } else if(e.type === 'ship-inverter' && e.inverter){
+      specLine = `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">變流器：${e.inverter}</div>`;
+    } else if(e.type === 'ship-both'){
+      const parts = [];
+      if(e.module) parts.push('模組：' + e.module);
+      if(e.inverter) parts.push('變流器：' + e.inverter);
+      if(parts.length) specLine = `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">${parts.join('　')}</div>`;
+    }
+    return `
+    <div class="day-detail-row" style="align-items:flex-start;">
+      <div class="dd-left" style="flex-direction:column;align-items:flex-start;gap:2px;">
+        <div style="display:flex;align-items:center;gap:8px;"><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span> ${CAL_TYPE_LABEL[e.type]}</div>
+        ${specLine}
+      </div>
       <span class="vendor-pill ${VENDOR_CLASS[e.vendor] || 'vendor-other'}">${e.vendor||''}</span>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 function renderCalendar(){
   const grid = document.getElementById('calGrid');
