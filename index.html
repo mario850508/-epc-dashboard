@@ -1498,6 +1498,7 @@ function renderWithdrawnTable(){
     return {
       id,
       case: (found && found.case) || cs.case_no || '（找不到案號）',
+      alias: (found && found.alias) || '',
       vendor: (found && found.vendor) || '',
       vendorClass: (found && (VENDOR_CLASS[found.vendor] || 'vendor-other')) || 'vendor-other',
       address: (found && found.address) || '（找不到即時資料，可能已離開排程池）',
@@ -1516,7 +1517,7 @@ function renderWithdrawnTable(){
   tbody.innerHTML = items.map(it => {
     return `
     <tr>
-      <td><div class="case-id">${it.case}</div></td>
+      <td><div class="case-id">${it.case}</div><div class="case-alias">${it.alias||''}</div></td>
       <td>${it.vendor ? `<span class="vendor-pill ${it.vendorClass}">${it.vendor}</span>` : ''}</td>
       <td>${it.address}</td>
       <td style="max-width:260px;white-space:pre-wrap;">${it.withdrawn_note}</td>
@@ -1818,7 +1819,7 @@ function renderEntryTable(){
          <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openCompleteModal('${r.record_id}')">✓ 完工</button>`;
     return `
     <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}" data-entrydatefull="${r.entry_date||''}">
-      <td><div class="case-id">${r.case}</div></td>
+      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
       <td colspan="2">${r.module ? r.module + (r.inverter ? '　'+r.inverter : '') : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
@@ -1859,7 +1860,7 @@ function renderDoneTable(){
     const shipText = fmtDate(r.ship_date) + (invDate ? `（變流器 ${fmtDate(invDate)}）` : '');
     return `
     <tr>
-      <td><div class="case-id">${r.case}</div></td>
+      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
       <td>${r.module ? r.module + (r.inverter ? '　'+r.inverter : '') : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
@@ -1902,7 +1903,7 @@ function renderMeterTable(){
     const cs = getCaseStatus(r.record_id);
     return `
     <tr>
-      <td><div class="case-id">${r.case}</div></td>
+      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
       <td>${r.module ? r.module + (r.inverter ? '　'+r.inverter : '') : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
@@ -1930,6 +1931,7 @@ function renderIssueTable(){
     return {
       id,
       case: (found && found.case) || cs.case_no || '（找不到案號）',
+      alias: (found && found.alias) || '',
       vendor: (found && found.vendor) || '',
       vendorClass: (found && (VENDOR_CLASS[found.vendor] || 'vendor-other')) || 'vendor-other',
       address: (found && found.address) || '（找不到即時資料，可能已離開排程池）',
@@ -1949,7 +1951,7 @@ function renderIssueTable(){
   tbody.innerHTML = items.map(it => {
     return `
     <tr>
-      <td><div class="case-id">${it.case}</div></td>
+      <td><div class="case-id">${it.case}</div><div class="case-alias">${it.alias||''}</div></td>
       <td>${it.vendor ? `<span class="vendor-pill ${it.vendorClass}">${it.vendor}</span>` : ''}</td>
       <td>${it.address}</td>
       <td><span class="pm-pill">${it.stage}</span></td>
@@ -1989,7 +1991,7 @@ function renderArchiveTable(){
     const shipText = fmtDate(r.ship_date) + (invDate ? `（變流器 ${fmtDate(invDate)}）` : '');
     return `
     <tr>
-      <td><div class="case-id">${r.case}</div></td>
+      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
       <td>${r.module ? r.module + (r.inverter ? '　'+r.inverter : '') : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
@@ -2501,6 +2503,7 @@ function collectCalendarEvents(){
       date, type,
       record_id: recordId || r.record_id,
       case: r.case,
+      alias: r.alias || '',
       label: calShortLabel(r.case, r.vendor),
       vendor: r.vendor,
       vendorCode: VENDOR_CODE[r.vendor] || 'other',
@@ -2592,7 +2595,7 @@ function renderDayDetail(dateStr){
     return `
     <div class="day-detail-row" style="align-items:flex-start;">
       <div class="dd-left" style="flex-direction:column;align-items:flex-start;gap:2px;">
-        <div style="display:flex;align-items:center;gap:8px;"><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span> ${CAL_TYPE_LABEL[e.type]}</div>
+        <div style="display:flex;align-items:center;gap:8px;"><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span>${e.alias ? `<span style="font-size:11px;color:var(--text-muted);">${e.alias}</span>` : ''} ${CAL_TYPE_LABEL[e.type]}</div>
         ${specLine}
       </div>
       <span class="vendor-pill ${VENDOR_CLASS[e.vendor] || 'vendor-other'}">${e.vendor||''}</span>
@@ -2629,7 +2632,7 @@ function renderWeekList(){
     const dayLabel = p[1] + '/' + p[2] + '（' + weekdayNames[d.getDay()] + '）';
     return `
     <div class="day-detail-row">
-      <div class="dd-left"><span class="pm-pill" style="background:var(--surface-2);">${dayLabel}</span><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span> ${CAL_TYPE_LABEL[e.type]}</div>
+      <div class="dd-left"><span class="pm-pill" style="background:var(--surface-2);">${dayLabel}</span><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span>${e.alias ? `<span style="font-size:11px;color:var(--text-muted);">${e.alias}</span>` : ''} ${CAL_TYPE_LABEL[e.type]}</div>
       <span class="vendor-pill ${VENDOR_CLASS[e.vendor] || 'vendor-other'}">${e.vendor||''}</span>
     </div>
   `;
