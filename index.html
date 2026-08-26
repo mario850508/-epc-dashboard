@@ -1539,9 +1539,10 @@ function renderEntryTable(){
     const actions = r._status === 'waiting'
       ? `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this,'reschedule')">重新安排出貨日期</button>
          <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openEntryModal(this)">排定進場日期</button>`
-      : `<button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="openCompleteModal('${r.record_id}')">✓ 完工</button>`;
+      : `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openEntryModal(this,'reschedule')">重新安排進場日期</button>
+         <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openCompleteModal('${r.record_id}')">✓ 完工</button>`;
     return `
-    <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}">
+    <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}" data-entrydatefull="${r.entry_date||''}">
       <td><div class="case-id">${r.case}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
@@ -1846,12 +1847,13 @@ async function confirmSchedule(){
 }
 
 let entryTargetRow = null;
-function openEntryModal(btn){
+function openEntryModal(btn, mode){
+  mode = mode || 'new';
   const row = btn.closest('tr');
   entryTargetRow = row;
   document.getElementById('entryCaseTitle').textContent = row.dataset.case;
   document.getElementById('entryCaseAddr').textContent = row.dataset.addr + '　' + row.dataset.vendor;
-  document.getElementById('entryDate').value = '';
+  document.getElementById('entryDate').value = mode === 'reschedule' ? (row.dataset.entrydatefull || '') : '';
   document.getElementById('entryModalOverlay').classList.add('show');
 }
 function closeEntryModal(){
