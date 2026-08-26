@@ -194,7 +194,7 @@
   .day-detail-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:12.5px;}
   .day-detail-row:last-child{border-bottom:none;}
   .dd-left{display:flex;align-items:center;gap:8px;}
-  .case-id{font-weight:700;font-family:ui-monospace,monospace;font-size:12px;}
+  .case-id{font-weight:700;font-family:ui-monospace,monospace;font-size:12px;white-space:nowrap;}
 
   .phone-wrap{display:flex;flex-direction:column;align-items:center;}
   .phone{width:210px;border-radius:30px;background:#0F1420;padding:11px;box-shadow:0 12px 30px rgba(20,30,60,.18);}
@@ -1822,7 +1822,7 @@ function renderEntryTable(){
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
-      <td colspan="2">${r.module ? r.module + (r.inverter ? '　'+r.inverter : '') : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+      <td colspan="2">${r.module ? `<div>${r.module}</div>${r.inverter ? `<div style="margin-top:2px;">${r.inverter}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
       <td>${scheduleChips}</td>
       <td>${statusPill}</td>
       <td>${actions}</td>
@@ -1863,7 +1863,7 @@ function renderDoneTable(){
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
-      <td>${r.module ? r.module + (r.inverter ? '　'+r.inverter : '') : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+      <td>${r.module ? `<div>${r.module}</div>${r.inverter ? `<div style="margin-top:2px;">${r.inverter}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
       <td>${shipText}</td>
       <td>${fmtDate(r.entry_date)}</td>
       <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openCompleteModal('${r.record_id}')">${fmtDate(cs.completed_date)}　✎</button></td>
@@ -1906,7 +1906,7 @@ function renderMeterTable(){
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
-      <td>${r.module ? r.module + (r.inverter ? '　'+r.inverter : '') : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+      <td>${r.module ? `<div>${r.module}</div>${r.inverter ? `<div style="margin-top:2px;">${r.inverter}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
       <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openPlanMeterModal('${r.record_id}')">${fmtDate(cs.meter_planned_date)}　✎</button></td>
       <td>
         <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="openMeterModal('${r.record_id}')">完成掛表</button>
@@ -1994,7 +1994,7 @@ function renderArchiveTable(){
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
-      <td>${r.module ? r.module + (r.inverter ? '　'+r.inverter : '') : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+      <td>${r.module ? `<div>${r.module}</div>${r.inverter ? `<div style="margin-top:2px;">${r.inverter}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
       <td>${shipText}</td>
       <td>${fmtDate(r.entry_date)}</td>
       <td>${fmtDate(r.meter_date)}</td>
