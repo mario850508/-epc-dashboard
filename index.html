@@ -588,8 +588,27 @@
           <div class="panel-title">
             案件進場安排
           </div>
+          <div class="pending-toolbar">
+            <input type="text" class="quick-mark-input" id="entryFilterInput" placeholder="搜尋案號、地址、模組、逆變器…" oninput="tableSearchInput('entry')" style="max-width:280px;">
+          </div>
           <table>
-            <thead><tr><th>案號</th><th>廠商</th><th>案場地址</th><th colspan="2">模組／逆變器</th><th>時程安排</th><th>狀態</th><th>操作</th></tr></thead>
+            <thead><tr>
+              <th class="sortable-th" onclick="sortTableBy('entry','case')">案號 <span id="entrySortIcon_case">↕</span></th>
+              <th class="filter-th" onclick="toggleTableVendorDropdown('entry',event)">
+                廠商<span id="entryVendorFilterLabel"></span> ▾
+                <div class="vendor-dropdown" id="entryVendorDropdown">
+                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="selectTableVendor('entry',event,'all')">全部廠商</div>
+                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('entry',event,'三創')">三創</div>
+                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('entry',event,'尚展')">尚展</div>
+                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('entry',event,'曙光')">曙光</div>
+                </div>
+              </th>
+              <th>案場地址</th>
+              <th class="sortable-th" colspan="2" onclick="sortTableBy('entry','module')">模組／逆變器 <span id="entrySortIcon_module">↕</span></th>
+              <th>時程安排</th>
+              <th>狀態</th>
+              <th>操作</th>
+            </tr></thead>
             <tbody id="entryRows">
               <tr>
                 <td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
@@ -597,7 +616,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 案件在「待安排出貨案件」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排完畢」,案件仍會留在這裡,直到你按下「完工」才會移入「已完工」（完工狀態只記錄在本機瀏覽器,不會寫回 Airtable）。
+            🔗 案件在「待安排出貨案件」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排完畢」,案件仍會留在這裡,直到你按下「完工」才會移入「已完工」（完工狀態只記錄在本機瀏覽器,不會寫回 Airtable）。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
           </div>
         </div>
       </div>
@@ -608,8 +627,28 @@
           <div class="panel-title">
             已完工
           </div>
+          <div class="pending-toolbar">
+            <input type="text" class="quick-mark-input" id="doneFilterInput" placeholder="搜尋案號、地址、模組、逆變器…" oninput="tableSearchInput('done')" style="max-width:280px;">
+          </div>
           <table>
-            <thead><tr><th>案號</th><th>廠商</th><th>案場地址</th><th>模組／逆變器</th><th>出貨時間</th><th>進場時間</th><th>完工時間</th><th>操作</th></tr></thead>
+            <thead><tr>
+              <th class="sortable-th" onclick="sortTableBy('done','case')">案號 <span id="doneSortIcon_case">↕</span></th>
+              <th class="filter-th" onclick="toggleTableVendorDropdown('done',event)">
+                廠商<span id="doneVendorFilterLabel"></span> ▾
+                <div class="vendor-dropdown" id="doneVendorDropdown">
+                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="selectTableVendor('done',event,'all')">全部廠商</div>
+                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('done',event,'三創')">三創</div>
+                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('done',event,'尚展')">尚展</div>
+                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('done',event,'曙光')">曙光</div>
+                </div>
+              </th>
+              <th>案場地址</th>
+              <th class="sortable-th" onclick="sortTableBy('done','module')">模組／逆變器 <span id="doneSortIcon_module">↕</span></th>
+              <th>出貨時間</th>
+              <th>進場時間</th>
+              <th>完工時間</th>
+              <th>操作</th>
+            </tr></thead>
             <tbody id="doneRows">
               <tr>
                 <td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
@@ -617,7 +656,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。點「完工時間」可以修正日期。案件要到「掛表安排」頁面實際排定掛表日期後,才會移入「歷史紀錄」。
+            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。點「完工時間」可以修正日期。案件要到「掛表安排」頁面實際排定掛表日期後,才會移入「歷史紀錄」。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
           </div>
         </div>
       </div>
@@ -628,8 +667,26 @@
           <div class="panel-title">
             掛表安排
           </div>
+          <div class="pending-toolbar">
+            <input type="text" class="quick-mark-input" id="meterFilterInput" placeholder="搜尋案號、地址、模組、逆變器…" oninput="tableSearchInput('meter')" style="max-width:280px;">
+          </div>
           <table>
-            <thead><tr><th>案號</th><th>廠商</th><th>案場地址</th><th>模組／逆變器</th><th>預計掛表日期</th><th>操作</th></tr></thead>
+            <thead><tr>
+              <th class="sortable-th" onclick="sortTableBy('meter','case')">案號 <span id="meterSortIcon_case">↕</span></th>
+              <th class="filter-th" onclick="toggleTableVendorDropdown('meter',event)">
+                廠商<span id="meterVendorFilterLabel"></span> ▾
+                <div class="vendor-dropdown" id="meterVendorDropdown">
+                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="selectTableVendor('meter',event,'all')">全部廠商</div>
+                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('meter',event,'三創')">三創</div>
+                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('meter',event,'尚展')">尚展</div>
+                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('meter',event,'曙光')">曙光</div>
+                </div>
+              </th>
+              <th>案場地址</th>
+              <th class="sortable-th" onclick="sortTableBy('meter','module')">模組／逆變器 <span id="meterSortIcon_module">↕</span></th>
+              <th>預計掛表日期</th>
+              <th>操作</th>
+            </tr></thead>
             <tbody id="meterRows">
               <tr>
                 <td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
@@ -637,7 +694,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 這裡列出「已完工」且已排定預計掛表日期的案件。點預計日期可以修正；按「完成掛表」會跳出確認,寫入後案件會移入「歷史紀錄」。
+            🔗 這裡列出「已完工」且已排定預計掛表日期的案件。點預計日期可以修正；按「完成掛表」會跳出確認,寫入後案件會移入「歷史紀錄」。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
           </div>
         </div>
       </div>
@@ -652,8 +709,27 @@
             <input type="text" class="quick-mark-input" id="issueSearchInput" placeholder="輸入案號,例如：工程新竹6號" style="flex:1;" onkeydown="if(event.key==='Enter') addIssueByCaseNumber()">
             <button class="btn btn-primary" style="white-space:nowrap;" onclick="addIssueByCaseNumber()">＋ 加入異常案件</button>
           </div>
+          <div class="pending-toolbar">
+            <input type="text" class="quick-mark-input" id="issueFilterInput" placeholder="篩選案號或地址…" oninput="tableSearchInput('issue')" style="max-width:260px;">
+          </div>
           <table>
-            <thead><tr><th>案號</th><th>廠商</th><th>案場地址</th><th>目前階段</th><th>異常狀況</th><th>記錄日期</th><th>操作</th></tr></thead>
+            <thead><tr>
+              <th class="sortable-th" onclick="sortTableBy('issue','case')">案號 <span id="issueSortIcon_case">↕</span></th>
+              <th class="filter-th" onclick="toggleTableVendorDropdown('issue',event)">
+                廠商<span id="issueVendorFilterLabel"></span> ▾
+                <div class="vendor-dropdown" id="issueVendorDropdown">
+                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="selectTableVendor('issue',event,'all')">全部廠商</div>
+                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('issue',event,'三創')">三創</div>
+                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('issue',event,'尚展')">尚展</div>
+                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('issue',event,'曙光')">曙光</div>
+                </div>
+              </th>
+              <th>案場地址</th>
+              <th>目前階段</th>
+              <th>異常狀況</th>
+              <th>記錄日期</th>
+              <th>操作</th>
+            </tr></thead>
             <tbody id="issueRows">
               <tr>
                 <td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
@@ -661,7 +737,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面。
+            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面。點「案號」欄位標題可排序,點「廠商」可篩選特定廠商,下方搜尋框可用案號、地址內容篩選。
           </div>
         </div>
       </div>
@@ -672,8 +748,27 @@
           <div class="panel-title">
             歷史紀錄
           </div>
+          <div class="pending-toolbar">
+            <input type="text" class="quick-mark-input" id="archiveFilterInput" placeholder="搜尋案號、地址、模組、逆變器…" oninput="tableSearchInput('archive')" style="max-width:280px;">
+          </div>
           <table>
-            <thead><tr><th>案號</th><th>廠商</th><th>案場地址</th><th>模組／逆變器</th><th>出貨時間</th><th>進場時間</th><th>掛表時間</th></tr></thead>
+            <thead><tr>
+              <th class="sortable-th" onclick="sortTableBy('archive','case')">案號 <span id="archiveSortIcon_case">↕</span></th>
+              <th class="filter-th" onclick="toggleTableVendorDropdown('archive',event)">
+                廠商<span id="archiveVendorFilterLabel"></span> ▾
+                <div class="vendor-dropdown" id="archiveVendorDropdown">
+                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="selectTableVendor('archive',event,'all')">全部廠商</div>
+                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('archive',event,'三創')">三創</div>
+                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('archive',event,'尚展')">尚展</div>
+                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('archive',event,'曙光')">曙光</div>
+                </div>
+              </th>
+              <th>案場地址</th>
+              <th class="sortable-th" onclick="sortTableBy('archive','module')">模組／逆變器 <span id="archiveSortIcon_module">↕</span></th>
+              <th>出貨時間</th>
+              <th>進場時間</th>
+              <th>掛表時間</th>
+            </tr></thead>
             <tbody id="archiveRows">
               <tr>
                 <td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
@@ -681,7 +776,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。案件在「掛表安排」實際排定掛表日期並成功寫入 Airtable 後,會移到這裡。
+            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。案件在「掛表安排」實際排定掛表日期並成功寫入 Airtable 後,會移到這裡。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
           </div>
         </div>
       </div>
@@ -1252,6 +1347,7 @@ async function confirmIssue(){
     await saveCaseStatusField(recordId, caseNo, {issue_note: note, issue_date: todayStr()});
     closeIssueModal();
     renderPendingTable();
+    renderEntryTable();
     renderDoneTable();
     renderMeterTable();
     renderIssueTable();
@@ -1272,6 +1368,7 @@ async function resolveIssue(recordId){
   try{
     await saveCaseStatusField(recordId, caseNo, {issue_note: null, issue_date: null});
     renderPendingTable();
+    renderEntryTable();
     renderDoneTable();
     renderMeterTable();
     renderIssueTable();
@@ -1517,14 +1614,24 @@ function renderPendingTable(){
 
 function renderEntryTable(){
   const tbody = document.getElementById('entryRows');
-  const waitingRows = ENTRY_CASES.map(r => ({...r, _status: 'waiting'}));
+  const waitingRows = ENTRY_CASES
+    .filter(r => !(getCaseStatus(r.record_id) && getCaseStatus(r.record_id).issue_note))
+    .map(r => ({...r, _status: 'waiting'}));
   const doneRows = COMPLETED_CASES
-    .filter(r => !(getCaseStatus(r.record_id) && getCaseStatus(r.record_id).completed_date))
+    .filter(r => {
+      const cs = getCaseStatus(r.record_id);
+      return !(cs && cs.completed_date) && !(cs && cs.issue_note);
+    })
     .map(r => ({...r, _status: 'scheduled'}));
-  const rows = [...waitingRows, ...doneRows];
+  const allRows = [...waitingRows, ...doneRows];
+  const rows = applyTableFilterSort('entry', allRows);
 
-  if(rows.length === 0){
+  if(allRows.length === 0){
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有案件——在「待安排出貨案件」排定出貨日期後,案件會自動出現在這裡</td></tr>';
+    return;
+  }
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(r => {
@@ -1559,18 +1666,25 @@ function renderEntryTable(){
 function renderDoneTable(){
   const tbody = document.getElementById('doneRows');
   if(!tbody) return;
-  const rows = COMPLETED_CASES.filter(r => {
+  const baseRows = COMPLETED_CASES.filter(r => {
     const cs = getCaseStatus(r.record_id);
     return cs && cs.completed_date && !cs.meter_planned_date && !cs.issue_note;
   });
-  if(rows.length === 0){
+  if(baseRows.length === 0){
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有已完工待安排掛表的案件——在「案件進場安排」按下「完工」後,案件會出現在這裡</td></tr>';
     return;
   }
-  rows.sort((a,b) => {
-    const ca = getCaseStatus(a.record_id), cb = getCaseStatus(b.record_id);
-    return (cb.completed_date||'').localeCompare(ca.completed_date||'');
-  });
+  let rows = applyTableFilterSort('done', baseRows);
+  if(!TABLE_STATE.done.sortKey){
+    rows.sort((a,b) => {
+      const ca = getCaseStatus(a.record_id), cb = getCaseStatus(b.record_id);
+      return (cb.completed_date||'').localeCompare(ca.completed_date||'');
+    });
+  }
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
+    return;
+  }
   tbody.innerHTML = rows.map(r => {
     const cs = getCaseStatus(r.record_id);
     const invDate = getInverterDate(r.record_id);
@@ -1597,18 +1711,25 @@ function renderDoneTable(){
 function renderMeterTable(){
   const tbody = document.getElementById('meterRows');
   if(!tbody) return;
-  const rows = COMPLETED_CASES.filter(r => {
+  const baseRows = COMPLETED_CASES.filter(r => {
     const cs = getCaseStatus(r.record_id);
     return cs && cs.meter_planned_date && !cs.meter_confirmed && !cs.issue_note;
   });
-  if(rows.length === 0){
+  if(baseRows.length === 0){
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有等待完成掛表的案件——在「已完工」頁面按「安排掛表日期」後,案件會出現在這裡</td></tr>';
     return;
   }
-  rows.sort((a,b) => {
-    const ca = getCaseStatus(a.record_id), cb = getCaseStatus(b.record_id);
-    return (ca.meter_planned_date||'').localeCompare(cb.meter_planned_date||'');
-  });
+  let rows = applyTableFilterSort('meter', baseRows);
+  if(!TABLE_STATE.meter.sortKey){
+    rows.sort((a,b) => {
+      const ca = getCaseStatus(a.record_id), cb = getCaseStatus(b.record_id);
+      return (ca.meter_planned_date||'').localeCompare(cb.meter_planned_date||'');
+    });
+  }
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
+    return;
+  }
   tbody.innerHTML = rows.map(r => {
     const cs = getCaseStatus(r.record_id);
     return `
@@ -1635,25 +1756,40 @@ function renderIssueTable(){
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有異常案件</td></tr>';
     return;
   }
-  ids.sort((a,b) => (APP_CASE_STATUS[b].issue_date||'').localeCompare(APP_CASE_STATUS[a].issue_date||''));
-  tbody.innerHTML = ids.map(id => {
+  const baseItems = ids.map(id => {
     const cs = APP_CASE_STATUS[id];
     const found = findCaseAnywhere(id);
-    const caseNo = (found && found.case) || cs.case_no || '（找不到案號）';
-    const vendor = (found && found.vendor) || '';
-    const vendorClass = (found && (VENDOR_CLASS[found.vendor] || 'vendor-other')) || 'vendor-other';
-    const addr = (found && found.address) || '（找不到即時資料，可能已離開排程池）';
+    return {
+      id,
+      case: (found && found.case) || cs.case_no || '（找不到案號）',
+      vendor: (found && found.vendor) || '',
+      vendorClass: (found && (VENDOR_CLASS[found.vendor] || 'vendor-other')) || 'vendor-other',
+      address: (found && found.address) || '（找不到即時資料，可能已離開排程池）',
+      stage: deriveStageLabel(id),
+      issue_note: cs.issue_note,
+      issue_date: cs.issue_date,
+    };
+  });
+  let items = applyTableFilterSort('issue', baseItems);
+  if(!TABLE_STATE.issue.sortKey){
+    items.sort((a,b) => (b.issue_date||'').localeCompare(a.issue_date||''));
+  }
+  if(items.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(it => {
     return `
     <tr>
-      <td><div class="case-id">${caseNo}</div></td>
-      <td>${vendor ? `<span class="vendor-pill ${vendorClass}">${vendor}</span>` : ''}</td>
-      <td>${addr}</td>
-      <td><span class="pm-pill">${deriveStageLabel(id)}</span></td>
-      <td style="max-width:260px;white-space:pre-wrap;">${cs.issue_note}</td>
-      <td>${fmtDate(cs.issue_date)}</td>
+      <td><div class="case-id">${it.case}</div></td>
+      <td>${it.vendor ? `<span class="vendor-pill ${it.vendorClass}">${it.vendor}</span>` : ''}</td>
+      <td>${it.address}</td>
+      <td><span class="pm-pill">${it.stage}</span></td>
+      <td style="max-width:260px;white-space:pre-wrap;">${it.issue_note}</td>
+      <td>${fmtDate(it.issue_date)}</td>
       <td>
-        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openIssueModal('${id}')">編輯</button>
-        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="resolveIssue('${id}')">已排除異常</button>
+        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openIssueModal('${it.id}')">編輯</button>
+        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="resolveIssue('${it.id}')">已排除異常</button>
       </td>
     </tr>
   `;
@@ -1664,12 +1800,19 @@ function renderIssueTable(){
 function renderArchiveTable(){
   const tbody = document.getElementById('archiveRows');
   if(!tbody) return;
-  const rows = APP_ARCHIVED;
-  if(rows.length === 0){
+  const baseRows = APP_ARCHIVED;
+  if(baseRows.length === 0){
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有已封存的案件——在「掛表安排」排定掛表日期後,案件會出現在這裡</td></tr>';
     return;
   }
-  const sorted = [...rows].sort((a,b) => (b.meter_date||'').localeCompare(a.meter_date||''));
+  let sorted = applyTableFilterSort('archive', baseRows);
+  if(!TABLE_STATE.archive.sortKey){
+    sorted.sort((a,b) => (b.meter_date||'').localeCompare(a.meter_date||''));
+  }
+  if(sorted.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
+    return;
+  }
   tbody.innerHTML = sorted.map(r => {
     const invDate = getInverterDate(r.case_record_id);
     const shipText = fmtDate(r.ship_date) + (invDate ? `（變流器 ${fmtDate(invDate)}）` : '');
@@ -1717,6 +1860,88 @@ function selectPendingVendor(e, v){
 document.addEventListener('click', function(){
   const dd = document.getElementById('vendorDropdown');
   if(dd) dd.classList.remove('show');
+});
+
+// ---- 通用表格篩選／排序（案件進場安排／已完工／掛表安排／異常案件／歷史紀錄共用）----
+const TABLE_STATE = {
+  entry:   { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
+  done:    { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
+  meter:   { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
+  issue:   { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
+  archive: { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
+};
+const TABLE_SORT_FIELDS = {
+  entry: ['case','module'],
+  done: ['case','module'],
+  meter: ['case','module'],
+  issue: ['case'],
+  archive: ['case','module'],
+};
+const TABLE_RENDER_FN = {
+  entry: () => renderEntryTable(),
+  done: () => renderDoneTable(),
+  meter: () => renderMeterTable(),
+  issue: () => renderIssueTable(),
+  archive: () => renderArchiveTable(),
+};
+function sortTableBy(tab, key){
+  const st = TABLE_STATE[tab];
+  if(st.sortKey === key){ st.sortAsc = !st.sortAsc; } else { st.sortKey = key; st.sortAsc = true; }
+  (TABLE_SORT_FIELDS[tab] || []).forEach(k => {
+    const icon = document.getElementById(tab + 'SortIcon_' + k);
+    if(!icon) return;
+    icon.textContent = (k === st.sortKey) ? (st.sortAsc ? '↑' : '↓') : '↕';
+  });
+  TABLE_RENDER_FN[tab]();
+}
+function toggleTableVendorDropdown(tab, e){
+  e.stopPropagation();
+  const dd = document.getElementById(tab + 'VendorDropdown');
+  if(dd) dd.classList.toggle('show');
+}
+function selectTableVendor(tab, e, v){
+  e.stopPropagation();
+  TABLE_STATE[tab].vendor = v;
+  const dd = document.getElementById(tab + 'VendorDropdown');
+  if(dd){
+    dd.querySelectorAll('.vendor-dropdown-item').forEach(i => i.classList.remove('active'));
+    const item = dd.querySelector(`.vendor-dropdown-item[data-vendor="${v}"]`);
+    if(item) item.classList.add('active');
+    dd.classList.remove('show');
+  }
+  const label = document.getElementById(tab + 'VendorFilterLabel');
+  if(label) label.textContent = v === 'all' ? '' : '（' + v + '）';
+  TABLE_RENDER_FN[tab]();
+}
+function tableSearchInput(tab){
+  const input = document.getElementById(tab + 'FilterInput');
+  TABLE_STATE[tab].q = input ? input.value.trim() : '';
+  TABLE_RENDER_FN[tab]();
+}
+function applyTableFilterSort(tab, rows){
+  const st = TABLE_STATE[tab];
+  let out = rows;
+  if(st.vendor !== 'all') out = out.filter(r => r.vendor === st.vendor);
+  if(st.q){
+    const q = st.q;
+    out = out.filter(r => (r.case||'').includes(q) || (r.address||'').includes(q)
+                        || (r.module||'').includes(q) || (r.inverter||'').includes(q));
+  }
+  if(st.sortKey){
+    out = [...out].sort((a,b) => {
+      const av = '' + (a[st.sortKey] || '');
+      const bv = '' + (b[st.sortKey] || '');
+      const cmp = av.localeCompare(bv, 'zh-Hant');
+      return st.sortAsc ? cmp : -cmp;
+    });
+  }
+  return out;
+}
+document.addEventListener('click', function(){
+  ['entry','done','meter','issue','archive'].forEach(tab => {
+    const dd = document.getElementById(tab + 'VendorDropdown');
+    if(dd) dd.classList.remove('show');
+  });
 });
 document.addEventListener('DOMContentLoaded', function(){
   loadPendingCases();
