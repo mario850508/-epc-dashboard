@@ -170,8 +170,10 @@
   }
   .cal-cell{
     min-height:96px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);
-    padding:6px;background:var(--surface);display:flex;flex-direction:column;gap:3px;
+    padding:6px;background:var(--surface);display:flex;flex-direction:column;gap:3px;cursor:pointer;
   }
+  .cal-cell:hover{background:var(--surface-2);}
+  .cal-cell.cal-cell-selected{background:var(--primary-soft);box-shadow:inset 0 0 0 2px var(--primary);}
   .cal-cell:nth-child(7n){border-right:none;}
   .cal-cell.muted{background:var(--surface-2);}
   .cal-date{font-size:11px;color:var(--text-muted);margin-bottom:2px;}
@@ -1046,80 +1048,31 @@
         </div>
         <div class="cal-header">
           <div class="cal-nav">
-            <button class="icon-btn">‹</button>
-            <div class="cal-month">2026年8月</div>
-            <button class="icon-btn">›</button>
+            <button class="icon-btn" onclick="changeCalMonth(-1)">‹</button>
+            <div class="cal-month" id="calMonthLabel">2026年8月</div>
+            <button class="icon-btn" onclick="changeCalMonth(1)">›</button>
           </div>
           <div class="legend">
             <div class="legend-item"><span class="dot dot-ship"></span>模組/變流器出貨</div>
-            <div class="legend-item"><span class="dot dot-rebar"></span>植筋</div>
             <div class="legend-item"><span class="dot dot-enter"></span>進場</div>
             <div class="legend-item"><span class="dot dot-meter"></span>掛表</div>
           </div>
         </div>
 
-        <div class="cal-grid">
+        <div class="cal-grid" id="calGrid">
           <div class="cal-dow">一</div><div class="cal-dow">二</div><div class="cal-dow">三</div>
           <div class="cal-dow">四</div><div class="cal-dow">五</div><div class="cal-dow">六</div><div class="cal-dow">日</div>
-
-          <div class="cal-cell muted"><div class="cal-date">27</div></div>
-          <div class="cal-cell muted"><div class="cal-date">28</div></div>
-          <div class="cal-cell muted"><div class="cal-date">29</div></div>
-          <div class="cal-cell muted"><div class="cal-date">30</div></div>
-          <div class="cal-cell muted"><div class="cal-date">31</div></div>
-          <div class="cal-cell"><div class="cal-date">1</div></div>
-          <div class="cal-cell"><div class="cal-date">2</div></div>
-
-          <div class="cal-cell"><div class="cal-date">3</div></div>
-          <div class="cal-cell"><div class="cal-date">4</div><div class="chip chip-rebar" data-vendor="sg">曙03 植筋</div></div>
-          <div class="cal-cell"><div class="cal-date">5</div></div>
-          <div class="cal-cell"><div class="cal-date">6</div></div>
-          <div class="cal-cell"><div class="cal-date">7</div><div class="chip chip-enter" data-vendor="sz">尚22 進場</div></div>
-          <div class="cal-cell"><div class="cal-date">8</div></div>
-          <div class="cal-cell"><div class="cal-date">9</div></div>
-
-          <div class="cal-cell"><div class="cal-date">10</div></div>
-          <div class="cal-cell"><div class="cal-date">11</div></div>
-          <div class="cal-cell"><div class="cal-date">12</div><div class="chip chip-ship" data-vendor="sc">三06 出貨</div></div>
-          <div class="cal-cell"><div class="cal-date">13</div></div>
-          <div class="cal-cell"><div class="cal-date">14</div></div>
-          <div class="cal-cell"><div class="cal-date">15</div><div class="chip chip-meter" data-vendor="sz">尚22 掛表</div></div>
-          <div class="cal-cell"><div class="cal-date">16</div></div>
-
-          <div class="cal-cell"><div class="cal-date">17</div></div>
-          <div class="cal-cell"><div class="cal-date">18</div></div>
-          <div class="cal-cell"><div class="cal-date">19</div><div class="chip chip-rebar" data-vendor="sc">三14 植筋</div></div>
-          <div class="cal-cell"><div class="cal-date">20</div><div class="cal-date today">20</div></div>
-          <div class="cal-cell"><div class="cal-date">21</div></div>
-          <div class="cal-cell"><div class="cal-date">22</div>
-            <div class="chip chip-ship" data-vendor="sc">三06 出貨</div>
-            <div class="chip chip-enter" data-vendor="sg">曙03 進場</div>
-          </div>
-          <div class="cal-cell"><div class="cal-date">23</div></div>
-
-          <div class="cal-cell"><div class="cal-date">24</div></div>
-          <div class="cal-cell"><div class="cal-date">25</div><div class="chip chip-ship" data-vendor="sg">曙03 出貨</div></div>
-          <div class="cal-cell"><div class="cal-date">26</div></div>
-          <div class="cal-cell"><div class="cal-date">27</div><div class="chip chip-enter" data-vendor="sc">三14 進場</div></div>
-          <div class="cal-cell"><div class="cal-date">28</div></div>
-          <div class="cal-cell"><div class="cal-date">29</div></div>
-          <div class="cal-cell"><div class="cal-date">30</div><div class="chip chip-meter" data-vendor="sc">三06 掛表</div></div>
         </div>
       </div>
 
       <div class="epc-bottom">
         <div class="panel">
-          <div class="panel-title">08/22（六）當日排程</div>
-          <div class="day-detail-row">
-            <div class="dd-left"><span class="dot dot-ship"></span><span class="case-id">三06</span> 模組/變流器出貨</div>
-            <span class="vendor-pill vendor-sc">三創</span>
-          </div>
-          <div class="day-detail-row">
-            <div class="dd-left"><span class="dot dot-enter"></span><span class="case-id">曙03</span> 案場進場</div>
-            <span class="vendor-pill vendor-sg">曙光</span>
+          <div class="panel-title" id="dayDetailTitle">選擇日期查看當日排程</div>
+          <div id="dayDetailRows">
+            <div class="login-note">點選上方日曆中的任一天,就會在這裡列出當天所有的出貨/進場/掛表排程。</div>
           </div>
           <div class="login-note">
-            🔗 案件基本資料於新增排程時從 Google Sheet 查詢帶入；四種日期各自獨立儲存,儲存後以案號比對回填 Airtable 對應欄位。
+            🔗 這裡的日期直接讀取「案件進場安排」「已完工」「掛表安排」「歷史紀錄」裡的即時資料,不需要另外輸入;掛表日期若尚未實際完成掛表,會顯示為「預計」。
           </div>
         </div>
 
@@ -1588,6 +1541,7 @@ async function loadAppData(){
     renderArchiveTable();
     renderEarlyNoteList();
     renderParkedNoteList();
+    renderCalendar();
   }catch(err){
     console.error(err);
   }
@@ -1669,6 +1623,7 @@ async function loadEntryCases(){
     renderEntryTable();
     renderIssueTable();
     renderWithdrawnTable();
+    renderCalendar();
   }catch(err){
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">連不上後端服務,請確認 Render 服務是否正常運作</td></tr>';
     console.error(err);
@@ -1689,6 +1644,7 @@ async function loadCompletedCases(){
     renderMeterTable();
     renderIssueTable();
     renderWithdrawnTable();
+    renderCalendar();
   }catch(err){
     console.error(err);
   }
@@ -2426,8 +2382,10 @@ function showEpcTab(tab){
   document.querySelector('#view-epc .tab[data-tab="'+tab+'"]').classList.add('active');
   document.querySelectorAll('.nav-sub-item').forEach(n=>n.classList.remove('active'));
   document.querySelector('.nav-sub-item[data-sub="'+tab+'"]').classList.add('active');
+  if(tab === 'epc-calendar') renderCalendar();
 }
 function filterVendor(v){
+  calVendorFilter = v;
   document.querySelectorAll('.vendor-chip').forEach(c=>c.classList.remove('active'));
   document.querySelector('.vendor-chip[data-vendor="'+v+'"]').classList.add('active');
   document.querySelectorAll('.cal-grid .chip').forEach(chip=>{
@@ -2438,6 +2396,164 @@ function filterVendor(v){
       chip.style.display='none';
     }
   });
+}
+function changeCalMonth(delta){
+  calMonth += delta;
+  if(calMonth < 0){ calMonth = 11; calYear -= 1; }
+  if(calMonth > 11){ calMonth = 0; calYear += 1; }
+  renderCalendar();
+}
+function fmtISODate(y, m, d){
+  // m 為 0-based 月份
+  return y + '-' + String(m+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+}
+const VENDOR_CODE = {'三創':'sc','尚展':'sz','曙光':'sg'};
+function calShortLabel(caseStr, vendor){
+  const digits = (caseStr||'').match(/\d+/);
+  const prefix = vendor ? vendor[0] : '';
+  return prefix + (digits ? digits[0] : (caseStr||''));
+}
+function collectCalendarEvents(){
+  const map = new Map();
+  function add(date, type, r, recordId){
+    if(!date) return;
+    const key = date + '|' + type + '|' + (recordId || r.case);
+    if(map.has(key)) return;
+    map.set(key, {
+      date, type,
+      record_id: recordId || r.record_id,
+      case: r.case,
+      label: calShortLabel(r.case, r.vendor),
+      vendor: r.vendor,
+      vendorCode: VENDOR_CODE[r.vendor] || 'other',
+      address: r.address,
+    });
+  }
+  [...ENTRY_CASES, ...COMPLETED_CASES].forEach(r => {
+    add(r.ship_date, 'ship', r, r.record_id);
+    const invDate = getInverterDate(r.record_id);
+    if(invDate) add(invDate, 'ship', r, r.record_id);
+  });
+  COMPLETED_CASES.forEach(r => {
+    if(r.entry_date) add(r.entry_date, 'enter', r, r.record_id);
+    const cs = getCaseStatus(r.record_id);
+    if(cs && cs.meter_planned_date && !cs.meter_confirmed) add(cs.meter_planned_date, 'meter-planned', r, r.record_id);
+  });
+  APP_ARCHIVED.forEach(r => {
+    const rid = r.case_record_id;
+    add(r.ship_date, 'ship', r, rid);
+    const invDate = getInverterDate(rid);
+    if(invDate) add(invDate, 'ship', r, rid);
+    if(r.entry_date) add(r.entry_date, 'enter', r, rid);
+    if(r.meter_date) add(r.meter_date, 'meter', r, rid);
+  });
+  return Array.from(map.values());
+}
+const CAL_TYPE_LABEL = {ship:'出貨', enter:'進場', meter:'掛表', 'meter-planned':'預計掛表'};
+const CAL_TYPE_DOT = {ship:'dot-ship', enter:'dot-enter', meter:'dot-meter', 'meter-planned':'dot-meter'};
+const CAL_TYPE_CHIP = {ship:'chip-ship', enter:'chip-enter', meter:'chip-meter', 'meter-planned':'chip-meter'};
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+let calVendorFilter = 'all';
+let calSelectedDate = null;
+function selectCalDay(dateStr){
+  calSelectedDate = dateStr;
+  document.querySelectorAll('#calGrid .cal-cell').forEach(c => c.classList.remove('cal-cell-selected'));
+  const cell = document.querySelector(`#calGrid .cal-cell[data-date="${dateStr}"]`);
+  if(cell) cell.classList.add('cal-cell-selected');
+  renderDayDetail(dateStr);
+}
+function renderDayDetail(dateStr){
+  const title = document.getElementById('dayDetailTitle');
+  const rows = document.getElementById('dayDetailRows');
+  if(!title || !rows) return;
+  if(!dateStr){
+    title.textContent = '選擇日期查看當日排程';
+    rows.innerHTML = '<div class="login-note">點選上方日曆中的任一天,就會在這裡列出當天所有的出貨/進場/掛表排程。</div>';
+    return;
+  }
+  const p = dateStr.split('-');
+  const d = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]));
+  const weekday = ['日','一','二','三','四','五','六'][d.getDay()];
+  title.textContent = p[1] + '/' + p[2] + '（' + weekday + '）當日排程';
+  const events = collectCalendarEvents().filter(e => e.date === dateStr);
+  if(events.length === 0){
+    rows.innerHTML = '<div class="login-note">這天目前沒有排程。</div>';
+    return;
+  }
+  rows.innerHTML = events.map(e => `
+    <div class="day-detail-row">
+      <div class="dd-left"><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span> ${CAL_TYPE_LABEL[e.type]}</div>
+      <span class="vendor-pill ${VENDOR_CLASS[e.vendor] || 'vendor-other'}">${e.vendor||''}</span>
+    </div>
+  `).join('');
+}
+function renderCalendar(){
+  const grid = document.getElementById('calGrid');
+  const label = document.getElementById('calMonthLabel');
+  if(!grid || !label) return;
+  label.textContent = calYear + '年' + (calMonth+1) + '月';
+
+  const events = collectCalendarEvents();
+  const eventsByDate = {};
+  events.forEach(e => { (eventsByDate[e.date] = eventsByDate[e.date] || []).push(e); });
+
+  const firstOfMonth = new Date(calYear, calMonth, 1);
+  const startWeekday = (firstOfMonth.getDay() + 6) % 7; // 週一為 0
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const daysInPrevMonth = new Date(calYear, calMonth, 0).getDate();
+  const todayIso = todayStr();
+  const totalCells = Math.ceil((startWeekday + daysInMonth) / 7) * 7;
+
+  let cellsHtml = '';
+  for(let i=0;i<totalCells;i++){
+    const dayNum = i - startWeekday + 1;
+    let cellDate, dayLabel, muted = false;
+    if(dayNum < 1){
+      dayLabel = daysInPrevMonth + dayNum;
+      const pm = calMonth === 0 ? 11 : calMonth - 1;
+      const py = calMonth === 0 ? calYear - 1 : calYear;
+      cellDate = fmtISODate(py, pm, dayLabel);
+      muted = true;
+    } else if(dayNum > daysInMonth){
+      dayLabel = dayNum - daysInMonth;
+      const nm = calMonth === 11 ? 0 : calMonth + 1;
+      const ny = calMonth === 11 ? calYear + 1 : calYear;
+      cellDate = fmtISODate(ny, nm, dayLabel);
+      muted = true;
+    } else {
+      dayLabel = dayNum;
+      cellDate = fmtISODate(calYear, calMonth, dayNum);
+    }
+    const dayEvents = eventsByDate[cellDate] || [];
+    const chipsHtml = dayEvents.map(e => {
+      const dim = (calVendorFilter !== 'all' && e.vendorCode !== calVendorFilter) ? ' chip-dim' : '';
+      return `<div class="chip ${CAL_TYPE_CHIP[e.type]}${dim}" data-vendor="${e.vendorCode}" title="${e.case}　${e.vendor||''}">${e.label} ${CAL_TYPE_LABEL[e.type]}</div>`;
+    }).join('');
+    const isToday = cellDate === todayIso;
+    const selectedClass = cellDate === calSelectedDate ? ' cal-cell-selected' : '';
+    cellsHtml += `<div class="cal-cell${muted?' muted':''}${selectedClass}" data-date="${cellDate}" onclick="selectCalDay('${cellDate}')">
+      <div class="cal-date${isToday?' today':''}">${dayLabel}</div>
+      ${chipsHtml}
+    </div>`;
+  }
+
+  grid.innerHTML = `
+    <div class="cal-dow">一</div><div class="cal-dow">二</div><div class="cal-dow">三</div>
+    <div class="cal-dow">四</div><div class="cal-dow">五</div><div class="cal-dow">六</div><div class="cal-dow">日</div>
+    ${cellsHtml}
+  `;
+
+  if(calVendorFilter !== 'all') filterVendor(calVendorFilter);
+
+  // 預設選取：若今天落在目前顯示的月份就選今天，否則選當月 1 號
+  if(!calSelectedDate || calSelectedDate.slice(0,7) !== fmtISODate(calYear, calMonth, 1).slice(0,7)){
+    const todayInThisMonth = todayIso.slice(0,7) === fmtISODate(calYear, calMonth, 1).slice(0,7);
+    calSelectedDate = todayInThisMonth ? todayIso : fmtISODate(calYear, calMonth, 1);
+    const cell = document.querySelector(`#calGrid .cal-cell[data-date="${calSelectedDate}"]`);
+    if(cell) cell.classList.add('cal-cell-selected');
+  }
+  renderDayDetail(calSelectedDate);
 }
 function showPdfTab(tab){
   showView('pdf');
