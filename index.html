@@ -1,0 +1,2049 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>陽光管理主控台</title>
+<style>
+  :root{
+    --bg:#F3F5FA;
+    --surface:#FFFFFF;
+    --surface-2:#F8F9FD;
+    --primary:#2B5FF6;
+    --primary-dark:#1E46C4;
+    --primary-soft:#E8EEFF;
+    --epc:#E8890C;
+    --epc-soft:#FDF1DF;
+    --text:#1B2333;
+    --text-muted:#6B7280;
+    --border:#E4E8F1;
+    --success:#16A34A;
+    --success-soft:#E7F7EE;
+    --radius:14px;
+
+    /* milestone colors */
+    --m-ship:#E8890C;    --m-ship-soft:#FDF1DF;
+    --m-rebar:#8B5CF6;   --m-rebar-soft:#F1ECFE;
+    --m-enter:#2B5FF6;   --m-enter-soft:#E8EEFF;
+    --m-meter:#16A34A;   --m-meter-soft:#E7F7EE;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,-apple-system,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    display:flex;
+    min-height:100vh;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:236px;flex-shrink:0;background:var(--surface);
+    border-right:1px solid var(--border);padding:24px 16px;
+    display:flex;flex-direction:column;gap:22px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;padding:0 8px;}
+  .brand-mark{
+    width:34px;height:34px;border-radius:10px;
+    background:linear-gradient(135deg,var(--primary),#6FA1FF);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;
+  }
+  .brand-name{font-weight:700;font-size:15px;letter-spacing:.02em;}
+  .brand-sub{font-size:11px;color:var(--text-muted);margin-top:1px;}
+  .nav-group-label{font-size:11px;color:var(--text-muted);padding:0 10px;margin-bottom:6px;letter-spacing:.06em;}
+  .nav{display:flex;flex-direction:column;gap:3px;}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;padding:10px 10px;border-radius:10px;
+    font-size:13.5px;color:var(--text);cursor:pointer;border:1px solid transparent;
+    transition:background .15s ease;
+  }
+  .nav-item:hover{background:var(--surface-2);}
+  .nav-item.active{background:var(--primary-soft);color:var(--primary-dark);font-weight:600;}
+  .nav-icon{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  .nav-sub{padding-left:30px;display:flex;flex-direction:column;gap:2px;margin-top:2px;}
+  .nav-sub-item{
+    font-size:12px;color:var(--text-muted);padding:6px 8px;border-radius:8px;cursor:pointer;
+  }
+  .nav-sub-item:hover{background:var(--surface-2);}
+  .nav-sub-item.active{background:var(--primary-soft);color:var(--primary-dark);font-weight:600;}
+  .sidebar-footer{margin-top:auto;padding:12px 10px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);}
+
+  /* ---------- Main ---------- */
+  .main{flex:1;min-width:0;padding:28px 34px 40px;}
+  .topbar{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px;gap:16px;flex-wrap:wrap;}
+  .crumb{font-size:12px;color:var(--text-muted);margin-bottom:4px;}
+  .page-title{font-size:22px;font-weight:700;margin:0;}
+  .page-sub{font-size:13px;color:var(--text-muted);margin-top:4px;}
+
+  .pipeline{
+    display:flex;align-items:stretch;background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius);padding:16px 20px;margin-bottom:24px;overflow-x:auto;
+  }
+  .pipe-step{display:flex;align-items:center;gap:12px;flex:1;min-width:150px;}
+  .pipe-num{
+    width:26px;height:26px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border);
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--text-muted);flex-shrink:0;
+  }
+  .pipe-step.done .pipe-num{background:var(--success);border-color:var(--success);color:#fff;}
+  .pipe-step.active .pipe-num{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .pipe-label{font-size:12.5px;font-weight:600;}
+  .pipe-desc{font-size:11px;color:var(--text-muted);margin-top:1px;}
+  .pipe-arrow{width:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#C7CCDA;font-size:14px;}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:26px;}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;}
+  .stat-label{font-size:12px;color:var(--text-muted);}
+  .stat-value{font-size:26px;font-weight:700;margin-top:6px;}
+  .stat-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px;}
+
+  .module-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:22px 24px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;
+    cursor:pointer;transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .module-card:hover{border-color:#C9D5FB;box-shadow:0 2px 10px rgba(43,95,246,.08);}
+  .module-left{display:flex;gap:16px;align-items:flex-start;}
+  .module-icon{width:44px;height:44px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;}
+  .module-icon.pdf{background:var(--primary-soft);color:var(--primary-dark);}
+  .module-icon.epc{background:var(--epc-soft);color:var(--epc);}
+  .module-title{font-size:15.5px;font-weight:700;}
+  .module-desc{font-size:12.5px;color:var(--text-muted);margin-top:3px;max-width:440px;line-height:1.5;}
+  .module-tag{font-size:10.5px;padding:2px 8px;border-radius:20px;margin-left:8px;font-weight:600;}
+  .tag-local{background:#EEF0F5;color:#6B7280;}
+  .tag-cloud{background:var(--success-soft);color:var(--success);}
+  .chevron{color:#C7CCDA;font-size:18px;}
+
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .btn{
+    border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;
+    cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-primary:hover{background:var(--primary-dark);}
+  .btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--text);}
+
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+  .panel-title{font-size:14px;font-weight:700;margin:0 0 14px;display:flex;align-items:center;gap:8px;}
+
+  /* ---- PDF module tabs (公文更名 / LINE收件紀錄) ---- */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:18px;}
+  .tab{
+    padding:10px 16px;font-size:13px;font-weight:600;color:var(--text-muted);
+    cursor:pointer;border-bottom:2px solid transparent;
+  }
+  .tab.active{color:var(--primary-dark);border-bottom-color:var(--primary);}
+  .subview{display:none;}
+  .subview.active{display:block;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;color:var(--text-muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border);font-size:11.5px;}
+  td{padding:10px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  .pm-pill{font-size:10.5px;padding:2px 8px;border-radius:20px;background:var(--surface-2);color:var(--text-muted);font-weight:600;}
+
+  /* ---------- EPC Calendar ---------- */
+  .cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:12px;}
+  .cal-nav{display:flex;align-items:center;gap:10px;}
+  .cal-month{font-size:16px;font-weight:700;min-width:110px;text-align:center;}
+  .icon-btn{
+    width:30px;height:30px;border-radius:8px;border:1px solid var(--border);background:var(--surface);
+    cursor:pointer;font-size:13px;color:var(--text-muted);
+  }
+  .legend{display:flex;gap:14px;flex-wrap:wrap;}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-muted);}
+  .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .dot-ship{background:var(--m-ship);}
+  .dot-rebar{background:var(--m-rebar);}
+  .dot-enter{background:var(--m-enter);}
+  .dot-meter{background:var(--m-meter);}
+
+  .cal-grid{
+    display:grid;grid-template-columns:repeat(7,1fr);
+    border:1px solid var(--border);border-radius:12px;overflow:hidden;
+  }
+  .cal-dow{
+    background:var(--surface-2);color:var(--text-muted);font-size:11px;font-weight:600;
+    text-align:center;padding:8px 0;border-bottom:1px solid var(--border);
+  }
+  .cal-cell{
+    min-height:96px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);
+    padding:6px;background:var(--surface);display:flex;flex-direction:column;gap:3px;
+  }
+  .cal-cell:nth-child(7n){border-right:none;}
+  .cal-cell.muted{background:var(--surface-2);}
+  .cal-date{font-size:11px;color:var(--text-muted);margin-bottom:2px;}
+  .cal-date.today{
+    color:#fff;background:var(--primary);width:20px;height:20px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-weight:700;
+  }
+  .chip{
+    font-size:10px;padding:2px 6px;border-radius:6px;font-weight:600;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .chip-ship{background:var(--m-ship-soft);color:var(--m-ship);}
+  .chip-rebar{background:var(--m-rebar-soft);color:var(--m-rebar);}
+  .chip-enter{background:var(--m-enter-soft);color:var(--m-enter);}
+  .chip-meter{background:var(--m-meter-soft);color:var(--m-meter);}
+
+  .epc-bottom{display:grid;grid-template-columns:1.3fr .9fr;gap:16px;margin-top:16px;align-items:start;}
+  .day-detail-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:12.5px;}
+  .day-detail-row:last-child{border-bottom:none;}
+  .dd-left{display:flex;align-items:center;gap:8px;}
+  .case-id{font-weight:700;font-family:ui-monospace,monospace;font-size:12px;}
+
+  .phone-wrap{display:flex;flex-direction:column;align-items:center;}
+  .phone{width:210px;border-radius:30px;background:#0F1420;padding:11px;box-shadow:0 12px 30px rgba(20,30,60,.18);}
+  .phone-screen{background:var(--bg);border-radius:20px;overflow:hidden;height:330px;display:flex;flex-direction:column;}
+  .phone-bar{background:var(--primary);color:#fff;padding:12px 12px 10px;}
+  .phone-bar-title{font-size:12.5px;font-weight:700;}
+  .phone-bar-sub{font-size:10px;opacity:.85;margin-top:2px;}
+  .phone-body{padding:10px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;}
+  .phone-card{background:var(--surface);border-radius:11px;padding:9px 10px;border:1px solid var(--border);}
+  .phone-case{font-size:11px;font-weight:700;font-family:ui-monospace,monospace;}
+  .phone-addr{font-size:10px;color:var(--text-muted);margin-top:2px;line-height:1.4;}
+  .phone-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+  .phone-caption{font-size:10.5px;color:var(--text-muted);margin-top:10px;text-align:center;max-width:200px;line-height:1.5;}
+
+  .vendor-pill{
+    font-size:10.5px;padding:3px 9px;border-radius:20px;font-weight:700;white-space:nowrap;
+  }
+  .vendor-sc{background:#FDECEC;color:#D64545;}
+  .vendor-sz{background:#E9F3FF;color:#1E70C8;}
+  .vendor-sg{background:#FFF3D9;color:#B37A00;}
+  .vendor-other{background:var(--surface-2);color:var(--text-muted);}
+
+  .vendor-filter{display:flex;gap:8px;margin:10px 0 16px;flex-wrap:wrap;}
+  .vendor-chip{
+    font-size:12px;font-weight:600;padding:7px 14px;border-radius:20px;
+    border:1px solid var(--border);background:var(--surface);color:var(--text-muted);
+    cursor:pointer;transition:all .15s ease;
+  }
+  .vendor-chip:hover{border-color:#C9D5FB;}
+  .vendor-chip.active{background:var(--text);color:#fff;border-color:var(--text);}
+  .vendor-chip.vendor-sc.active{background:#D64545;border-color:#D64545;}
+  .vendor-chip.vendor-sz.active{background:#1E70C8;border-color:#1E70C8;}
+  .vendor-chip.vendor-sg.active{background:#B37A00;border-color:#B37A00;}
+  .chip.chip-dim{opacity:.15;}
+
+  .quick-mark{position:relative;}
+  .quick-mark-input-wrap{position:relative;}
+  .quick-mark-input{
+    width:100%;border:1px solid var(--border);border-radius:10px;padding:11px 14px;
+    font-size:13px;font-family:inherit;color:var(--text);background:var(--surface-2);
+  }
+  .quick-mark-input:focus{outline:none;border-color:var(--primary);background:var(--surface);}
+  .note-add-row{display:flex;gap:10px;}
+  .note-add-row .quick-mark-input{flex:1;}
+  .note-add-row-wide input:first-child{flex:0 0 200px;}
+  .note-add-row-wide input:nth-child(2){flex:1;}
+
+  .notes-trigger-btn{margin-left:auto;padding:7px 14px;font-size:12.5px;}
+  .notes-trigger-btn + .notes-trigger-btn{margin-left:8px;}
+
+  .pending-toolbar{display:flex;justify-content:flex-start;align-items:center;gap:12px;margin:14px 0;flex-wrap:wrap;}
+  .sortable-th{cursor:pointer;user-select:none;}
+  .sortable-th:hover{color:var(--primary-dark);}
+  .case-alias{font-size:11px;color:var(--text-muted);margin-top:1px;}
+
+  .filter-th{position:relative;cursor:pointer;user-select:none;}
+  .filter-th:hover{color:var(--primary-dark);}
+  #vendorFilterLabel{color:var(--primary-dark);font-weight:700;}
+  .vendor-dropdown{
+    display:none;position:absolute;top:calc(100% + 6px);left:0;
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    box-shadow:0 10px 26px rgba(20,30,60,.14);z-index:10;min-width:130px;overflow:hidden;
+    font-weight:400;text-transform:none;
+  }
+  .vendor-dropdown.show{display:block;}
+  .vendor-dropdown-item{
+    padding:9px 14px;font-size:12.5px;color:var(--text);cursor:pointer;white-space:nowrap;
+  }
+  .vendor-dropdown-item:hover{background:var(--surface-2);}
+  .vendor-dropdown-item.active{color:var(--primary-dark);font-weight:700;background:var(--primary-soft);}
+
+  .modal-overlay{
+    display:none;position:fixed;inset:0;background:rgba(20,25,40,.45);
+    z-index:50;align-items:flex-start;justify-content:center;padding:6vh 20px;
+    overflow-y:auto;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal-box{
+    background:var(--bg);border-radius:16px;max-width:720px;width:100%;
+    box-shadow:0 20px 60px rgba(20,30,60,.25);overflow:hidden;
+  }
+  .modal-header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:16px 20px;background:var(--surface);border-bottom:1px solid var(--border);
+  }
+  .modal-title{font-size:15px;font-weight:700;}
+  .modal-close{
+    width:28px;height:28px;border-radius:8px;border:none;background:var(--surface-2);
+    color:var(--text-muted);font-size:13px;cursor:pointer;
+  }
+  .modal-close:hover{background:var(--border);}
+  .modal-body{padding:18px 20px;max-height:70vh;overflow-y:auto;}
+
+  .toast{
+    position:fixed;top:24px;left:50%;transform:translateX(-50%) translateY(-16px);
+    background:#B8720A;color:#fff;padding:13px 22px;border-radius:10px;
+    font-size:13px;font-weight:600;box-shadow:0 10px 28px rgba(0,0,0,.22);
+    z-index:100;opacity:0;pointer-events:none;transition:all .2s ease;max-width:90vw;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .quick-mark-results{
+    position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--surface);
+    border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(20,30,60,.10);
+    z-index:5;overflow:hidden;display:none;
+  }
+  .quick-mark-results.show{display:block;}
+  .qm-result{
+    display:flex;justify-content:space-between;align-items:center;padding:11px 14px;
+    cursor:pointer;border-bottom:1px solid var(--border);
+  }
+  .qm-result:last-child{border-bottom:none;}
+  .qm-result:hover{background:var(--surface-2);}
+  .qm-result-name{font-size:13px;font-weight:600;}
+  .qm-result-addr{font-size:11px;color:var(--text-muted);margin-top:2px;}
+  .qm-mark-btn{
+    font-size:11.5px;font-weight:700;color:#fff;background:var(--epc);
+    border:none;border-radius:8px;padding:6px 12px;cursor:pointer;flex-shrink:0;
+  }
+  .qm-empty{padding:12px 14px;font-size:12px;color:var(--text-muted);}
+  .qm-confirmed{
+    display:none;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;
+    background:var(--success-soft);color:var(--success);border-radius:10px;font-size:12.5px;font-weight:600;
+  }
+  .qm-confirmed.show{display:flex;}
+
+  .warn-pill{
+    display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;
+    padding:3px 9px;border-radius:20px;background:#FFF0D6;color:#B8720A;
+  }
+
+  .login-note{
+    display:flex;gap:10px;align-items:flex-start;background:var(--surface-2);border:1px dashed var(--border);
+    border-radius:10px;padding:12px 14px;margin-top:14px;font-size:11.5px;color:var(--text-muted);line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+  <div class="toast" id="toastBanner"></div>
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">陽</div>
+      <div>
+        <div class="brand-name">陽光管理主控台</div>
+        <div class="brand-sub">Sunny Ops Console</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="nav-group-label">功能模組</div>
+      <div class="nav">
+        <div class="nav-item" data-view="home" onclick="showView('home')">
+          <span class="nav-icon">🏠</span> 總覽
+        </div>
+        <div class="nav-item" data-view="pdf" onclick="showView('pdf')">
+          <span class="nav-icon">📄</span> PDF 公文更名
+        </div>
+        <div class="nav-sub">
+          <div class="nav-sub-item" data-sub="pdf-rename" onclick="showPdfTab('pdf-rename')">公文更名</div>
+          <div class="nav-sub-item" data-sub="pdf-line" onclick="showPdfTab('pdf-line')">LINE 收件紀錄</div>
+        </div>
+        <div class="nav-item" data-view="epc" onclick="showView('epc')">
+          <span class="nav-icon">🚚</span> EPC 出貨／進場排程
+        </div>
+        <div class="nav-sub">
+          <div class="nav-sub-item" data-sub="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
+          <div class="nav-sub-item" data-sub="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨案件</div>
+          <div class="nav-sub-item" data-sub="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
+          <div class="nav-sub-item" data-sub="epc-done" onclick="showEpcTab('epc-done')">已完工</div>
+          <div class="nav-sub-item" data-sub="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
+          <div class="nav-sub-item" data-sub="epc-issue" onclick="showEpcTab('epc-issue')">異常案件</div>
+          <div class="nav-sub-item" data-sub="epc-archive" onclick="showEpcTab('epc-archive')">歷史紀錄</div>
+          <div class="nav-sub-item" data-sub="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      本機模組與雲端模組並存<br>V0.2 介面原型
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ============ HOME ============ -->
+    <section class="view" id="view-home">
+      <div class="topbar">
+        <div>
+          <div class="crumb">總覽</div>
+          <h1 class="page-title">今日狀態</h1>
+          <div class="page-sub">整合本機工具與雲端 EPC 排程,一個入口管理所有案件流程</div>
+        </div>
+      </div>
+
+      <div class="pipeline">
+        <div class="pipe-step done">
+          <div class="pipe-num">✓</div>
+          <div><div class="pipe-label">LINE 收件</div><div class="pipe-desc">自動分類,併入 PDF 更名模組</div></div>
+        </div>
+        <div class="pipe-arrow">›</div>
+        <div class="pipe-step active">
+          <div class="pipe-num">2</div>
+          <div><div class="pipe-label">PDF 更名</div><div class="pipe-desc">本機 OCR 辨識</div></div>
+        </div>
+        <div class="pipe-arrow">›</div>
+        <div class="pipe-step">
+          <div class="pipe-num">3</div>
+          <div><div class="pipe-label">EPC 排程</div><div class="pipe-desc">出貨／植筋／進場／掛表</div></div>
+        </div>
+        <div class="pipe-arrow">›</div>
+        <div class="pipe-step">
+          <div class="pipe-num">4</div>
+          <div><div class="pipe-label">案件完成</div><div class="pipe-desc">回填 Airtable</div></div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="stat-card">
+          <div class="stat-label">待處理 PDF</div>
+          <div class="stat-value">1 份</div>
+          <div class="stat-sub">來自本機資料夾</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">本週排程項目</div>
+          <div class="stat-value">7 件</div>
+          <div class="stat-sub">出貨/植筋/進場/掛表 合計</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">今日待辦</div>
+          <div class="stat-value">2 件</div>
+          <div class="stat-sub">EPC 排程模組</div>
+        </div>
+      </div>
+
+      <div class="module-card" onclick="showView('pdf')">
+        <div class="module-left">
+          <div class="module-icon pdf">📄</div>
+          <div>
+            <div class="module-title">PDF 公文更名 <span class="module-tag tag-local">本機執行</span></div>
+            <div class="module-desc">掃描待處理資料夾中的 PDF,自動辨識案號、日期與函文類型;內含 LINE 收件紀錄子頁籤。</div>
+          </div>
+        </div>
+        <div class="chevron">›</div>
+      </div>
+
+      <div class="module-card" onclick="showView('epc')">
+        <div class="module-left">
+          <div class="module-icon epc">🚚</div>
+          <div>
+            <div class="module-title">EPC 出貨／進場排程 <span class="module-tag tag-cloud">雲端・手機可看</span></div>
+            <div class="module-desc">日曆檢視出貨、植筋、進場、掛表四種日期安排;EPC 廠商可用手機登入查看自己的案件。</div>
+          </div>
+        </div>
+        <div class="chevron">›</div>
+      </div>
+    </section>
+
+    <!-- ============ PDF MODULE (with LINE收件紀錄 sub-tab) ============ -->
+    <section class="view" id="view-pdf">
+      <div class="topbar">
+        <div>
+          <div class="crumb">功能模組 / PDF 公文更名</div>
+          <h1 class="page-title">PDF 公文更名</h1>
+          <div class="page-sub">本機執行；LINE 收件紀錄併入此模組,方便對照來源檔案</div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-tab="pdf-rename" onclick="showPdfTab('pdf-rename')">公文更名</div>
+        <div class="tab" data-tab="pdf-line" onclick="showPdfTab('pdf-line')">LINE 收件紀錄</div>
+      </div>
+
+      <div class="subview active" id="tab-pdf-rename">
+        <div class="panel" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+          <div style="font-size:32px;margin-bottom:10px;">📄</div>
+          原本機 PDF 更名工具介面會嵌在這裡（沿用現有 V2.15 畫面）
+        </div>
+      </div>
+
+      <div class="subview" id="tab-pdf-line">
+        <div class="panel">
+          <div class="panel-title">陽光機器人 · 最近收件</div>
+          <table>
+            <thead><tr><th>時間</th><th>LINE 群組</th><th>檔案</th><th>分派 PM</th><th>狀態</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>08/20 09:14</td><td>陽光伏特家&曙光能創</td><td>電費單_115年8月.pdf</td>
+                <td><span class="pm-pill">PM-家豪</span></td><td><span class="pm-pill" style="color:var(--success);background:var(--success-soft);">已同步</span></td>
+              </tr>
+              <tr>
+                <td>08/20 08:52</td><td>文件測試</td><td>竣工報告.pdf</td>
+                <td><span class="pm-pill">PM-家豪 / PM-敏萱</span></td><td><span class="pm-pill" style="color:var(--success);background:var(--success-soft);">已同步</span></td>
+              </tr>
+              <tr>
+                <td>08/19 17:03</td><td>三創</td><td>併聯掛表申請.pdf</td>
+                <td><span class="pm-pill">PM-家豪</span></td><td><span class="pm-pill" style="color:var(--success);background:var(--success-soft);">已同步</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ EPC MODULE — CALENDAR ============ -->
+    <section class="view" id="view-epc">
+      <div class="topbar">
+        <div>
+          <div class="crumb">功能模組 / EPC 出貨／進場排程</div>
+          <h1 class="page-title">EPC 出貨／進場排程</h1>
+          <div class="page-sub">依廠商線檢視所有案件的關鍵日期,新增排程自動查 Google Sheet,儲存後回填 Airtable</div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-tab="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
+        <div class="tab" data-tab="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨案件</div>
+        <div class="tab" data-tab="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
+        <div class="tab" data-tab="epc-done" onclick="showEpcTab('epc-done')">已完工</div>
+        <div class="tab" data-tab="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
+        <div class="tab" data-tab="epc-issue" onclick="showEpcTab('epc-issue')">異常案件</div>
+        <div class="tab" data-tab="epc-archive" onclick="showEpcTab('epc-archive')">歷史紀錄</div>
+        <div class="tab" data-tab="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
+      </div>
+
+      <!-- 近一週安排 -->
+      <div class="subview active" id="tab-epc-week">
+        <div class="panel">
+          <div class="panel-title">近一週安排（08/20 － 08/26）</div>
+          <div class="day-detail-row">
+            <div class="dd-left"><span class="pm-pill" style="background:var(--surface-2);">08/22（六）</span><span class="dot dot-ship"></span><span class="case-id">三06</span> 模組/變流器出貨</div>
+            <span class="vendor-pill vendor-sc">三創</span>
+          </div>
+          <div class="day-detail-row">
+            <div class="dd-left"><span class="pm-pill" style="background:var(--surface-2);">08/22（六）</span><span class="dot dot-enter"></span><span class="case-id">曙03</span> 案場進場</div>
+            <span class="vendor-pill vendor-sg">曙光</span>
+          </div>
+          <div class="day-detail-row">
+            <div class="dd-left"><span class="pm-pill" style="background:var(--surface-2);">08/25（二）</span><span class="dot dot-ship"></span><span class="case-id">曙03</span> 模組/變流器出貨</div>
+            <span class="vendor-pill vendor-sg">曙光</span>
+          </div>
+          <div class="login-note">
+            🔗 這裡只顯示未來 7 天內的所有排程項目,跨廠商彙整,方便快速掌握近期要出貨/進場的案件,不用逐日翻日曆。
+          </div>
+        </div>
+      </div>
+
+      <!-- 待安排出貨案件 -->
+      <div class="subview" id="tab-epc-pending">
+        <div class="panel">
+          <div class="panel-title">
+            待安排出貨案件
+            <span class="module-tag tag-cloud" style="margin-left:6px;" id="pendingCountTag">共 0 筆</span>
+            <span id="pendingUpdatedAt" style="margin-left:8px;font-size:11px;color:var(--text-muted);font-weight:400;"></span>
+            <button class="btn btn-ghost notes-trigger-btn" id="manualRefreshBtn" onclick="triggerManualRefresh()">🔄 手動更新</button>
+            <button class="btn btn-ghost notes-trigger-btn" onclick="openNotesModal()">📝 註記清單</button>
+            <button class="btn btn-ghost notes-trigger-btn" onclick="openNotifyModal()">📋 產出通知訊息</button>
+          </div>
+
+          <div class="pending-toolbar">
+            <input type="text" class="quick-mark-input" id="pendingSearchInput" placeholder="搜尋案號或別名…" oninput="renderPendingTable()" style="max-width:260px;">
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th class="sortable-th" onclick="sortPendingBy('case')">案號／別名 <span id="pendingSortIcon_case">↕</span></th>
+                <th class="filter-th" onclick="toggleVendorDropdown(event)">
+                  廠商<span id="vendorFilterLabel"></span> ▾
+                  <div class="vendor-dropdown" id="vendorDropdown">
+                    <div class="vendor-dropdown-item active" data-vendor="all" onclick="selectPendingVendor(event,'all')">全部廠商</div>
+                    <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectPendingVendor(event,'三創')">三創</div>
+                    <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectPendingVendor(event,'尚展')">尚展</div>
+                    <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectPendingVendor(event,'曙光')">曙光</div>
+                  </div>
+                </th>
+                <th>案場地址</th>
+                <th class="sortable-th" onclick="sortPendingBy('agree_date')">觸發依據 <span id="pendingSortIcon_agree_date">↕</span></th>
+                <th class="sortable-th" onclick="sortPendingBy('module')">模組 <span id="pendingSortIcon_module">↕</span></th>
+                <th class="sortable-th" onclick="sortPendingBy('inverter')">逆變器 <span id="pendingSortIcon_inverter">↕</span></th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="pendingRows"></tbody>
+          </table>
+          <div class="login-note" id="pendingLoginNote">
+            🔗 資料每天 00:00／06:00／12:00／18:00 自動整批更新一次(伺服器背景排程),平常開啟頁面是直接讀取這份快取,不會每次都重新查 Airtable。點「排定日期」寫入成功後,會立刻觸發一次重新整理,清單會馬上反映最新狀態。標示「⚠ 尚未填寫規格」的案件仍會列在清單中提醒你安排出貨,只是模組/逆變器資訊還沒填。點欄位標題（案號／別名、觸發依據、模組、逆變器）可切換排序,輸入框可用案號、別名、模組、逆變器內容篩選,點廠商 chip 可篩選特定廠商。
+          </div>
+        </div>
+      </div>
+
+      <!-- 案件進場安排 -->
+      <div class="subview" id="tab-epc-entry">
+        <div class="panel">
+          <div class="panel-title">
+            案件進場安排
+          </div>
+          <table>
+            <thead><tr><th>案號</th><th>廠商</th><th>案場地址</th><th colspan="2">模組／逆變器</th><th>時程安排</th><th>狀態</th><th>操作</th></tr></thead>
+            <tbody id="entryRows">
+              <tr>
+                <td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="login-note">
+            🔗 案件在「待安排出貨案件」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排完畢」,案件仍會留在這裡,直到你按下「完工」才會移入「已完工」（完工狀態只記錄在本機瀏覽器,不會寫回 Airtable）。
+          </div>
+        </div>
+      </div>
+
+      <!-- 已完工（本機記錄，尚未安排掛表） -->
+      <div class="subview" id="tab-epc-done">
+        <div class="panel">
+          <div class="panel-title">
+            已完工
+          </div>
+          <table>
+            <thead><tr><th>案號</th><th>廠商</th><th>案場地址</th><th>模組／逆變器</th><th>出貨時間</th><th>進場時間</th><th>完工時間</th><th>操作</th></tr></thead>
+            <tbody id="doneRows">
+              <tr>
+                <td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="login-note">
+            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。點「完工時間」可以修正日期。案件要到「掛表安排」頁面實際排定掛表日期後,才會移入「歷史紀錄」。
+          </div>
+        </div>
+      </div>
+
+      <!-- 掛表安排 -->
+      <div class="subview" id="tab-epc-meter">
+        <div class="panel">
+          <div class="panel-title">
+            掛表安排
+          </div>
+          <table>
+            <thead><tr><th>案號</th><th>廠商</th><th>案場地址</th><th>模組／逆變器</th><th>預計掛表日期</th><th>操作</th></tr></thead>
+            <tbody id="meterRows">
+              <tr>
+                <td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="login-note">
+            🔗 這裡列出「已完工」且已排定預計掛表日期的案件。點預計日期可以修正；按「完成掛表」會跳出確認,寫入後案件會移入「歷史紀錄」。
+          </div>
+        </div>
+      </div>
+
+      <!-- 異常案件（已完工但目前卡住無法安排/完成掛表） -->
+      <div class="subview" id="tab-epc-issue">
+        <div class="panel">
+          <div class="panel-title">
+            異常案件
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:16px;">
+            <input type="text" class="quick-mark-input" id="issueSearchInput" placeholder="輸入案號,例如：工程新竹6號" style="flex:1;" onkeydown="if(event.key==='Enter') addIssueByCaseNumber()">
+            <button class="btn btn-primary" style="white-space:nowrap;" onclick="addIssueByCaseNumber()">＋ 加入異常案件</button>
+          </div>
+          <table>
+            <thead><tr><th>案號</th><th>廠商</th><th>案場地址</th><th>目前階段</th><th>異常狀況</th><th>記錄日期</th><th>操作</th></tr></thead>
+            <tbody id="issueRows">
+              <tr>
+                <td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="login-note">
+            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面。
+          </div>
+        </div>
+      </div>
+
+      <!-- 歷史紀錄（最終封存，掛表已完成） -->
+      <div class="subview" id="tab-epc-archive">
+        <div class="panel">
+          <div class="panel-title">
+            歷史紀錄
+          </div>
+          <table>
+            <thead><tr><th>案號</th><th>廠商</th><th>案場地址</th><th>模組／逆變器</th><th>出貨時間</th><th>進場時間</th><th>掛表時間</th></tr></thead>
+            <tbody id="archiveRows">
+              <tr>
+                <td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="login-note">
+            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。案件在「掛表安排」實際排定掛表日期並成功寫入 Airtable 後,會移到這裡。
+          </div>
+        </div>
+      </div>
+
+      <!-- 排定日期 modal -->
+      <div class="modal-overlay" id="scheduleModalOverlay" onclick="if(event.target===this) closeScheduleModal()">
+        <div class="modal-box" style="max-width:440px;">
+          <div class="modal-header">
+            <div class="modal-title">📦 排定出貨時間</div>
+            <button class="modal-close" onclick="closeScheduleModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="scheduleCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="scheduleCaseAddr">—</div>
+            </div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">模組出貨時間（寫入 Airtable「大料出貨時間」）</label>
+            <input type="date" class="quick-mark-input" id="scheduleShipDate" style="margin-bottom:14px;">
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">變流器出貨時間（僅記錄在本機瀏覽器,不會寫入 Airtable）</label>
+            <input type="date" class="quick-mark-input" id="scheduleInverterDate" style="margin-bottom:18px;">
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmSchedule()">確認排定，移入案件進場安排</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 產出通知訊息 modal -->
+      <div class="modal-overlay" id="notifyModalOverlay" onclick="if(event.target===this) closeNotifyModal()">
+        <div class="modal-box" style="max-width:560px;">
+          <div class="modal-header">
+            <div class="modal-title">📋 出貨通知訊息</div>
+            <button class="modal-close" onclick="closeNotifyModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="login-note" style="margin-top:0;margin-bottom:12px;">
+              已整理「案件進場安排」裡所有案件的出貨資訊,複製後可直接貼到 Slack 通知採購。可設定模組出貨日期區間篩選,留空代表不篩選（顯示全部）。
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+              <input type="date" class="quick-mark-input" id="notifyDateFrom" style="flex:1;" onchange="openNotifyModal()">
+              <span style="color:var(--text-muted);font-size:13px;">至</span>
+              <input type="date" class="quick-mark-input" id="notifyDateTo" style="flex:1;" onchange="openNotifyModal()">
+              <button class="btn btn-ghost" style="white-space:nowrap;padding:9px 14px;" onclick="document.getElementById('notifyDateFrom').value='';document.getElementById('notifyDateTo').value='';openNotifyModal();">清除篩選</button>
+            </div>
+            <textarea id="notifyTextarea" readonly style="width:100%;min-height:260px;border:1px solid var(--border);border-radius:10px;padding:14px;font-size:12.5px;font-family:ui-monospace,monospace;line-height:1.7;color:var(--text);background:var(--surface-2);resize:vertical;"></textarea>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:12px;" onclick="copyNotifyText()">📎 複製訊息</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 排定進場日期 modal -->
+      <div class="modal-overlay" id="entryModalOverlay" onclick="if(event.target===this) closeEntryModal()">
+        <div class="modal-box" style="max-width:440px;">
+          <div class="modal-header">
+            <div class="modal-title">🚚 排定進場日期</div>
+            <button class="modal-close" onclick="closeEntryModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="entryCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="entryCaseAddr">—</div>
+            </div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">進場日期</label>
+            <input type="date" class="quick-mark-input" id="entryDate" style="margin-bottom:18px;">
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmEntry()">確認排定，同步到排程日曆</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 完工日期 modal（只記錄在本機，不寫回 Airtable） -->
+      <div class="modal-overlay" id="completeModalOverlay" onclick="if(event.target===this) closeCompleteModal()">
+        <div class="modal-box" style="max-width:440px;">
+          <div class="modal-header">
+            <div class="modal-title">✓ 完工日期</div>
+            <button class="modal-close" onclick="closeCompleteModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="completeCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="completeCaseAddr">—</div>
+            </div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">完工日期（只記錄在本機瀏覽器,不會寫回 Airtable）</label>
+            <input type="date" class="quick-mark-input" id="completeDate" style="margin-bottom:18px;">
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmComplete()">確認</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 預計掛表日期 modal（已完工頁用，只記錄在本機，不寫回 Airtable） -->
+      <div class="modal-overlay" id="planMeterModalOverlay" onclick="if(event.target===this) closePlanMeterModal()">
+        <div class="modal-box" style="max-width:440px;">
+          <div class="modal-header">
+            <div class="modal-title">🔌 安排掛表日期</div>
+            <button class="modal-close" onclick="closePlanMeterModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="planMeterCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="planMeterCaseAddr">—</div>
+            </div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計掛表日期（只記錄在本機瀏覽器,不會寫回 Airtable;排定後案件會移入「掛表安排」）</label>
+            <input type="date" class="quick-mark-input" id="planMeterDate" style="margin-bottom:18px;">
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmPlanMeter()">確認，移入掛表安排</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 完成掛表 modal（確認/調整日期後才寫回 Airtable「掛表」里程碑） -->
+      <div class="modal-overlay" id="meterModalOverlay" onclick="if(event.target===this) closeMeterModal()">
+        <div class="modal-box" style="max-width:440px;">
+          <div class="modal-header">
+            <div class="modal-title">🔌 完成掛表</div>
+            <button class="modal-close" onclick="closeMeterModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="meterCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="meterCaseAddr">—</div>
+            </div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;" id="meterConfirmLabel">掛表日是否為之前預定的日期？如需改期,調整下方日期即可（將寫入 Airtable「掛表」里程碑）</label>
+            <input type="date" class="quick-mark-input" id="meterConfirmDate" style="margin-bottom:18px;">
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmMeter()">確認完成掛表，寫入 Airtable</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 標記異常 modal（只記錄在本機，不寫回 Airtable） -->
+      <div class="modal-overlay" id="issueModalOverlay" onclick="if(event.target===this) closeIssueModal()">
+        <div class="modal-box" style="max-width:440px;">
+          <div class="modal-header">
+            <div class="modal-title">⚠ 標記異常</div>
+            <button class="modal-close" onclick="closeIssueModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="issueCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="issueCaseAddr">—</div>
+            </div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">異常狀況說明（只記錄在本機瀏覽器,不會寫回 Airtable）</label>
+            <textarea class="quick-mark-input" id="issueNote" rows="4" style="margin-bottom:18px;width:100%;font-family:inherit;resize:vertical;" placeholder="例如：屋主要求延後掛表、電力公司文件缺件…"></textarea>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmIssue()">確認標記</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 註記清單 modal (triggered from 待安排出貨案件 button) -->
+      <div class="modal-overlay" id="notesModalOverlay" onclick="if(event.target===this) closeNotesModal()">
+        <div class="modal-box">
+          <div class="modal-header">
+            <div class="modal-title">📝 註記清單</div>
+            <button class="modal-close" onclick="closeNotesModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="panel" style="margin-bottom:16px;">
+              <div class="panel-title">
+                併聯取得時備貨
+                <span class="module-tag" style="background:var(--epc-soft);color:var(--epc);margin-left:6px;">併聯審查一到就提早進待安排</span>
+              </div>
+              <div class="note-add-row note-add-row-wide">
+                <input type="text" class="quick-mark-input" id="earlyNoteInput" placeholder="輸入案號或案場別名,例如：潤特桃園80號">
+                <input type="text" class="quick-mark-input" id="earlyNoteReasonInput" placeholder="原因,例如：特殊規格模組需提早備貨">
+                <button class="btn btn-primary" onclick="addEarlyNote()">＋ 加入名單</button>
+              </div>
+              <table style="margin-top:14px;">
+                <thead><tr><th>案號／案場</th><th>原因</th><th>記錄日期</th><th>操作</th></tr></thead>
+                <tbody id="earlyNoteRows">
+                  <tr>
+                    <td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有名單</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="login-note">
+                🔗 名單中的案件,一旦 Airtable 的「併聯審查」欄位填入日期,就會自動進入「待安排出貨案件」並標示特殊規格,不用等同意備案。此清單只記錄在本機瀏覽器,不會寫回 Airtable。
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title">其他狀況備住</div>
+              <div class="note-add-row note-add-row-wide">
+                <input type="text" class="quick-mark-input" id="parkedCaseInput" placeholder="輸入案號或案場別名">
+                <input type="text" class="quick-mark-input" id="parkedNoteInput" placeholder="備住的狀況/注意事項,例如：屋主要求延後進場">
+                <button class="btn btn-primary" onclick="addParkedNote()">＋ 加入備住</button>
+              </div>
+              <table style="margin-top:14px;">
+                <thead><tr><th>案號／案場</th><th>備住內容</th><th>記錄日期</th><th>操作</th></tr></thead>
+                <tbody id="parkedNoteRows">
+                  <tr>
+                    <td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有備住項目</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="login-note">
+                🔗 這裡先記錄還用不到的注意事項;等該案件的「同意備案」填入日期、進入待安排出貨清單時,備住的內容會一併顯示出來提醒你。此清單只記錄在本機瀏覽器,不會寫回 Airtable。
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 排程日曆 -->
+      <div class="subview" id="tab-epc-calendar">
+      <div class="panel">
+        <div class="panel-title" style="margin-bottom:4px;">排程日曆</div>
+        <div class="vendor-filter">
+          <div class="vendor-chip active" data-vendor="all" onclick="filterVendor('all')">全部廠商線</div>
+          <div class="vendor-chip vendor-sc" data-vendor="sc" onclick="filterVendor('sc')">三創</div>
+          <div class="vendor-chip vendor-sz" data-vendor="sz" onclick="filterVendor('sz')">尚展</div>
+          <div class="vendor-chip vendor-sg" data-vendor="sg" onclick="filterVendor('sg')">曙光</div>
+        </div>
+        <div class="cal-header">
+          <div class="cal-nav">
+            <button class="icon-btn">‹</button>
+            <div class="cal-month">2026年8月</div>
+            <button class="icon-btn">›</button>
+          </div>
+          <div class="legend">
+            <div class="legend-item"><span class="dot dot-ship"></span>模組/變流器出貨</div>
+            <div class="legend-item"><span class="dot dot-rebar"></span>植筋</div>
+            <div class="legend-item"><span class="dot dot-enter"></span>進場</div>
+            <div class="legend-item"><span class="dot dot-meter"></span>掛表</div>
+          </div>
+        </div>
+
+        <div class="cal-grid">
+          <div class="cal-dow">一</div><div class="cal-dow">二</div><div class="cal-dow">三</div>
+          <div class="cal-dow">四</div><div class="cal-dow">五</div><div class="cal-dow">六</div><div class="cal-dow">日</div>
+
+          <div class="cal-cell muted"><div class="cal-date">27</div></div>
+          <div class="cal-cell muted"><div class="cal-date">28</div></div>
+          <div class="cal-cell muted"><div class="cal-date">29</div></div>
+          <div class="cal-cell muted"><div class="cal-date">30</div></div>
+          <div class="cal-cell muted"><div class="cal-date">31</div></div>
+          <div class="cal-cell"><div class="cal-date">1</div></div>
+          <div class="cal-cell"><div class="cal-date">2</div></div>
+
+          <div class="cal-cell"><div class="cal-date">3</div></div>
+          <div class="cal-cell"><div class="cal-date">4</div><div class="chip chip-rebar" data-vendor="sg">曙03 植筋</div></div>
+          <div class="cal-cell"><div class="cal-date">5</div></div>
+          <div class="cal-cell"><div class="cal-date">6</div></div>
+          <div class="cal-cell"><div class="cal-date">7</div><div class="chip chip-enter" data-vendor="sz">尚22 進場</div></div>
+          <div class="cal-cell"><div class="cal-date">8</div></div>
+          <div class="cal-cell"><div class="cal-date">9</div></div>
+
+          <div class="cal-cell"><div class="cal-date">10</div></div>
+          <div class="cal-cell"><div class="cal-date">11</div></div>
+          <div class="cal-cell"><div class="cal-date">12</div><div class="chip chip-ship" data-vendor="sc">三06 出貨</div></div>
+          <div class="cal-cell"><div class="cal-date">13</div></div>
+          <div class="cal-cell"><div class="cal-date">14</div></div>
+          <div class="cal-cell"><div class="cal-date">15</div><div class="chip chip-meter" data-vendor="sz">尚22 掛表</div></div>
+          <div class="cal-cell"><div class="cal-date">16</div></div>
+
+          <div class="cal-cell"><div class="cal-date">17</div></div>
+          <div class="cal-cell"><div class="cal-date">18</div></div>
+          <div class="cal-cell"><div class="cal-date">19</div><div class="chip chip-rebar" data-vendor="sc">三14 植筋</div></div>
+          <div class="cal-cell"><div class="cal-date">20</div><div class="cal-date today">20</div></div>
+          <div class="cal-cell"><div class="cal-date">21</div></div>
+          <div class="cal-cell"><div class="cal-date">22</div>
+            <div class="chip chip-ship" data-vendor="sc">三06 出貨</div>
+            <div class="chip chip-enter" data-vendor="sg">曙03 進場</div>
+          </div>
+          <div class="cal-cell"><div class="cal-date">23</div></div>
+
+          <div class="cal-cell"><div class="cal-date">24</div></div>
+          <div class="cal-cell"><div class="cal-date">25</div><div class="chip chip-ship" data-vendor="sg">曙03 出貨</div></div>
+          <div class="cal-cell"><div class="cal-date">26</div></div>
+          <div class="cal-cell"><div class="cal-date">27</div><div class="chip chip-enter" data-vendor="sc">三14 進場</div></div>
+          <div class="cal-cell"><div class="cal-date">28</div></div>
+          <div class="cal-cell"><div class="cal-date">29</div></div>
+          <div class="cal-cell"><div class="cal-date">30</div><div class="chip chip-meter" data-vendor="sc">三06 掛表</div></div>
+        </div>
+      </div>
+
+      <div class="epc-bottom">
+        <div class="panel">
+          <div class="panel-title">08/22（六）當日排程</div>
+          <div class="day-detail-row">
+            <div class="dd-left"><span class="dot dot-ship"></span><span class="case-id">三06</span> 模組/變流器出貨</div>
+            <span class="vendor-pill vendor-sc">三創</span>
+          </div>
+          <div class="day-detail-row">
+            <div class="dd-left"><span class="dot dot-enter"></span><span class="case-id">曙03</span> 案場進場</div>
+            <span class="vendor-pill vendor-sg">曙光</span>
+          </div>
+          <div class="login-note">
+            🔗 案件基本資料於新增排程時從 Google Sheet 查詢帶入；四種日期各自獨立儲存,儲存後以案號比對回填 Airtable 對應欄位。
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">📱 EPC 手機端預覽</div>
+          <div class="phone-wrap">
+            <div class="phone">
+              <div class="phone-screen">
+                <div class="phone-bar">
+                  <div class="phone-bar-title">潤特工程 · 我的案件</div>
+                  <div class="phone-bar-sub">已登入 · 僅顯示指派給你的案件</div>
+                </div>
+                <div class="phone-body">
+                  <div class="phone-card">
+                    <div class="phone-case">三06 <span class="vendor-pill vendor-sc" style="margin-left:4px;">三創</span></div>
+                    <div class="phone-addr">台中市大甲區...</div>
+                    <div class="phone-row">
+                      <span class="chip chip-ship">出貨 08/12・08/22</span>
+                      <span class="chip chip-meter">掛表 08/30</span>
+                    </div>
+                  </div>
+                  <div class="phone-card">
+                    <div class="phone-case">三14 <span class="vendor-pill vendor-sc" style="margin-left:4px;">三創</span></div>
+                    <div class="phone-addr">台中市外埔區...</div>
+                    <div class="phone-row">
+                      <span class="chip chip-rebar">植筋 08/19</span>
+                      <span class="chip chip-enter">進場 08/27</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="phone-caption">四種日期都會顯示在案件卡片上,EPC 一眼看到自己案場的完整時程</div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </section>
+
+  </main>
+
+<script>
+const API_BASE = 'https://epc-backend-4aj2.onrender.com';
+
+const VENDOR_CLASS = {'三創':'vendor-sc','尚展':'vendor-sz','曙光':'vendor-sg'};
+
+let PENDING_CASES = [];
+let ENTRY_CASES = [];
+let COMPLETED_CASES = [];
+let pendingSortKey = 'case';
+let pendingSortAsc = true;
+let pendingVendorFilter = 'all';
+
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + (d.getMonth()+1).toString().padStart(2,'0') + '-' + d.getDate().toString().padStart(2,'0');
+}
+
+// ---- 完工日期 modal ----
+let completeTargetRecordId = null;
+function openCompleteModal(recordId){
+  completeTargetRecordId = recordId;
+  const cs = getCaseStatus(recordId);
+  const found = COMPLETED_CASES.find(c => c.record_id === recordId);
+  if(!found && !cs){ showToast('找不到這筆案件的資料，請重新整理頁面再試一次'); return; }
+  const caseNo = (found && found.case) || (cs && cs.case_no) || '';
+  const addr = (found && found.address) || '';
+  const vendor = (found && found.vendor) || '';
+  document.getElementById('completeCaseTitle').textContent = caseNo;
+  document.getElementById('completeCaseAddr').textContent = addr + '　' + vendor;
+  document.getElementById('completeDate').value = (cs && cs.completed_date) || todayStr();
+  document.getElementById('completeModalOverlay').classList.add('show');
+}
+function closeCompleteModal(){
+  document.getElementById('completeModalOverlay').classList.remove('show');
+}
+async function confirmComplete(){
+  const dateVal = document.getElementById('completeDate').value;
+  if(!dateVal){ showToast('請選擇完工日期'); return; }
+  const recordId = completeTargetRecordId;
+  const found = COMPLETED_CASES.find(c => c.record_id === recordId);
+  const cs = getCaseStatus(recordId);
+  const caseNo = (found && found.case) || (cs && cs.case_no) || '';
+  const btn = document.querySelector('#completeModalOverlay .btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = '儲存中…';
+  btn.disabled = true;
+  try{
+    await saveCaseStatusField(recordId, caseNo, {completed_date: dateVal});
+    closeCompleteModal();
+    renderEntryTable();
+    renderDoneTable();
+    renderMeterTable();
+    showToast('已記錄完工日期');
+    loadAppData();  // 背景重新對齊一次，確保跟其他人同步
+  }catch(err){
+    showToast('儲存失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+async function unmarkComplete(recordId){
+  try{
+    const res = await fetch(API_BASE + '/api/app-data/case-status/clear', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({case_record_id: recordId}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    delete APP_CASE_STATUS[recordId];
+    renderEntryTable();
+    renderDoneTable();
+    renderMeterTable();
+    renderIssueTable();
+    showToast('已移回案件進場安排');
+  }catch(err){
+    showToast('操作失敗：' + err.message);
+    console.error(err);
+  }
+}
+
+// ---- 預計掛表日期 modal（已完工頁用，寫入 APP資料 表，跨裝置共用；還沒真的寫入 Airtable「掛表」里程碑）----
+let planMeterTargetRecordId = null;
+function openPlanMeterModal(recordId){
+  planMeterTargetRecordId = recordId;
+  const cs = getCaseStatus(recordId);
+  const found = COMPLETED_CASES.find(c => c.record_id === recordId);
+  if(!found && !cs){ showToast('找不到這筆案件的資料，請重新整理頁面再試一次'); return; }
+  const caseNo = (found && found.case) || (cs && cs.case_no) || '';
+  const addr = (found && found.address) || '';
+  const vendor = (found && found.vendor) || '';
+  document.getElementById('planMeterCaseTitle').textContent = caseNo;
+  document.getElementById('planMeterCaseAddr').textContent = addr + '　' + vendor;
+  document.getElementById('planMeterDate').value = (cs && cs.meter_planned_date) || todayStr();
+  document.getElementById('planMeterModalOverlay').classList.add('show');
+}
+function closePlanMeterModal(){
+  document.getElementById('planMeterModalOverlay').classList.remove('show');
+}
+async function confirmPlanMeter(){
+  const dateVal = document.getElementById('planMeterDate').value;
+  if(!dateVal){ showToast('請選擇預計掛表日期'); return; }
+  const recordId = planMeterTargetRecordId;
+  const cs = getCaseStatus(recordId);
+  const found = COMPLETED_CASES.find(c => c.record_id === recordId);
+  const caseNo = (found && found.case) || (cs && cs.case_no) || '';
+  const btn = document.querySelector('#planMeterModalOverlay .btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = '儲存中…';
+  btn.disabled = true;
+  try{
+    await saveCaseStatusField(recordId, caseNo, {meter_planned_date: dateVal});
+    closePlanMeterModal();
+    renderDoneTable();
+    renderMeterTable();
+    showToast('已排定掛表日期，移入「掛表安排」');
+    showEpcTab('epc-meter');
+    loadAppData();
+  }catch(err){
+    showToast('儲存失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+// ---- 完成掛表 modal（確認/調整日期後，寫回 Airtable「掛表」里程碑，並同步標記 APP資料 表）----
+let meterTargetRecordId = null;
+function openMeterModal(recordId){
+  meterTargetRecordId = recordId;
+  const cs = getCaseStatus(recordId);
+  const found = COMPLETED_CASES.find(c => c.record_id === recordId);
+  if(!found && !cs){ showToast('找不到這筆案件的資料，請重新整理頁面再試一次'); return; }
+  const caseNo = (found && found.case) || (cs && cs.case_no) || '';
+  const addr = (found && found.address) || '';
+  const vendor = (found && found.vendor) || '';
+  document.getElementById('meterCaseTitle').textContent = caseNo;
+  document.getElementById('meterCaseAddr').textContent = addr + '　' + vendor;
+  const planned = cs && cs.meter_planned_date;
+  document.getElementById('meterConfirmLabel').textContent = planned
+    ? `掛表日是否為 ${fmtDate(planned)}？如需改期,調整下方日期即可（將寫入 Airtable「掛表」里程碑）`
+    : '掛表日期（將寫入 Airtable「掛表」里程碑）';
+  document.getElementById('meterConfirmDate').value = planned || todayStr();
+  document.getElementById('meterModalOverlay').classList.add('show');
+}
+function closeMeterModal(){
+  document.getElementById('meterModalOverlay').classList.remove('show');
+}
+async function confirmMeter(){
+  const dateVal = document.getElementById('meterConfirmDate').value;
+  if(!dateVal){ showToast('請選擇掛表日期'); return; }
+  const recordId = meterTargetRecordId;
+  const found = COMPLETED_CASES.find(c => c.record_id === recordId);
+  if(!found || !found.meter_milestone_record_id){
+    showToast('這筆案件目前找不到掛表里程碑記錄，請先點「手動更新」重新整理後端資料再試一次');
+    return;
+  }
+  const btn = document.querySelector('#meterModalOverlay .btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = '寫入中…';
+  btn.disabled = true;
+  try{
+    const res = await fetch(API_BASE + '/api/hang-meter-date', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        case_record_id: recordId,
+        milestone_record_id: found.meter_milestone_record_id,
+        hang_meter_date: dateVal,
+      }),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    closeMeterModal();
+    showToast('已寫入 Airtable「掛表」，移入歷史紀錄');
+    await Promise.all([loadCompletedCases(), loadAppData()]);
+  }catch(err){
+    showToast('寫入失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+// ---- 標記異常 modal（寫入 APP資料 表，跨裝置共用）----
+// 可以標記任何階段的案件（待安排出貨／案件進場安排／已完工／掛表安排），
+// 所以顯示資料要依序在 PENDING_CASES / ENTRY_CASES / COMPLETED_CASES 裡找。
+function findCaseAnywhere(recordId){
+  return PENDING_CASES.find(c => c.record_id === recordId)
+    || ENTRY_CASES.find(c => c.record_id === recordId)
+    || COMPLETED_CASES.find(c => c.record_id === recordId)
+    || null;
+}
+// 判斷案件「目前」卡在哪個階段——每次都即時判斷，不是存死的，
+// 這樣即使案件在被標記異常之後又繼續往下走了幾步，階段顯示還是準的。
+function deriveStageLabel(recordId){
+  const cs = getCaseStatus(recordId);
+  if(cs && cs.meter_confirmed) return '歷史紀錄（掛表已完成）';
+  if(cs && cs.meter_planned_date) return '掛表安排';
+  if(cs && cs.completed_date) return '已完工';
+  if(COMPLETED_CASES.find(c => c.record_id === recordId)) return '案件進場安排（已安排完畢）';
+  if(ENTRY_CASES.find(c => c.record_id === recordId)) return '案件進場安排（待進場）';
+  if(PENDING_CASES.find(c => c.record_id === recordId)) return '待安排出貨案件';
+  return '找不到目前階段（可能已離開排程池）';
+}
+
+let issueTargetRecordId = null;
+function openIssueModal(recordId){
+  issueTargetRecordId = recordId;
+  const cs = getCaseStatus(recordId);
+  const found = findCaseAnywhere(recordId);
+  if(!found && !cs){ showToast('找不到這筆案件的資料，請重新整理頁面再試一次'); return; }
+  const caseNo = (found && found.case) || (cs && cs.case_no) || '';
+  const addr = (found && found.address) || '';
+  const vendor = (found && found.vendor) || '';
+  document.getElementById('issueCaseTitle').textContent = caseNo;
+  document.getElementById('issueCaseAddr').textContent = addr + '　' + vendor;
+  document.getElementById('issueNote').value = (cs && cs.issue_note) || '';
+  document.getElementById('issueModalOverlay').classList.add('show');
+}
+function closeIssueModal(){
+  document.getElementById('issueModalOverlay').classList.remove('show');
+}
+async function confirmIssue(){
+  const note = document.getElementById('issueNote').value.trim();
+  if(!note){ showToast('請填寫異常狀況說明'); return; }
+  const recordId = issueTargetRecordId;
+  const cs = getCaseStatus(recordId);
+  const found = findCaseAnywhere(recordId);
+  const caseNo = (found && found.case) || (cs && cs.case_no) || '';
+  const btn = document.querySelector('#issueModalOverlay .btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = '儲存中…';
+  btn.disabled = true;
+  try{
+    await saveCaseStatusField(recordId, caseNo, {issue_note: note, issue_date: todayStr()});
+    closeIssueModal();
+    renderDoneTable();
+    renderMeterTable();
+    renderIssueTable();
+    showToast('已標記異常，移入「異常案件」');
+    showEpcTab('epc-issue');
+    loadAppData();
+  }catch(err){
+    showToast('儲存失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+async function resolveIssue(recordId){
+  const cs = getCaseStatus(recordId);
+  const caseNo = (cs && cs.case_no) || '';
+  try{
+    await saveCaseStatusField(recordId, caseNo, {issue_note: null, issue_date: null});
+    renderDoneTable();
+    renderMeterTable();
+    renderIssueTable();
+    showToast('已排除異常');
+  }catch(err){
+    showToast('操作失敗：' + err.message);
+    console.error(err);
+  }
+}
+function addIssueByCaseNumber(){
+  const input = document.getElementById('issueSearchInput');
+  const q = input.value.trim();
+  if(!q){ showToast('請輸入案號'); return; }
+  const found = PENDING_CASES.find(c => c.case === q)
+    || ENTRY_CASES.find(c => c.case === q)
+    || COMPLETED_CASES.find(c => c.case === q);
+  if(!found){ showToast('找不到案號「' + q + '」，請確認輸入是否正確（區分全形/半形、完整案號）'); return; }
+  input.value = '';
+  openIssueModal(found.record_id);
+}
+
+function fmtDate(iso){
+  // "YYYY-MM-DD" -> "MM/DD"
+  if(!iso) return '';
+  const p = iso.split('-');
+  return p.length === 3 ? p[1]+'/'+p[2] : iso;
+}
+
+// ===================================================================
+// APP資料（已完工／掛表安排／異常案件／變流器日期／註記清單）
+// 2026-08-25 改成寫回 Airtable 的 APP資料 表，讓不同電腦/同事都能同步看到，
+// 取代原本只存在瀏覽器本機的 localStorage 版本。
+// ===================================================================
+let APP_CASE_STATUS = {};  // { [case_record_id]: {app_record_id, completed_date, meter_planned_date, meter_confirmed, issue_note, issue_date, inverter_ship_date} }
+let APP_NOTES = [];        // [{app_record_id, type, case_text, content, date}]
+let APP_ARCHIVED = [];     // 已封存（掛表已確認）案件，含完整顯示快照
+
+async function loadAppData(){
+  try{
+    const res = await fetch(API_BASE + '/api/app-data', {cache: 'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    APP_CASE_STATUS = {};
+    (data.case_status || []).forEach(cs => { APP_CASE_STATUS[cs.case_record_id] = cs; });
+    APP_NOTES = data.notes || [];
+    APP_ARCHIVED = (data.archived || []).map(a => ({...a, vendorClass: VENDOR_CLASS[a.vendor] || 'vendor-other'}));
+    renderEntryTable();
+    renderDoneTable();
+    renderMeterTable();
+    renderIssueTable();
+    renderArchiveTable();
+    renderEarlyNoteList();
+    renderParkedNoteList();
+  }catch(err){
+    console.error(err);
+  }
+}
+function getCaseStatus(recordId){
+  return APP_CASE_STATUS[recordId] || null;
+}
+async function saveCaseStatusField(recordId, caseNo, fieldsPatch){
+  const res = await fetch(API_BASE + '/api/app-data/case-status', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({case_record_id: recordId, case_no: caseNo, fields: fieldsPatch}),
+  });
+  if(!res.ok){
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err.error || ('HTTP ' + res.status));
+  }
+  const existing = APP_CASE_STATUS[recordId] || {case_record_id: recordId, case_no: caseNo};
+  APP_CASE_STATUS[recordId] = {...existing, ...fieldsPatch};  // 樂觀更新，畫面先反應，之後 loadAppData() 會再對齊一次
+}
+function getInverterDate(recordId){
+  const cs = getCaseStatus(recordId);
+  return (cs && cs.inverter_ship_date) || '';
+}
+
+function fmtUpdatedAt(iso){
+  if(!iso) return '尚未完成初次整理,請稍候片刻再重新整理頁面';
+  const d = new Date(iso);
+  const p2 = n => n.toString().padStart(2,'0');
+  return `${p2(d.getMonth()+1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+}
+
+async function loadPendingCases(){
+  const tbody = document.getElementById('pendingRows');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>';
+  try{
+    const res = await fetch(API_BASE + '/api/pending-cases', {cache: 'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    PENDING_CASES = (data.cases || []).map(c => ({
+      ...c,
+      vendorClass: VENDOR_CLASS[c.vendor] || 'vendor-other',
+      agree: fmtDate(c.agree_date),
+    }));
+    renderPendingTable();
+    renderIssueTable();
+    if(data.updated_at) lastKnownUpdatedAt = data.updated_at;
+    const label = document.getElementById('pendingUpdatedAt');
+    if(label){
+      if(data.last_error){
+        label.textContent = '⚠ 上次背景更新失敗：' + data.last_error;
+        label.style.color = '#D64545';
+      } else if(data.updated_at){
+        label.textContent = (data.refreshing ? '更新中… 顯示的是 ' : '資料更新於 ') + fmtUpdatedAt(data.updated_at);
+        label.style.color = '';
+      } else {
+        label.textContent = data.refreshing ? '首次整理進行中,請稍候…' : '資料尚未準備好,請點「手動更新」';
+        label.style.color = '';
+      }
+    }
+  }catch(err){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">連不上後端服務,請確認 Render 服務是否正常運作</td></tr>';
+    console.error(err);
+  }
+}
+
+async function loadEntryCases(){
+  const tbody = document.getElementById('entryRows');
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>';
+  try{
+    const res = await fetch(API_BASE + '/api/entry-cases', {cache: 'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    ENTRY_CASES = (data.cases || []).map(c => ({
+      ...c,
+      vendorClass: VENDOR_CLASS[c.vendor] || 'vendor-other',
+    }));
+    renderEntryTable();
+    renderIssueTable();
+  }catch(err){
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">連不上後端服務,請確認 Render 服務是否正常運作</td></tr>';
+    console.error(err);
+  }
+}
+
+async function loadCompletedCases(){
+  try{
+    const res = await fetch(API_BASE + '/api/completed-cases', {cache: 'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    COMPLETED_CASES = (data.cases || []).map(c => ({
+      ...c,
+      vendorClass: VENDOR_CLASS[c.vendor] || 'vendor-other',
+    }));
+    renderEntryTable();
+    renderDoneTable();
+    renderMeterTable();
+    renderIssueTable();
+  }catch(err){
+    console.error(err);
+  }
+}
+
+let lastKnownUpdatedAt = null;
+async function triggerManualRefresh(){
+  const btn = document.getElementById('manualRefreshBtn');
+  btn.disabled = true;
+  btn.textContent = '🔄 更新中…';
+  showToast('已在背景開始重新整理,通常 30-60 秒完成,完成後畫面會自動更新');
+
+  try{
+    await fetch(API_BASE + '/api/refresh', {method: 'POST'});
+  }catch(err){
+    showToast('觸發更新失敗：' + err.message);
+    btn.disabled = false;
+    btn.textContent = '🔄 手動更新';
+    return;
+  }
+
+  // 每 5 秒檢查一次 updated_at 有沒有變化，最多等 2 分鐘
+  let tries = 0;
+  const maxTries = 24;
+  const poll = setInterval(async () => {
+    tries++;
+    try{
+      const res = await fetch(API_BASE + '/api/pending-cases', {cache: 'no-store'});
+      const data = await res.json();
+      if(data.updated_at && data.updated_at !== lastKnownUpdatedAt){
+        clearInterval(poll);
+        lastKnownUpdatedAt = data.updated_at;
+        await Promise.all([loadPendingCases(), loadEntryCases(), loadCompletedCases(), loadAppData()]);
+        showToast('已更新完成');
+        btn.disabled = false;
+        btn.textContent = '🔄 手動更新';
+      } else if(tries >= maxTries){
+        clearInterval(poll);
+        showToast('更新時間較長,請稍後再檢查一次');
+        btn.disabled = false;
+        btn.textContent = '🔄 手動更新';
+      }
+    }catch(err){
+      // 忽略單次輪詢失敗，繼續等下一次
+    }
+  }, 5000);
+}
+
+function renderPendingTable(){
+  const q = document.getElementById('pendingSearchInput').value.trim();
+  let rows = PENDING_CASES.filter(r => {
+    if(pendingVendorFilter !== 'all' && r.vendor !== pendingVendorFilter) return false;
+    if(q && !((r.case||'').includes(q) || (r.alias||'').includes(q)
+              || (r.module||'').includes(q) || (r.inverter||'').includes(q))) return false;
+    return true;
+  });
+  rows.sort((a,b) => {
+    let av, bv;
+    if(pendingSortKey === 'agree_date'){ av = a.agree_date || ''; bv = b.agree_date || ''; }
+    else { av = a[pendingSortKey] || ''; bv = b[pendingSortKey] || ''; }
+    const cmp = ('' + av).localeCompare('' + bv, 'zh-Hant');
+    return pendingSortAsc ? cmp : -cmp;
+  });
+
+  document.getElementById('pendingCountTag').textContent = '共 ' + rows.length + ' 筆';
+
+  const tbody = document.getElementById('pendingRows');
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合條件的案件</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const hasSpec = !!r.module;
+    const specCell = hasSpec
+      ? `<td>${r.module}</td><td>${r.inverter || ''}</td>`
+      : `<td colspan="2"><span class="warn-pill">⚠ 尚未填寫規格</span></td>`;
+    return `
+      <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${hasSpec ? r.module : '尚未填寫規格'}" data-inverter="${hasSpec ? (r.inverter||'') : ''}">
+        <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
+        <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
+        <td>${r.address}</td>
+        <td><span class="pm-pill" style="background:var(--success-soft);color:var(--success);">同意備案 ${r.agree}</span></td>
+        ${specCell}
+        <td><button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this)">排定日期</button></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderEntryTable(){
+  const tbody = document.getElementById('entryRows');
+  const waitingRows = ENTRY_CASES.map(r => ({...r, _status: 'waiting'}));
+  const doneRows = COMPLETED_CASES
+    .filter(r => !(getCaseStatus(r.record_id) && getCaseStatus(r.record_id).completed_date))
+    .map(r => ({...r, _status: 'scheduled'}));
+  const rows = [...waitingRows, ...doneRows];
+
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有案件——在「待安排出貨案件」排定出貨日期後,案件會自動出現在這裡</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const invDate = getInverterDate(r.record_id);
+    const chips = [`<span class="chip chip-ship">模組 ${fmtDate(r.ship_date)}</span>`];
+    if(invDate) chips.push(`<span class="chip chip-ship">變流器 ${fmtDate(invDate)}</span>`);
+    if(r._status === 'scheduled' && r.entry_date) chips.push(`<span class="chip chip-enter">進場 ${fmtDate(r.entry_date)}</span>`);
+    const scheduleChips = `<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">${chips.join('')}</div>`;
+    const statusPill = r._status === 'waiting'
+      ? `<span class="pm-pill">待進場</span>`
+      : `<span class="pm-pill" style="background:var(--success-soft);color:var(--success);">已安排完畢</span>`;
+    const actions = r._status === 'waiting'
+      ? `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this,'reschedule')">重新安排出貨日期</button>
+         <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openEntryModal(this)">排定進場日期</button>`
+      : `<button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="openCompleteModal('${r.record_id}')">✓ 完工</button>`;
+    return `
+    <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}">
+      <td><div class="case-id">${r.case}</div></td>
+      <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
+      <td>${r.address}</td>
+      <td colspan="2">${r.module ? r.module + (r.inverter ? '　'+r.inverter : '') : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+      <td>${scheduleChips}</td>
+      <td>${statusPill}</td>
+      <td>${actions}</td>
+    </tr>
+  `;
+  }).join('');
+}
+
+// ---- 已完工（尚未排掛表）----
+function renderDoneTable(){
+  const tbody = document.getElementById('doneRows');
+  if(!tbody) return;
+  const rows = COMPLETED_CASES.filter(r => {
+    const cs = getCaseStatus(r.record_id);
+    return cs && cs.completed_date && !cs.meter_planned_date && !cs.issue_note;
+  });
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有已完工待安排掛表的案件——在「案件進場安排」按下「完工」後,案件會出現在這裡</td></tr>';
+    return;
+  }
+  rows.sort((a,b) => {
+    const ca = getCaseStatus(a.record_id), cb = getCaseStatus(b.record_id);
+    return (cb.completed_date||'').localeCompare(ca.completed_date||'');
+  });
+  tbody.innerHTML = rows.map(r => {
+    const cs = getCaseStatus(r.record_id);
+    const invDate = getInverterDate(r.record_id);
+    const shipText = fmtDate(r.ship_date) + (invDate ? `（變流器 ${fmtDate(invDate)}）` : '');
+    return `
+    <tr>
+      <td><div class="case-id">${r.case}</div></td>
+      <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
+      <td>${r.address}</td>
+      <td>${r.module ? r.module + (r.inverter ? '　'+r.inverter : '') : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+      <td>${shipText}</td>
+      <td>${fmtDate(r.entry_date)}</td>
+      <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openCompleteModal('${r.record_id}')">${fmtDate(cs.completed_date)}　✎</button></td>
+      <td>
+        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="openPlanMeterModal('${r.record_id}')">安排掛表日期</button>
+        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="unmarkComplete('${r.record_id}')">移回</button>
+      </td>
+    </tr>
+  `;
+  }).join('');
+}
+
+// ---- 掛表安排（已排定預計掛表日期，等待確認寫回 Airtable）----
+function renderMeterTable(){
+  const tbody = document.getElementById('meterRows');
+  if(!tbody) return;
+  const rows = COMPLETED_CASES.filter(r => {
+    const cs = getCaseStatus(r.record_id);
+    return cs && cs.meter_planned_date && !cs.meter_confirmed && !cs.issue_note;
+  });
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有等待完成掛表的案件——在「已完工」頁面按「安排掛表日期」後,案件會出現在這裡</td></tr>';
+    return;
+  }
+  rows.sort((a,b) => {
+    const ca = getCaseStatus(a.record_id), cb = getCaseStatus(b.record_id);
+    return (ca.meter_planned_date||'').localeCompare(cb.meter_planned_date||'');
+  });
+  tbody.innerHTML = rows.map(r => {
+    const cs = getCaseStatus(r.record_id);
+    return `
+    <tr>
+      <td><div class="case-id">${r.case}</div></td>
+      <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
+      <td>${r.address}</td>
+      <td>${r.module ? r.module + (r.inverter ? '　'+r.inverter : '') : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+      <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openPlanMeterModal('${r.record_id}')">${fmtDate(cs.meter_planned_date)}　✎</button></td>
+      <td>
+        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="openMeterModal('${r.record_id}')">完成掛表</button>
+      </td>
+    </tr>
+  `;
+  }).join('');
+}
+
+// ---- 異常案件 ----
+function renderIssueTable(){
+  const tbody = document.getElementById('issueRows');
+  if(!tbody) return;
+  const ids = Object.keys(APP_CASE_STATUS).filter(id => APP_CASE_STATUS[id].issue_note);
+  if(ids.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有異常案件</td></tr>';
+    return;
+  }
+  ids.sort((a,b) => (APP_CASE_STATUS[b].issue_date||'').localeCompare(APP_CASE_STATUS[a].issue_date||''));
+  tbody.innerHTML = ids.map(id => {
+    const cs = APP_CASE_STATUS[id];
+    const found = findCaseAnywhere(id);
+    const caseNo = (found && found.case) || cs.case_no || '（找不到案號）';
+    const vendor = (found && found.vendor) || '';
+    const vendorClass = (found && (VENDOR_CLASS[found.vendor] || 'vendor-other')) || 'vendor-other';
+    const addr = (found && found.address) || '（找不到即時資料，可能已離開排程池）';
+    return `
+    <tr>
+      <td><div class="case-id">${caseNo}</div></td>
+      <td>${vendor ? `<span class="vendor-pill ${vendorClass}">${vendor}</span>` : ''}</td>
+      <td>${addr}</td>
+      <td><span class="pm-pill">${deriveStageLabel(id)}</span></td>
+      <td style="max-width:260px;white-space:pre-wrap;">${cs.issue_note}</td>
+      <td>${fmtDate(cs.issue_date)}</td>
+      <td>
+        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openIssueModal('${id}')">編輯</button>
+        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="resolveIssue('${id}')">已排除異常</button>
+      </td>
+    </tr>
+  `;
+  }).join('');
+}
+
+// ---- 歷史紀錄（最終封存，掛表已完成）----
+function renderArchiveTable(){
+  const tbody = document.getElementById('archiveRows');
+  if(!tbody) return;
+  const rows = APP_ARCHIVED;
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有已封存的案件——在「掛表安排」排定掛表日期後,案件會出現在這裡</td></tr>';
+    return;
+  }
+  const sorted = [...rows].sort((a,b) => (b.meter_date||'').localeCompare(a.meter_date||''));
+  tbody.innerHTML = sorted.map(r => {
+    const invDate = getInverterDate(r.case_record_id);
+    const shipText = fmtDate(r.ship_date) + (invDate ? `（變流器 ${fmtDate(invDate)}）` : '');
+    return `
+    <tr>
+      <td><div class="case-id">${r.case}</div></td>
+      <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
+      <td>${r.address}</td>
+      <td>${r.module ? r.module + (r.inverter ? '　'+r.inverter : '') : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+      <td>${shipText}</td>
+      <td>${fmtDate(r.entry_date)}</td>
+      <td>${fmtDate(r.meter_date)}</td>
+    </tr>
+  `;
+  }).join('');
+}
+
+function sortPendingBy(key){
+  if(pendingSortKey === key){
+    pendingSortAsc = !pendingSortAsc;
+  } else {
+    pendingSortKey = key;
+    pendingSortAsc = true;
+  }
+  ['case','agree_date','module','inverter'].forEach(k => {
+    const icon = document.getElementById('pendingSortIcon_' + k);
+    if(!icon) return;
+    icon.textContent = (k === pendingSortKey) ? (pendingSortAsc ? '↑' : '↓') : '↕';
+  });
+  renderPendingTable();
+}
+function toggleVendorDropdown(e){
+  e.stopPropagation();
+  document.getElementById('vendorDropdown').classList.toggle('show');
+}
+function selectPendingVendor(e, v){
+  e.stopPropagation();
+  pendingVendorFilter = v;
+  document.querySelectorAll('.vendor-dropdown-item').forEach(i => i.classList.remove('active'));
+  document.querySelector(`.vendor-dropdown-item[data-vendor="${v}"]`).classList.add('active');
+  document.getElementById('vendorFilterLabel').textContent = v === 'all' ? '' : '（' + v + '）';
+  document.getElementById('vendorDropdown').classList.remove('show');
+  renderPendingTable();
+}
+document.addEventListener('click', function(){
+  const dd = document.getElementById('vendorDropdown');
+  if(dd) dd.classList.remove('show');
+});
+document.addEventListener('DOMContentLoaded', function(){
+  loadPendingCases();
+  loadEntryCases();
+  loadCompletedCases();
+  loadAppData();
+});
+
+function showView(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.querySelectorAll('.nav-item[data-view]').forEach(n=>n.classList.remove('active'));
+  document.querySelector('.nav-item[data-view="'+name+'"]').classList.add('active');
+  document.querySelectorAll('.nav-sub-item').forEach(n=>n.classList.remove('active'));
+}
+function openNotifyModal(){
+  const fromVal = document.getElementById('notifyDateFrom').value;
+  const toVal = document.getElementById('notifyDateTo').value;
+  let cases = ENTRY_CASES;
+  if(fromVal) cases = cases.filter(r => r.ship_date && r.ship_date >= fromVal);
+  if(toVal) cases = cases.filter(r => r.ship_date && r.ship_date <= toVal);
+
+  let text;
+  if(ENTRY_CASES.length === 0){
+    text = '目前「案件進場安排」還沒有案件。';
+  } else if(cases.length === 0){
+    text = '這個日期區間內沒有符合條件的出貨案件。';
+  } else {
+    const rangeNote = (fromVal || toVal) ? `（出貨日期 ${fromVal ? fmtDate(fromVal) : '最早'} ～ ${toVal ? fmtDate(toVal) : '最晚'}）` : '';
+    const lines = [`【EPC 模組／變流器出貨通知】共 ${cases.length} 件${rangeNote}`, ''];
+    cases.forEach((r, i) => {
+      const invDate = getInverterDate(r.record_id);
+      lines.push(`${i+1}. ${r.case}（${r.vendor}）`);
+      lines.push(`　模組出貨時間：${fmtDate(r.ship_date)}`);
+      lines.push(`　變流器出貨時間：${invDate ? fmtDate(invDate) : '（未填寫）'}`);
+      lines.push(`　地址：${r.address}`);
+      lines.push(`　模組：${r.module || '（尚未填寫）'}`);
+      lines.push(`　逆變器：${r.inverter || '（尚未填寫）'}`);
+      lines.push('');
+    });
+    text = lines.join('\n');
+  }
+  document.getElementById('notifyTextarea').value = text;
+  document.getElementById('notifyModalOverlay').classList.add('show');
+}
+function closeNotifyModal(){
+  document.getElementById('notifyModalOverlay').classList.remove('show');
+}
+function copyNotifyText(){
+  const ta = document.getElementById('notifyTextarea');
+  ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  const btn = event.target;
+  const original = btn.textContent;
+  btn.textContent = '✓ 已複製';
+  setTimeout(()=>{ btn.textContent = original; }, 1500);
+}
+let toastTimer = null;
+function showToast(msg){
+  const t = document.getElementById('toastBanner');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 4000);
+}
+let scheduleTargetRow = null;
+let scheduleMode = 'new';
+function openScheduleModal(btn, mode){
+  mode = mode || 'new';
+  const row = btn.closest('tr');
+  if(mode === 'new' && row.dataset.module === '尚未填寫規格'){
+    showToast('這筆案件尚未填寫模組／變流器資訊，請先至 Airtable 輸入模組／變流器資訊後再排定出貨時間。');
+    return;
+  }
+  if(!row.dataset.shipMilestoneId){
+    showToast('這筆案件在 Airtable「進度管理」表找不到對應的「大料出貨時間」里程碑記錄，無法排定，請確認 Airtable 資料。');
+    return;
+  }
+  scheduleTargetRow = row;
+  scheduleMode = mode;
+  document.getElementById('scheduleCaseTitle').textContent = row.dataset.case;
+  document.getElementById('scheduleCaseAddr').textContent = row.dataset.addr + '　' + row.dataset.vendor;
+  document.getElementById('scheduleShipDate').value = mode === 'reschedule' ? (row.dataset.shipdatefull || '') : '';
+  document.getElementById('scheduleInverterDate').value = getInverterDate(row.dataset.recordId);
+  document.getElementById('scheduleModalOverlay').classList.add('show');
+}
+function closeScheduleModal(){
+  document.getElementById('scheduleModalOverlay').classList.remove('show');
+}
+async function confirmSchedule(){
+  const shipDate = document.getElementById('scheduleShipDate').value;
+  const inverterDate = document.getElementById('scheduleInverterDate').value;
+  if(!shipDate){ showToast('請填寫模組出貨時間'); return; }
+
+  const milestoneId = scheduleTargetRow.dataset.shipMilestoneId;
+  const recordId = scheduleTargetRow.dataset.recordId;
+  const btn = document.querySelector('#scheduleModalOverlay .btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = '寫入中…';
+  btn.disabled = true;
+
+  try{
+    const res = await fetch(API_BASE + '/api/schedule', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({milestone_record_id: milestoneId, ship_date: shipDate}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    // 變流器出貨日期存進 APP資料 表（跨裝置共用），不影響 Airtable 官方的「大料出貨時間」欄位
+    try{
+      await saveCaseStatusField(recordId, scheduleTargetRow.dataset.case, {inverter_ship_date: inverterDate || null});
+    }catch(e){ console.error('儲存變流器出貨日期失敗：', e); }
+    closeScheduleModal();
+    showToast('已寫入 Airtable「大料出貨時間」');
+    // 三邊都重新載入，反映 Airtable 最新狀態
+    await Promise.all([loadPendingCases(), loadEntryCases(), loadCompletedCases(), loadAppData()]);
+    if(scheduleMode === 'new') showEpcTab('epc-entry');
+  }catch(err){
+    showToast('寫入失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+let entryTargetRow = null;
+function openEntryModal(btn){
+  const row = btn.closest('tr');
+  entryTargetRow = row;
+  document.getElementById('entryCaseTitle').textContent = row.dataset.case;
+  document.getElementById('entryCaseAddr').textContent = row.dataset.addr + '　' + row.dataset.vendor;
+  document.getElementById('entryDate').value = '';
+  document.getElementById('entryModalOverlay').classList.add('show');
+}
+function closeEntryModal(){
+  document.getElementById('entryModalOverlay').classList.remove('show');
+}
+async function confirmEntry(){
+  const entryDate = document.getElementById('entryDate').value;
+  if(!entryDate){ showToast('請填寫進場日期'); return; }
+
+  const milestoneId = entryTargetRow.dataset.entryMilestoneId;
+  if(!milestoneId){
+    showToast('這筆案件在 Airtable 找不到「進場屋主預約」里程碑記錄，無法排定。');
+    return;
+  }
+  const btn = document.querySelector('#entryModalOverlay .btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = '寫入中…';
+  btn.disabled = true;
+
+  try{
+    const res = await fetch(API_BASE + '/api/entry-date', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({milestone_record_id: milestoneId, entry_date: entryDate}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    closeEntryModal();
+    showToast('已寫入 Airtable「進場屋主預約」，狀態變更為「已安排完畢」');
+    await Promise.all([loadEntryCases(), loadCompletedCases(), loadAppData()]);  // 這筆案件會從「待進場」變成「已安排完畢」
+  }catch(err){
+    showToast('寫入失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+function openNotesModal(){
+  renderEarlyNoteList();
+  renderParkedNoteList();
+  document.getElementById('notesModalOverlay').classList.add('show');
+}
+function closeNotesModal(){
+  document.getElementById('notesModalOverlay').classList.remove('show');
+}
+
+// ---- 併聯取得時備貨 / 其他狀況備住 名單（寫入 APP資料 表，跨裝置共用）----
+async function addEarlyNote(){
+  const input = document.getElementById('earlyNoteInput');
+  const reasonInput = document.getElementById('earlyNoteReasonInput');
+  const name = input.value.trim();
+  const reason = reasonInput.value.trim();
+  if(!name){ showToast('請輸入案號或案場別名'); return; }
+  if(!reason){ showToast('請填寫原因'); return; }
+  try{
+    const res = await fetch(API_BASE + '/api/app-data/note', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({type: '併聯取得時備貨', case_text: name, content: reason}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    input.value = '';
+    reasonInput.value = '';
+    await loadAppData();
+  }catch(err){
+    showToast('新增失敗：' + err.message);
+    console.error(err);
+  }
+}
+async function deleteEarlyNote(appRecordId){
+  try{
+    const res = await fetch(API_BASE + '/api/app-data/' + appRecordId, {method: 'DELETE'});
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    APP_NOTES = APP_NOTES.filter(n => n.app_record_id !== appRecordId);
+    renderEarlyNoteList();
+  }catch(err){
+    showToast('刪除失敗：' + err.message);
+    console.error(err);
+  }
+}
+function renderEarlyNoteList(){
+  const tbody = document.getElementById('earlyNoteRows');
+  if(!tbody) return;
+  const list = APP_NOTES.filter(n => n.type === '併聯取得時備貨');
+  if(list.length === 0){
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有名單</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(n => `
+    <tr>
+      <td><div class="case-id">${n.case_text}</div></td>
+      <td>${n.content}</td>
+      <td>${fmtDate(n.date)}</td>
+      <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="deleteEarlyNote('${n.app_record_id}')">刪除</button></td>
+    </tr>
+  `).join('');
+}
+
+async function addParkedNote(){
+  const caseInput = document.getElementById('parkedCaseInput');
+  const noteInput = document.getElementById('parkedNoteInput');
+  const name = caseInput.value.trim();
+  const note = noteInput.value.trim();
+  if(!name){ showToast('請輸入案號或案場別名'); return; }
+  if(!note){ showToast('請填寫備住的狀況/注意事項'); return; }
+  try{
+    const res = await fetch(API_BASE + '/api/app-data/note', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({type: '其他狀況備住', case_text: name, content: note}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    caseInput.value = '';
+    noteInput.value = '';
+    await loadAppData();
+  }catch(err){
+    showToast('新增失敗：' + err.message);
+    console.error(err);
+  }
+}
+async function deleteParkedNote(appRecordId){
+  try{
+    const res = await fetch(API_BASE + '/api/app-data/' + appRecordId, {method: 'DELETE'});
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    APP_NOTES = APP_NOTES.filter(n => n.app_record_id !== appRecordId);
+    renderParkedNoteList();
+  }catch(err){
+    showToast('刪除失敗：' + err.message);
+    console.error(err);
+  }
+}
+function renderParkedNoteList(){
+  const tbody = document.getElementById('parkedNoteRows');
+  if(!tbody) return;
+  const list = APP_NOTES.filter(n => n.type === '其他狀況備住');
+  if(list.length === 0){
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有備住項目</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(n => `
+    <tr>
+      <td><div class="case-id">${n.case_text}</div></td>
+      <td>${n.content}</td>
+      <td>${fmtDate(n.date)}</td>
+      <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="deleteParkedNote('${n.app_record_id}')">刪除</button></td>
+    </tr>
+  `).join('');
+}
+
+function showEpcTab(tab){
+  showView('epc');
+  document.querySelectorAll('#view-epc .subview').forEach(v=>v.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.querySelectorAll('#view-epc .tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('#view-epc .tab[data-tab="'+tab+'"]').classList.add('active');
+  document.querySelectorAll('.nav-sub-item').forEach(n=>n.classList.remove('active'));
+  document.querySelector('.nav-sub-item[data-sub="'+tab+'"]').classList.add('active');
+}
+function filterVendor(v){
+  document.querySelectorAll('.vendor-chip').forEach(c=>c.classList.remove('active'));
+  document.querySelector('.vendor-chip[data-vendor="'+v+'"]').classList.add('active');
+  document.querySelectorAll('.cal-grid .chip').forEach(chip=>{
+    if(v==='all' || chip.getAttribute('data-vendor')===v){
+      chip.classList.remove('chip-dim');
+      chip.style.display='';
+    } else {
+      chip.style.display='none';
+    }
+  });
+}
+function showPdfTab(tab){
+  showView('pdf');
+  document.querySelectorAll('.subview').forEach(v=>v.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('.tab[data-tab="'+tab+'"]').classList.add('active');
+  document.querySelectorAll('.nav-sub-item').forEach(n=>n.classList.remove('active'));
+  document.querySelector('.nav-sub-item[data-sub="'+tab+'"]').classList.add('active');
+}
+showView('home');
+</script>
+
+</body>
+</html>
