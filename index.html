@@ -190,7 +190,7 @@
   .chip-enter{background:var(--m-enter-soft);color:var(--m-enter);}
   .chip-meter{background:var(--m-meter-soft);color:var(--m-meter);}
 
-  .epc-bottom{display:grid;grid-template-columns:1.3fr .9fr;gap:16px;margin-top:16px;align-items:start;}
+  .epc-bottom{display:block;margin-top:16px;}
   .day-detail-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:12.5px;}
   .day-detail-row:last-child{border-bottom:none;}
   .dd-left{display:flex;align-items:center;gap:8px;}
@@ -1073,39 +1073,6 @@
           </div>
           <div class="login-note">
             🔗 這裡的日期直接讀取「案件進場安排」「已完工」「掛表安排」「歷史紀錄」裡的即時資料,不需要另外輸入;掛表日期若尚未實際完成掛表,會顯示為「預計」。
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-title">📱 EPC 手機端預覽</div>
-          <div class="phone-wrap">
-            <div class="phone">
-              <div class="phone-screen">
-                <div class="phone-bar">
-                  <div class="phone-bar-title">潤特工程 · 我的案件</div>
-                  <div class="phone-bar-sub">已登入 · 僅顯示指派給你的案件</div>
-                </div>
-                <div class="phone-body">
-                  <div class="phone-card">
-                    <div class="phone-case">三06 <span class="vendor-pill vendor-sc" style="margin-left:4px;">三創</span></div>
-                    <div class="phone-addr">台中市大甲區...</div>
-                    <div class="phone-row">
-                      <span class="chip chip-ship">出貨 08/12・08/22</span>
-                      <span class="chip chip-meter">掛表 08/30</span>
-                    </div>
-                  </div>
-                  <div class="phone-card">
-                    <div class="phone-case">三14 <span class="vendor-pill vendor-sc" style="margin-left:4px;">三創</span></div>
-                    <div class="phone-addr">台中市外埔區...</div>
-                    <div class="phone-row">
-                      <span class="chip chip-rebar">植筋 08/19</span>
-                      <span class="chip chip-enter">進場 08/27</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="phone-caption">四種日期都會顯示在案件卡片上,EPC 一眼看到自己案場的完整時程</div>
           </div>
         </div>
       </div>
@@ -2408,10 +2375,27 @@ function fmtISODate(y, m, d){
   return y + '-' + String(m+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
 }
 const VENDOR_CODE = {'三創':'sc','尚展':'sz','曙光':'sg'};
+// 案號前綴（原始案場公司）對應的簡稱，依「原始案號」欄位比對
+const CASE_PREFIX_MAP = {
+  '潤特新北':'新', '潤特桃園':'桃', '潤特新竹':'竹', '潤特苗栗':'苗', '潤特臺中':'中', '潤特台中':'中',
+  '潤特南投':'投', '潤特彰化':'彰', '潤特雲林':'雲', '潤特嘉義':'嘉', '潤特臺南':'南', '潤特台南':'南',
+  '潤特高雄':'高', '潤特屏東':'屏', '潤特宜蘭':'宜',
+  '工程新北':'工新', '工程桃園':'工桃', '工程新竹':'工竹', '工程苗栗':'工苗', '工程臺中':'工中', '工程台中':'工中',
+  '工程南投':'工投', '工程彰化':'工彰', '工程雲林':'工雲', '工程嘉義':'工嘉', '工程臺南':'工南', '工程台南':'工南',
+  '工程高雄':'工高', '工程屏東':'工屏', '工程宜蘭':'工宜',
+};
+const CASE_PREFIX_KEYS = Object.keys(CASE_PREFIX_MAP).sort((a,b) => b.length - a.length);
+function caseAbbrCode(caseStr){
+  if(!caseStr) return '';
+  for(const k of CASE_PREFIX_KEYS){
+    if(caseStr.startsWith(k)) return CASE_PREFIX_MAP[k];
+  }
+  return caseStr[0] || ''; // 找不到對應前綴時，退回取案號第一個字，避免完全沒有標示
+}
 function calShortLabel(caseStr, vendor){
   const digits = (caseStr||'').match(/\d+/);
-  const prefix = vendor ? vendor[0] : '';
-  return prefix + (digits ? digits[0] : (caseStr||''));
+  const code = caseAbbrCode(caseStr);
+  return (vendor || '') + ' ' + code + (digits ? digits[0] : '');
 }
 function collectCalendarEvents(){
   const map = new Map();
