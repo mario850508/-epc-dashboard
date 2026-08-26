@@ -1251,6 +1251,7 @@ async function confirmIssue(){
   try{
     await saveCaseStatusField(recordId, caseNo, {issue_note: note, issue_date: todayStr()});
     closeIssueModal();
+    renderPendingTable();
     renderDoneTable();
     renderMeterTable();
     renderIssueTable();
@@ -1270,6 +1271,7 @@ async function resolveIssue(recordId){
   const caseNo = (cs && cs.case_no) || '';
   try{
     await saveCaseStatusField(recordId, caseNo, {issue_note: null, issue_date: null});
+    renderPendingTable();
     renderDoneTable();
     renderMeterTable();
     renderIssueTable();
@@ -1316,6 +1318,7 @@ async function loadAppData(){
     (data.case_status || []).forEach(cs => { APP_CASE_STATUS[cs.case_record_id] = cs; });
     APP_NOTES = data.notes || [];
     APP_ARCHIVED = (data.archived || []).map(a => ({...a, vendorClass: VENDOR_CLASS[a.vendor] || 'vendor-other'}));
+    renderPendingTable();
     renderEntryTable();
     renderDoneTable();
     renderMeterTable();
@@ -1475,6 +1478,8 @@ function renderPendingTable(){
     if(pendingVendorFilter !== 'all' && r.vendor !== pendingVendorFilter) return false;
     if(q && !((r.case||'').includes(q) || (r.alias||'').includes(q)
               || (r.module||'').includes(q) || (r.inverter||'').includes(q))) return false;
+    const cs = APP_CASE_STATUS[r.record_id];
+    if(cs && cs.issue_note) return false; // 已標記異常的案件不再顯示在「待安排出貨案件」
     return true;
   });
   rows.sort((a,b) => {
