@@ -689,17 +689,18 @@
               <th>案場地址</th>
               <th>目前階段</th>
               <th>異常狀況</th>
+              <th>待取得函文</th>
               <th>記錄日期</th>
               <th>操作</th>
             </tr></thead>
             <tbody id="issueRows">
               <tr>
-                <td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
+                <td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
               </tr>
             </tbody>
           </table>
           <div class="login-note">
-            🔗 這份清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面;按「撤案」會移到「撤案清單」（點上方按鈕查看）。點「案號」欄位標題可排序,點「廠商」可篩選特定廠商,下方搜尋框可用案號、地址內容篩選。
+            🔗 這份清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面;按「撤案」會移到「撤案清單」（點上方按鈕查看）。「待取得函文」是選填功能,標記異常時可以順便選案件是卡在等哪份函文（免雜／細部協商／台電購售契約）,系統會即時查 Airtable「進度管理」表目前的實際進度;一旦偵測到函文已取得,案件會自動排除異常、回到「待安排出貨&植筋」清單,「觸發依據」欄位也會自動改顯示這份函文的日期。點「案號」欄位標題可排序,點「廠商」可篩選特定廠商,下方搜尋框可用案號、地址內容篩選。
           </div>
         </div>
       </div>
@@ -890,6 +891,13 @@
             </div>
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">異常狀況說明（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）</label>
             <textarea class="quick-mark-input" id="issueNote" rows="4" style="margin-bottom:18px;width:100%;font-family:inherit;resize:vertical;" placeholder="例如：屋主要求延後掛表、電力公司文件缺件…"></textarea>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">待取得函文再進場（選填,會即時查詢 Airtable「進度管理」表的實際進度）</label>
+            <select class="quick-mark-input" id="issueWaitingDocType" style="margin-bottom:18px;">
+              <option value="">不適用</option>
+              <option value="免雜">免雜</option>
+              <option value="細部協商">細部協商</option>
+              <option value="台電購售契約">台電購售契約（台電契約）</option>
+            </select>
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmIssue()">確認標記</button>
           </div>
         </div>
@@ -1422,6 +1430,7 @@ function openIssueModal(recordId){
   document.getElementById('issueCaseTitle').textContent = caseNo;
   document.getElementById('issueCaseAddr').textContent = addr + '　' + vendor;
   document.getElementById('issueNote').value = (cs && cs.issue_note) || '';
+  document.getElementById('issueWaitingDocType').value = (cs && cs.waiting_doc_type) || '';
   document.getElementById('issueModalOverlay').classList.add('show');
 }
 function closeIssueModal(){
@@ -1429,6 +1438,7 @@ function closeIssueModal(){
 }
 async function confirmIssue(){
   const note = document.getElementById('issueNote').value.trim();
+  const waitingDocType = document.getElementById('issueWaitingDocType').value;
   if(!note){ showToast('請填寫異常狀況說明'); return; }
   const recordId = issueTargetRecordId;
   const cs = getCaseStatus(recordId);
@@ -1439,7 +1449,7 @@ async function confirmIssue(){
   btn.textContent = '儲存中…';
   btn.disabled = true;
   try{
-    await saveCaseStatusField(recordId, caseNo, {issue_note: note, issue_date: todayStr()});
+    await saveCaseStatusField(recordId, caseNo, {issue_note: note, issue_date: todayStr(), waiting_doc_type: waitingDocType || null});
     closeIssueModal();
     renderPendingTable();
     renderEntryTable();
@@ -1938,12 +1948,16 @@ function renderPendingTable(){
     const specCell = hasSpec
       ? `<td>${r.module}</td><td>${r.inverter || ''}</td>`
       : `<td colspan="2"><span class="warn-pill">⚠ 尚未填寫規格</span></td>`;
+    const cs = getCaseStatus(r.record_id);
+    const triggerPill = (cs && cs.waiting_doc_type && cs.waiting_doc_date)
+      ? `<span class="pm-pill" style="background:var(--m-rebar-soft);color:var(--m-rebar);">${cs.waiting_doc_type} ${fmtDate(cs.waiting_doc_date)}</span>`
+      : `<span class="pm-pill" style="background:var(--success-soft);color:var(--success);">同意備案 ${r.agree}</span>`;
     return `
       <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${hasSpec ? r.module : '尚未填寫規格'}" data-inverter="${hasSpec ? (r.inverter||'') : ''}">
         <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
         <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
         <td>${r.address}</td>
-        <td><span class="pm-pill" style="background:var(--success-soft);color:var(--success);">同意備案 ${r.agree}</span></td>
+        <td>${triggerPill}</td>
         ${specCell}
         <td><button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this)">📅 排定日期</button>${renderRebarBadge(r.record_id)}</td>
       </tr>
@@ -2057,7 +2071,7 @@ function renderIssueTable(){
   if(!tbody) return;
   const ids = Object.keys(APP_CASE_STATUS).filter(id => APP_CASE_STATUS[id].issue_note && !APP_CASE_STATUS[id].withdrawn_note);
   if(ids.length === 0){
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有異常案件</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有異常案件</td></tr>';
     return;
   }
   const baseItems = ids.map(id => {
@@ -2073,6 +2087,7 @@ function renderIssueTable(){
       stage: deriveStageLabel(id),
       issue_note: cs.issue_note,
       issue_date: cs.issue_date,
+      waiting_doc_type: cs.waiting_doc_type || '',
     };
   });
   let items = applyTableFilterSort('issue', baseItems);
@@ -2080,7 +2095,7 @@ function renderIssueTable(){
     items.sort((a,b) => (b.issue_date||'').localeCompare(a.issue_date||''));
   }
   if(items.length === 0){
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
     return;
   }
   tbody.innerHTML = items.map(it => {
@@ -2091,6 +2106,13 @@ function renderIssueTable(){
       <td>${it.address}</td>
       <td><span class="pm-pill">${it.stage}</span></td>
       <td style="max-width:260px;white-space:pre-wrap;">${it.issue_note}</td>
+      <td>
+        ${it.waiting_doc_type ? `
+          <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:2px;">${it.waiting_doc_type}</div>
+          <div id="docStatus_${it.id}" style="font-size:12px;">查詢中…</div>
+          <button class="btn btn-ghost" style="padding:2px 8px;font-size:10.5px;margin-top:3px;" onclick="checkDocStatus('${it.id}','${it.waiting_doc_type}')">🔄 重新檢查</button>
+        ` : '<span style="color:var(--text-muted);">—</span>'}
+      </td>
       <td>${fmtDate(it.issue_date)}</td>
       <td>
         <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openIssueModal('${it.id}')">編輯</button>
@@ -2102,6 +2124,58 @@ function renderIssueTable(){
     </tr>
   `;
   }).join('');
+  // 表格畫好之後，非同步逐一去查每一筆「等待函文」案件在 Airtable 的實際進度，
+  // 不用整批快取（只有少數案件會用到這個功能，即時查詢即可）。
+  items.forEach(it => {
+    if(it.waiting_doc_type) checkDocStatus(it.id, it.waiting_doc_type);
+  });
+}
+async function checkDocStatus(recordId, docType){
+  const el = document.getElementById('docStatus_' + recordId);
+  if(!el) return;
+  el.innerHTML = '查詢中…';
+  try{
+    const res = await fetch(API_BASE + '/api/milestone-status?case_record_id=' + encodeURIComponent(recordId) + '&type=' + encodeURIComponent(docType), {cache: 'no-store'});
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    const data = await res.json();
+    if(data.completed){
+      // 已取得，自動排除異常，讓案件回到「待安排出貨&植筋」，並保留函文日期做為新的觸發依據
+      await autoResolveByDocument(recordId, docType, data.actual_date);
+      return;
+    }
+    if(!el) return;
+    if(data.found_milestone === false){
+      el.innerHTML = `<span style="color:var(--text-muted);">Airtable 查無此里程碑</span>`;
+    } else {
+      el.innerHTML = `<span style="color:var(--m-rebar);">尚未取得</span>`;
+    }
+  }catch(err){
+    if(el) el.innerHTML = '<span style="color:var(--text-muted);">查詢失敗</span>';
+    console.error(err);
+  }
+}
+async function autoResolveByDocument(recordId, docType, actualDate){
+  const cs = getCaseStatus(recordId);
+  const caseNo = (cs && cs.case_no) || '';
+  try{
+    await saveCaseStatusField(recordId, caseNo, {
+      issue_note: null,
+      issue_date: null,
+      waiting_doc_date: actualDate || todayStr(),
+    });
+    renderPendingTable();
+    renderEntryTable();
+    renderMeterTable();
+    renderIssueTable();
+    renderWithdrawnTable();
+    showToast(`已取得「${docType}」，案件已自動移回「待安排出貨&植筋」`);
+  }catch(err){
+    showToast('自動排除異常失敗：' + err.message);
+    console.error(err);
+  }
 }
 
 // ---- 歷史紀錄（最終封存，掛表已完成）----
