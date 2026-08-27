@@ -574,7 +574,7 @@
             <tbody id="pendingRows"></tbody>
           </table>
           <div class="login-note" id="pendingLoginNote">
-            🔗 資料每天 00:00／06:00／12:00／18:00 自動整批更新一次(伺服器背景排程),平常開啟頁面是直接讀取這份快取,不會每次都重新查 Airtable。點「排定日期」寫入成功後,會立刻觸發一次重新整理,清單會馬上反映最新狀態。標示「⚠ 尚未填寫規格」的案件仍會列在清單中提醒你安排出貨,只是模組/逆變器資訊還沒填。點欄位標題（案號／別名、觸發依據、模組、逆變器）可切換排序,輸入框可用案號、別名、模組、逆變器內容篩選,點廠商 chip 可篩選特定廠商。點「🪵」植筋按鈕可以安排植筋日期,或勾選「跟進場一起」;植筋日期一旦過了當天,隔天會自動視為完成,不用手動標記。
+            🔗 資料每天 00:00／06:00／12:00／18:00 自動整批更新一次(伺服器背景排程),平常開啟頁面是直接讀取這份快取,不會每次都重新查 Airtable。點「排定日期」寫入成功後,會立刻觸發一次重新整理,清單會馬上反映最新狀態。標示「⚠ 尚未填寫規格」的案件仍會列在清單中提醒你安排出貨,只是模組/逆變器資訊還沒填。點欄位標題（案號／別名、觸發依據、模組、逆變器）可切換排序,輸入框可用案號、別名、模組、逆變器內容篩選,點廠商 chip 可篩選特定廠商。點「🪛」植筋按鈕可以安排植筋日期,或勾選「跟進場一起」;植筋日期一旦過了當天,隔天會自動視為完成,不用手動標記。
           </div>
         </div>
       </div>
@@ -943,7 +943,7 @@
       <div class="modal-overlay" id="rebarModalOverlay" onclick="if(event.target===this) closeRebarModal()">
         <div class="modal-box" style="max-width:440px;">
           <div class="modal-header">
-            <div class="modal-title">🪵 植筋安排</div>
+            <div class="modal-title">🪛 植筋安排</div>
             <button class="modal-close" onclick="closeRebarModal()">✕</button>
           </div>
           <div class="modal-body">
@@ -1530,15 +1530,15 @@ function renderRebarBadge(recordId){
   const cs = getCaseStatus(recordId);
   const btnStyle = 'padding:6px 12px;font-size:12px;white-space:nowrap;';
   if(cs && cs.rebar_with_entry){
-    return `<div style="margin-top:6px;"><button class="btn btn-ghost" style="${btnStyle}background:var(--m-rebar-soft);color:var(--m-rebar);border-color:transparent;" onclick="openRebarModal('${recordId}')">🪵 植筋與進場一起</button></div>`;
+    return `<div style="margin-top:6px;"><button class="btn btn-ghost" style="${btnStyle}background:var(--m-rebar-soft);color:var(--m-rebar);border-color:transparent;" onclick="openRebarModal('${recordId}')">🪛 植筋與進場一起</button></div>`;
   }
   if(cs && cs.rebar_planned_date){
     const done = isRebarDone(cs);
     const bg = done ? 'var(--success-soft)' : 'var(--m-rebar-soft)';
     const fg = done ? 'var(--success)' : 'var(--m-rebar)';
-    return `<div style="margin-top:6px;"><button class="btn btn-ghost" style="${btnStyle}background:${bg};color:${fg};border-color:transparent;" onclick="openRebarModal('${recordId}')">🪵 植筋 ${fmtDate(cs.rebar_planned_date)}</button></div>`;
+    return `<div style="margin-top:6px;"><button class="btn btn-ghost" style="${btnStyle}background:${bg};color:${fg};border-color:transparent;" onclick="openRebarModal('${recordId}')">🪛 植筋 ${fmtDate(cs.rebar_planned_date)}</button></div>`;
   }
-  return `<div style="margin-top:6px;"><button class="btn btn-ghost" style="${btnStyle}" onclick="openRebarModal('${recordId}')">🪵 安排植筋</button></div>`;
+  return `<div style="margin-top:6px;"><button class="btn btn-ghost" style="${btnStyle}" onclick="openRebarModal('${recordId}')">🪛 安排植筋</button></div>`;
 }
 let rebarTargetRecordId = null;
 let rebarTargetCaseNo = '';
@@ -1807,6 +1807,30 @@ async function loadCompletedCases(){
 }
 
 let lastKnownUpdatedAt = null;
+function pollForCacheUpdate(){
+  return new Promise((resolve) => {
+    let tries = 0;
+    const maxTries = 24;
+    const poll = setInterval(async () => {
+      tries++;
+      try{
+        const res = await fetch(API_BASE + '/api/pending-cases', {cache: 'no-store'});
+        const data = await res.json();
+        if(data.updated_at && data.updated_at !== lastKnownUpdatedAt){
+          clearInterval(poll);
+          lastKnownUpdatedAt = data.updated_at;
+          await Promise.all([loadPendingCases(), loadEntryCases(), loadCompletedCases(), loadAppData()]);
+          resolve(true);
+        } else if(tries >= maxTries){
+          clearInterval(poll);
+          resolve(false);
+        }
+      }catch(err){
+        // 忽略單次輪詢失敗，繼續等下一次
+      }
+    }, 5000);
+  });
+}
 async function triggerManualRefresh(){
   const btn = document.getElementById('manualRefreshBtn');
   btn.disabled = true;
@@ -1822,31 +1846,10 @@ async function triggerManualRefresh(){
     return;
   }
 
-  // 每 5 秒檢查一次 updated_at 有沒有變化，最多等 2 分鐘
-  let tries = 0;
-  const maxTries = 24;
-  const poll = setInterval(async () => {
-    tries++;
-    try{
-      const res = await fetch(API_BASE + '/api/pending-cases', {cache: 'no-store'});
-      const data = await res.json();
-      if(data.updated_at && data.updated_at !== lastKnownUpdatedAt){
-        clearInterval(poll);
-        lastKnownUpdatedAt = data.updated_at;
-        await Promise.all([loadPendingCases(), loadEntryCases(), loadCompletedCases(), loadAppData()]);
-        showToast('已更新完成');
-        btn.disabled = false;
-        btn.textContent = '🔄 手動更新';
-      } else if(tries >= maxTries){
-        clearInterval(poll);
-        showToast('更新時間較長,請稍後再檢查一次');
-        btn.disabled = false;
-        btn.textContent = '🔄 手動更新';
-      }
-    }catch(err){
-      // 忽略單次輪詢失敗，繼續等下一次
-    }
-  }, 5000);
+  const ok = await pollForCacheUpdate();
+  showToast(ok ? '已更新完成' : '更新時間較長,請稍後再檢查一次');
+  btn.disabled = false;
+  btn.textContent = '🔄 手動更新';
 }
 
 function renderPendingTable(){
@@ -1886,7 +1889,7 @@ function renderPendingTable(){
         <td>${r.address}</td>
         <td><span class="pm-pill" style="background:var(--success-soft);color:var(--success);">同意備案 ${r.agree}</span></td>
         ${specCell}
-        <td><button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this)">排定日期</button>${renderRebarBadge(r.record_id)}</td>
+        <td><button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this)">📅 排定日期</button>${renderRebarBadge(r.record_id)}</td>
       </tr>
     `;
   }).join('');
@@ -2308,9 +2311,11 @@ async function confirmSchedule(){
     }catch(e){ console.error('儲存變流器出貨日期失敗：', e); }
     closeScheduleModal();
     showToast('已寫入 Airtable「大料出貨時間」');
-    // 三邊都重新載入，反映 Airtable 最新狀態
+    // 先做一次立即刷新（可能還沒反映後端最新快取），並在背景繼續輪詢，
+    // 等後端這次的 refresh_cache 真的跑完後自動再刷新一次，不用使用者手動整頁重新整理，
+    // 也不強制切換分頁，維持使用者原本停留的頁面。
     await Promise.all([loadPendingCases(), loadEntryCases(), loadCompletedCases(), loadAppData()]);
-    if(scheduleMode === 'new') showEpcTab('epc-entry');
+    pollForCacheUpdate();
   }catch(err){
     showToast('寫入失敗：' + err.message);
     console.error(err);
