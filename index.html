@@ -364,6 +364,7 @@
           <div class="nav-sub-item" data-sub="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
           <div class="nav-sub-item" data-sub="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
           <div class="nav-sub-item" data-sub="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨案件</div>
+          <div class="nav-sub-item" data-sub="epc-rebar" onclick="showEpcTab('epc-rebar')">植筋安排</div>
           <div class="nav-sub-item" data-sub="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
           <div class="nav-sub-item" data-sub="epc-done" onclick="showEpcTab('epc-done')">已完工</div>
           <div class="nav-sub-item" data-sub="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
@@ -513,6 +514,7 @@
         <div class="tab active" data-tab="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
         <div class="tab" data-tab="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
         <div class="tab" data-tab="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨案件</div>
+        <div class="tab" data-tab="epc-rebar" onclick="showEpcTab('epc-rebar')">植筋安排</div>
         <div class="tab" data-tab="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
         <div class="tab" data-tab="epc-done" onclick="showEpcTab('epc-done')">已完工</div>
         <div class="tab" data-tab="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
@@ -574,6 +576,43 @@
           </table>
           <div class="login-note" id="pendingLoginNote">
             🔗 資料每天 00:00／06:00／12:00／18:00 自動整批更新一次(伺服器背景排程),平常開啟頁面是直接讀取這份快取,不會每次都重新查 Airtable。點「排定日期」寫入成功後,會立刻觸發一次重新整理,清單會馬上反映最新狀態。標示「⚠ 尚未填寫規格」的案件仍會列在清單中提醒你安排出貨,只是模組/逆變器資訊還沒填。點欄位標題（案號／別名、觸發依據、模組、逆變器）可切換排序,輸入框可用案號、別名、模組、逆變器內容篩選,點廠商 chip 可篩選特定廠商。
+          </div>
+        </div>
+      </div>
+
+      <!-- 植筋安排 -->
+      <div class="subview" id="tab-epc-rebar">
+        <div class="panel">
+          <div class="panel-title">
+            植筋安排
+          </div>
+          <div class="pending-toolbar">
+            <input type="text" class="quick-mark-input" id="rebarFilterInput" placeholder="搜尋案號、地址…" oninput="tableSearchInput('rebar')" style="max-width:280px;">
+          </div>
+          <table>
+            <thead><tr>
+              <th class="sortable-th" onclick="sortTableBy('rebar','case')">案號 <span id="rebarSortIcon_case">↕</span></th>
+              <th class="filter-th" onclick="toggleTableVendorDropdown('rebar',event)">
+                廠商<span id="rebarVendorFilterLabel"></span> ▾
+                <div class="vendor-dropdown" id="rebarVendorDropdown">
+                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="selectTableVendor('rebar',event,'all')">全部廠商</div>
+                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('rebar',event,'三創')">三創</div>
+                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('rebar',event,'尚展')">尚展</div>
+                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('rebar',event,'曙光')">曙光</div>
+                </div>
+              </th>
+              <th>案場地址</th>
+              <th>計畫植筋日期</th>
+              <th>操作</th>
+            </tr></thead>
+            <tbody id="rebarRows">
+              <tr>
+                <td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="login-note">
+            🔗 這裡列出已經填了「計畫植筋日期」、但還沒標記完成、也沒勾選「跟進場一起」的案件。案號可以在「待安排出貨案件」或「案件進場安排」點「🪵 植筋」徽章來安排;安排完後這裡會自動出現。標記完成後案件會從這裡消失,但徽章仍會保留完成紀錄。此清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。
           </div>
         </div>
       </div>
@@ -971,6 +1010,33 @@
         </div>
       </div>
 
+      <!-- 植筋安排 modal -->
+      <div class="modal-overlay" id="rebarModalOverlay" onclick="if(event.target===this) closeRebarModal()">
+        <div class="modal-box" style="max-width:440px;">
+          <div class="modal-header">
+            <div class="modal-title">🪵 植筋安排</div>
+            <button class="modal-close" onclick="closeRebarModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="rebarCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="rebarCaseAddr">—</div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:16px;cursor:pointer;">
+              <input type="checkbox" id="rebarWithEntry" onchange="toggleRebarWithEntry()">
+              植筋跟進場一起，不用另外安排
+            </label>
+            <div id="rebarDateFields">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">計畫植筋日期</label>
+              <input type="date" class="quick-mark-input" id="rebarPlannedDate" style="margin-bottom:14px;">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">實際完成日期（完成後才填）</label>
+              <input type="date" class="quick-mark-input" id="rebarConfirmedDate" style="margin-bottom:18px;">
+            </div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmRebar()">儲存</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 撤案清單 modal -->
       <div class="modal-overlay" id="withdrawnModalOverlay" onclick="if(event.target===this) closeWithdrawnModal()">
         <div class="modal-box" style="max-width:900px;">
@@ -1137,6 +1203,7 @@
           </div>
           <div class="legend">
             <div class="legend-item"><span class="dot dot-ship"></span>模組/變流器出貨</div>
+            <div class="legend-item"><span class="dot dot-rebar"></span>植筋</div>
             <div class="legend-item"><span class="dot dot-enter"></span>進場</div>
             <div class="legend-item"><span class="dot dot-meter"></span>掛表</div>
           </div>
@@ -1543,6 +1610,116 @@ async function confirmOwnerInfo(){
     btn.disabled = false;
   }
 }
+
+// ---- 植筋安排 ----
+function renderRebarBadge(recordId){
+  const cs = getCaseStatus(recordId);
+  if(cs && cs.rebar_with_entry){
+    return `<div style="margin-top:6px;"><span class="pm-pill" style="cursor:pointer;background:var(--m-rebar-soft);color:var(--m-rebar);" onclick="openRebarModal('${recordId}')">🪵 植筋（隨進場）</span></div>`;
+  }
+  if(cs && cs.rebar_confirmed_date){
+    return `<div style="margin-top:6px;"><span class="pm-pill" style="cursor:pointer;background:var(--success-soft);color:var(--success);" onclick="openRebarModal('${recordId}')">🪵 植筋已完成 ${fmtDate(cs.rebar_confirmed_date)}</span></div>`;
+  }
+  if(cs && cs.rebar_planned_date){
+    return `<div style="margin-top:6px;"><span class="pm-pill" style="cursor:pointer;background:var(--m-rebar-soft);color:var(--m-rebar);" onclick="openRebarModal('${recordId}')">🪵 植筋 ${fmtDate(cs.rebar_planned_date)}</span></div>`;
+  }
+  return `<div style="margin-top:6px;"><span class="pm-pill" style="cursor:pointer;background:var(--surface-2);color:var(--text);" onclick="openRebarModal('${recordId}')">🪵 安排植筋</span></div>`;
+}
+let rebarTargetRecordId = null;
+let rebarTargetCaseNo = '';
+function openRebarModal(recordId){
+  rebarTargetRecordId = recordId;
+  const found = findCaseAnywhere(recordId);
+  rebarTargetCaseNo = (found && found.case) || '';
+  const cs = getCaseStatus(recordId);
+  document.getElementById('rebarCaseTitle').textContent = rebarTargetCaseNo || '—';
+  document.getElementById('rebarCaseAddr').textContent = found ? (found.address + '　' + found.vendor) : '';
+  const withEntry = !!(cs && cs.rebar_with_entry);
+  document.getElementById('rebarWithEntry').checked = withEntry;
+  document.getElementById('rebarPlannedDate').value = (cs && cs.rebar_planned_date) || '';
+  document.getElementById('rebarConfirmedDate').value = (cs && cs.rebar_confirmed_date) || '';
+  document.getElementById('rebarDateFields').style.display = withEntry ? 'none' : 'block';
+  document.getElementById('rebarModalOverlay').classList.add('show');
+}
+function closeRebarModal(){
+  document.getElementById('rebarModalOverlay').classList.remove('show');
+}
+function toggleRebarWithEntry(){
+  const checked = document.getElementById('rebarWithEntry').checked;
+  document.getElementById('rebarDateFields').style.display = checked ? 'none' : 'block';
+}
+async function confirmRebar(){
+  const withEntry = document.getElementById('rebarWithEntry').checked;
+  const planned = document.getElementById('rebarPlannedDate').value;
+  const confirmedDate = document.getElementById('rebarConfirmedDate').value;
+  const btn = document.querySelector('#rebarModalOverlay .btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = '儲存中…';
+  btn.disabled = true;
+  try{
+    await saveCaseStatusField(rebarTargetRecordId, rebarTargetCaseNo, {
+      rebar_with_entry: withEntry,
+      rebar_planned_date: withEntry ? null : (planned || null),
+      rebar_confirmed_date: withEntry ? null : (confirmedDate || null),
+    });
+    closeRebarModal();
+    renderPendingTable();
+    renderEntryTable();
+    renderRebarTable();
+    renderCalendar();
+    renderWeekList();
+    showToast('已更新植筋安排');
+  }catch(err){
+    showToast('儲存失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+function renderRebarTable(){
+  const tbody = document.getElementById('rebarRows');
+  if(!tbody) return;
+  const ids = Object.keys(APP_CASE_STATUS).filter(id => {
+    const cs = APP_CASE_STATUS[id];
+    return cs.rebar_planned_date && !cs.rebar_confirmed_date && !cs.rebar_with_entry;
+  });
+  if(ids.length === 0){
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有等待安排植筋的案件</td></tr>';
+    return;
+  }
+  const baseItems = ids.map(id => {
+    const cs = APP_CASE_STATUS[id];
+    const found = findCaseAnywhere(id);
+    return {
+      id,
+      case: (found && found.case) || cs.case_no || '（找不到案號）',
+      alias: (found && found.alias) || '',
+      vendor: (found && found.vendor) || '',
+      vendorClass: (found && (VENDOR_CLASS[found.vendor] || 'vendor-other')) || 'vendor-other',
+      address: (found && found.address) || '（找不到即時資料，可能已離開排程池）',
+      rebar_planned_date: cs.rebar_planned_date,
+    };
+  });
+  let items = applyTableFilterSort('rebar', baseItems);
+  if(!TABLE_STATE.rebar.sortKey){
+    items.sort((a,b) => (a.rebar_planned_date||'').localeCompare(b.rebar_planned_date||''));
+  }
+  if(items.length === 0){
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(it => `
+    <tr>
+      <td><div class="case-id">${it.case}</div><div class="case-alias">${it.alias||''}</div></td>
+      <td>${it.vendor ? `<span class="vendor-pill ${it.vendorClass}">${it.vendor}</span>` : ''}</td>
+      <td>${it.address}</td>
+      <td>${fmtDate(it.rebar_planned_date)}</td>
+      <td><button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openRebarModal('${it.id}')">安排／標記完成</button></td>
+    </tr>
+  `).join('');
+}
+
 function openWithdrawnModal(){
   renderWithdrawnTable();
   document.getElementById('withdrawnModalOverlay').classList.add('show');
@@ -1650,6 +1827,7 @@ async function loadAppData(){
     renderEarlyNoteList();
     renderParkedNoteList();
     renderMaterialList();
+    renderRebarTable();
     renderCalendar();
     renderWeekList();
   }catch(err){
@@ -1842,7 +2020,7 @@ function renderPendingTable(){
         <td>${r.address}</td>
         <td><span class="pm-pill" style="background:var(--success-soft);color:var(--success);">同意備案 ${r.agree}</span></td>
         ${specCell}
-        <td><button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this)">排定日期</button></td>
+        <td><button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this)">排定日期</button>${renderRebarBadge(r.record_id)}</td>
       </tr>
     `;
   }).join('');
@@ -1890,9 +2068,9 @@ function renderEntryTable(){
     }
     const actions = r._status === 'waiting'
       ? `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this,'reschedule')">重新安排出貨日期</button>
-         <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openEntryModal(this)">排定進場日期</button>`
+         <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openEntryModal(this)">排定進場日期</button>${renderRebarBadge(r.record_id)}`
       : `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openEntryModal(this,'reschedule')">重新安排進場日期</button>
-         <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openCompleteModal('${r.record_id}')">✓ 完工</button>`;
+         <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openCompleteModal('${r.record_id}')">✓ 完工</button>${renderRebarBadge(r.record_id)}`;
     return `
     <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}" data-entrydatefull="${r.entry_date||''}">
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
@@ -2119,6 +2297,7 @@ const TABLE_STATE = {
   issue:   { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
   archive: { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
   withdrawn: { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
+  rebar: { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
 };
 const TABLE_SORT_FIELDS = {
   entry: ['case','module'],
@@ -2127,6 +2306,7 @@ const TABLE_SORT_FIELDS = {
   issue: ['case'],
   archive: ['case','module'],
   withdrawn: ['case'],
+  rebar: ['case'],
 };
 const TABLE_RENDER_FN = {
   entry: () => renderEntryTable(),
@@ -2135,6 +2315,7 @@ const TABLE_RENDER_FN = {
   issue: () => renderIssueTable(),
   archive: () => renderArchiveTable(),
   withdrawn: () => renderWithdrawnTable(),
+  rebar: () => renderRebarTable(),
 };
 function sortTableBy(tab, key){
   const st = TABLE_STATE[tab];
@@ -2190,7 +2371,7 @@ function applyTableFilterSort(tab, rows){
   return out;
 }
 document.addEventListener('click', function(){
-  ['entry','done','meter','issue','archive','withdrawn'].forEach(tab => {
+  ['entry','done','meter','issue','archive','withdrawn','rebar'].forEach(tab => {
     const dd = document.getElementById(tab + 'VendorDropdown');
     if(dd) dd.classList.remove('show');
   });
@@ -2570,7 +2751,7 @@ function renderMaterialList(){
   tbody.innerHTML = list.map(n => `
     <tr>
       <td><div class="case-id">${n.case_text}</div></td>
-      <td>${n.content}</td>
+      <td style="white-space:pre-wrap;">${n.content}</td>
       <td>${fmtDate(n.date)}</td>
       <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="deleteMaterialNote('${n.app_record_id}')">刪除</button></td>
     </tr>
@@ -2586,7 +2767,7 @@ function maybePromptWithdrawMaterial(recordId, found){
   const parts = [];
   if(found.module) parts.push('模組：' + found.module);
   if(found.inverter) parts.push('逆變器：' + found.inverter);
-  document.getElementById('withdrawMaterialContent').value = parts.join('　');
+  document.getElementById('withdrawMaterialContent').value = parts.join('\n');
   document.getElementById('withdrawMaterialPromptOverlay').classList.add('show');
 }
 function closeWithdrawMaterialPrompt(){
@@ -2631,6 +2812,7 @@ function showEpcTab(tab){
   document.querySelector('.nav-sub-item[data-sub="'+tab+'"]').classList.add('active');
   if(tab === 'epc-calendar') renderCalendar();
   if(tab === 'epc-week') renderWeekList();
+  if(tab === 'epc-rebar') renderRebarTable();
 }
 function filterVendor(v){
   calVendorFilter = v;
@@ -2716,6 +2898,13 @@ function collectCalendarEvents(){
     const cs = getCaseStatus(r.record_id);
     if(cs && cs.meter_planned_date && !cs.meter_confirmed) add(cs.meter_planned_date, 'meter-planned', r, r.record_id);
   });
+  // 植筋：跟進場一起（rebar_with_entry）的案件不另外顯示植筋事件，已經算在進場事件裡了
+  [...PENDING_CASES, ...ENTRY_CASES, ...COMPLETED_CASES].forEach(r => {
+    const cs = getCaseStatus(r.record_id);
+    if(!cs || cs.rebar_with_entry) return;
+    if(cs.rebar_confirmed_date) add(cs.rebar_confirmed_date, 'rebar', r, r.record_id);
+    else if(cs.rebar_planned_date) add(cs.rebar_planned_date, 'rebar-planned', r, r.record_id);
+  });
   APP_ARCHIVED.forEach(r => {
     const rid = r.case_record_id;
     addShipEvents(r, rid);
@@ -2727,14 +2916,17 @@ function collectCalendarEvents(){
 const CAL_TYPE_LABEL = {
   'ship-module': '模組出貨', 'ship-inverter': '變流器出貨', 'ship-both': '模組&變流器出貨',
   enter: '進場', meter: '掛表', 'meter-planned': '預計掛表',
+  rebar: '植筋', 'rebar-planned': '預計植筋',
 };
 const CAL_TYPE_DOT = {
   'ship-module': 'dot-ship', 'ship-inverter': 'dot-ship', 'ship-both': 'dot-ship',
   enter: 'dot-enter', meter: 'dot-meter', 'meter-planned': 'dot-meter',
+  rebar: 'dot-rebar', 'rebar-planned': 'dot-rebar',
 };
 const CAL_TYPE_CHIP = {
   'ship-module': 'chip-ship', 'ship-inverter': 'chip-ship', 'ship-both': 'chip-ship',
   enter: 'chip-enter', meter: 'chip-meter', 'meter-planned': 'chip-meter',
+  rebar: 'chip-rebar', 'rebar-planned': 'chip-rebar',
 };
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
