@@ -365,7 +365,6 @@
           <div class="nav-sub-item" data-sub="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
           <div class="nav-sub-item" data-sub="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨&植筋</div>
           <div class="nav-sub-item" data-sub="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
-          <div class="nav-sub-item" data-sub="epc-done" onclick="showEpcTab('epc-done')">已完工</div>
           <div class="nav-sub-item" data-sub="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
           <div class="nav-sub-item" data-sub="epc-issue" onclick="showEpcTab('epc-issue')">異常案件</div>
           <div class="nav-sub-item" data-sub="epc-archive" onclick="showEpcTab('epc-archive')">歷史紀錄</div>
@@ -514,7 +513,6 @@
         <div class="tab" data-tab="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
         <div class="tab" data-tab="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨&植筋</div>
         <div class="tab" data-tab="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
-        <div class="tab" data-tab="epc-done" onclick="showEpcTab('epc-done')">已完工</div>
         <div class="tab" data-tab="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
         <div class="tab" data-tab="epc-issue" onclick="showEpcTab('epc-issue')">異常案件</div>
         <div class="tab" data-tab="epc-archive" onclick="showEpcTab('epc-archive')">歷史紀錄</div>
@@ -612,47 +610,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 案件在「待安排出貨&植筋」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排」,案件仍會留在這裡,直到你按下「完工」才會移入「已完工」（完工日期、屋主資訊等都會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
-          </div>
-        </div>
-      </div>
-
-      <!-- 已完工（本機記錄，尚未安排掛表） -->
-      <div class="subview" id="tab-epc-done">
-        <div class="panel">
-          <div class="panel-title">
-            已完工
-          </div>
-          <div class="pending-toolbar">
-            <input type="text" class="quick-mark-input" id="doneFilterInput" placeholder="搜尋案號、地址、模組、逆變器…" oninput="tableSearchInput('done')" style="max-width:280px;">
-          </div>
-          <table>
-            <thead><tr>
-              <th class="sortable-th" onclick="sortTableBy('done','case')">案號 <span id="doneSortIcon_case">↕</span></th>
-              <th class="filter-th" onclick="toggleTableVendorDropdown('done',event)">
-                廠商<span id="doneVendorFilterLabel"></span> ▾
-                <div class="vendor-dropdown" id="doneVendorDropdown">
-                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="selectTableVendor('done',event,'all')">全部廠商</div>
-                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('done',event,'三創')">三創</div>
-                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('done',event,'尚展')">尚展</div>
-                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('done',event,'曙光')">曙光</div>
-                </div>
-              </th>
-              <th>案場地址</th>
-              <th class="sortable-th" onclick="sortTableBy('done','module')">模組／逆變器 <span id="doneSortIcon_module">↕</span></th>
-              <th>出貨時間</th>
-              <th>進場時間</th>
-              <th>完工時間</th>
-              <th>操作</th>
-            </tr></thead>
-            <tbody id="doneRows">
-              <tr>
-                <td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="login-note">
-            🔗 這份清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。點「完工時間」可以修正日期。案件要到「掛表安排」頁面實際排定掛表日期後,才會移入「歷史紀錄」。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
+            🔗 案件在「待安排出貨&植筋」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排」,案件仍會留在這裡,直到你按下「完工&掛表」一次填好完工日期跟預計掛表日期,案件就會直接移入「掛表安排」（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
           </div>
         </div>
       </div>
@@ -690,7 +648,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 這裡列出「已完工」且已排定預計掛表日期的案件。點預計日期可以修正；按「完成掛表」會跳出確認,寫入後案件會移入「歷史紀錄」。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
+            🔗 這裡列出已完工且已排定預計掛表日期的案件（在「案件進場安排」按「完工&掛表」後會直接出現在這裡）。點預計日期可以修正；按「完成掛表」會跳出確認,寫入後案件會移入「歷史紀錄」。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
           </div>
         </div>
       </div>
@@ -851,25 +809,28 @@
       </div>
 
       <!-- 完工日期 modal（只記錄在本機，不寫回 Airtable） -->
-      <div class="modal-overlay" id="completeModalOverlay" onclick="if(event.target===this) closeCompleteModal()">
+      <div class="modal-overlay" id="completeMeterModalOverlay" onclick="if(event.target===this) closeCompleteMeterModal()">
         <div class="modal-box" style="max-width:440px;">
           <div class="modal-header">
-            <div class="modal-title">✓ 完工日期</div>
-            <button class="modal-close" onclick="closeCompleteModal()">✕</button>
+            <div class="modal-title">✓ 完工&掛表</div>
+            <button class="modal-close" onclick="closeCompleteMeterModal()">✕</button>
           </div>
           <div class="modal-body">
             <div style="margin-bottom:14px;">
-              <div style="font-weight:700;font-size:14px;" id="completeCaseTitle">—</div>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="completeCaseAddr">—</div>
+              <div style="font-weight:700;font-size:14px;" id="completeMeterCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="completeMeterCaseAddr">—</div>
             </div>
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">完工日期（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）</label>
-            <input type="date" class="quick-mark-input" id="completeDate" style="margin-bottom:18px;">
-            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmComplete()">確認</button>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">完工日期</label>
+            <input type="date" class="quick-mark-input" id="completeMeterCompletedDate" style="margin-bottom:14px;">
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計掛表日期</label>
+            <input type="date" class="quick-mark-input" id="completeMeterPlannedDate" style="margin-bottom:6px;">
+            <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:18px;">兩個日期會一起寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到;送出後案件會直接移入「掛表安排」。</div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmCompleteMeter()">確認，移入掛表安排</button>
           </div>
         </div>
       </div>
 
-      <!-- 預計掛表日期 modal（已完工頁用，只記錄在本機，不寫回 Airtable） -->
+      <!-- 預計掛表日期 modal（掛表安排頁修正日期用，寫回 Airtable「APP資料」表） -->
       <div class="modal-overlay" id="planMeterModalOverlay" onclick="if(event.target===this) closePlanMeterModal()">
         <div class="modal-box" style="max-width:440px;">
           <div class="modal-header">
@@ -881,9 +842,9 @@
               <div style="font-weight:700;font-size:14px;" id="planMeterCaseTitle">—</div>
               <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="planMeterCaseAddr">—</div>
             </div>
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計掛表日期（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到;排定後案件會移入「掛表安排」）</label>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計掛表日期（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到)</label>
             <input type="date" class="quick-mark-input" id="planMeterDate" style="margin-bottom:18px;">
-            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmPlanMeter()">確認，移入掛表安排</button>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmPlanMeter()">確認</button>
           </div>
         </div>
       </div>
@@ -1182,7 +1143,7 @@
             <div class="login-note">點選上方日曆中的任一天,就會在這裡列出當天所有的出貨/進場/掛表排程。</div>
           </div>
           <div class="login-note">
-            🔗 這裡的日期直接讀取「案件進場安排」「已完工」「掛表安排」「歷史紀錄」裡的即時資料,不需要另外輸入;掛表日期若尚未實際完成掛表,會顯示為「預計」。
+            🔗 這裡的日期直接讀取「案件進場安排」「掛表安排」「歷史紀錄」裡的即時資料,不需要另外輸入;掛表日期若尚未實際完成掛表,會顯示為「預計」。
           </div>
         </div>
       </div>
@@ -1208,42 +1169,45 @@ function todayStr(){
   return d.getFullYear() + '-' + (d.getMonth()+1).toString().padStart(2,'0') + '-' + d.getDate().toString().padStart(2,'0');
 }
 
-// ---- 完工日期 modal ----
-let completeTargetRecordId = null;
-function openCompleteModal(recordId){
-  completeTargetRecordId = recordId;
+// ---- 完工＆掛表 modal ----
+let completeMeterTargetRecordId = null;
+function openCompleteMeterModal(recordId){
+  completeMeterTargetRecordId = recordId;
   const cs = getCaseStatus(recordId);
   const found = COMPLETED_CASES.find(c => c.record_id === recordId);
   if(!found && !cs){ showToast('找不到這筆案件的資料，請重新整理頁面再試一次'); return; }
   const caseNo = (found && found.case) || (cs && cs.case_no) || '';
   const addr = (found && found.address) || '';
   const vendor = (found && found.vendor) || '';
-  document.getElementById('completeCaseTitle').textContent = caseNo;
-  document.getElementById('completeCaseAddr').textContent = addr + '　' + vendor;
-  document.getElementById('completeDate').value = (cs && cs.completed_date) || todayStr();
-  document.getElementById('completeModalOverlay').classList.add('show');
+  document.getElementById('completeMeterCaseTitle').textContent = caseNo;
+  document.getElementById('completeMeterCaseAddr').textContent = addr + '　' + vendor;
+  document.getElementById('completeMeterCompletedDate').value = (cs && cs.completed_date) || todayStr();
+  document.getElementById('completeMeterPlannedDate').value = (cs && cs.meter_planned_date) || todayStr();
+  document.getElementById('completeMeterModalOverlay').classList.add('show');
 }
-function closeCompleteModal(){
-  document.getElementById('completeModalOverlay').classList.remove('show');
+function closeCompleteMeterModal(){
+  document.getElementById('completeMeterModalOverlay').classList.remove('show');
 }
-async function confirmComplete(){
-  const dateVal = document.getElementById('completeDate').value;
-  if(!dateVal){ showToast('請選擇完工日期'); return; }
-  const recordId = completeTargetRecordId;
+async function confirmCompleteMeter(){
+  const completedVal = document.getElementById('completeMeterCompletedDate').value;
+  const plannedVal = document.getElementById('completeMeterPlannedDate').value;
+  if(!completedVal){ showToast('請選擇完工日期'); return; }
+  if(!plannedVal){ showToast('請選擇預計掛表日期'); return; }
+  const recordId = completeMeterTargetRecordId;
   const found = COMPLETED_CASES.find(c => c.record_id === recordId);
   const cs = getCaseStatus(recordId);
   const caseNo = (found && found.case) || (cs && cs.case_no) || '';
-  const btn = document.querySelector('#completeModalOverlay .btn-primary');
+  const btn = document.querySelector('#completeMeterModalOverlay .btn-primary');
   const originalText = btn.textContent;
   btn.textContent = '儲存中…';
   btn.disabled = true;
   try{
-    await saveCaseStatusField(recordId, caseNo, {completed_date: dateVal});
-    closeCompleteModal();
+    await saveCaseStatusField(recordId, caseNo, {completed_date: completedVal, meter_planned_date: plannedVal});
+    closeCompleteMeterModal();
     renderEntryTable();
-    renderDoneTable();
     renderMeterTable();
-    showToast('已記錄完工日期');
+    showToast('已記錄完工＆掛表日期，移入「掛表安排」');
+    showEpcTab('epc-meter');
     loadAppData();  // 背景重新對齊一次，確保跟其他人同步
   }catch(err){
     showToast('儲存失敗：' + err.message);
@@ -1251,29 +1215,6 @@ async function confirmComplete(){
   }finally{
     btn.textContent = originalText;
     btn.disabled = false;
-  }
-}
-async function unmarkComplete(recordId){
-  try{
-    const res = await fetch(API_BASE + '/api/app-data/case-status/clear', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({case_record_id: recordId}),
-    });
-    if(!res.ok){
-      const err = await res.json().catch(()=>({}));
-      throw new Error(err.error || ('HTTP ' + res.status));
-    }
-    delete APP_CASE_STATUS[recordId];
-    renderEntryTable();
-    renderDoneTable();
-    renderMeterTable();
-    renderIssueTable();
-    renderWithdrawnTable();
-    showToast('已移回案件進場安排');
-  }catch(err){
-    showToast('操作失敗：' + err.message);
-    console.error(err);
   }
 }
 
@@ -1309,7 +1250,6 @@ async function confirmPlanMeter(){
   try{
     await saveCaseStatusField(recordId, caseNo, {meter_planned_date: dateVal});
     closePlanMeterModal();
-    renderDoneTable();
     renderMeterTable();
     showToast('已排定掛表日期，移入「掛表安排」');
     showEpcTab('epc-meter');
@@ -1439,7 +1379,6 @@ async function confirmIssue(){
     closeIssueModal();
     renderPendingTable();
     renderEntryTable();
-    renderDoneTable();
     renderMeterTable();
     renderIssueTable();
     renderWithdrawnTable();
@@ -1461,7 +1400,6 @@ async function resolveIssue(recordId){
     await saveCaseStatusField(recordId, caseNo, {issue_note: null, issue_date: null});
     renderPendingTable();
     renderEntryTable();
-    renderDoneTable();
     renderMeterTable();
     renderIssueTable();
     renderWithdrawnTable();
@@ -1741,7 +1679,6 @@ async function loadAppData(){
     APP_ARCHIVED = (data.archived || []).map(a => ({...a, vendorClass: VENDOR_CLASS[a.vendor] || 'vendor-other'}));
     renderPendingTable();
     renderEntryTable();
-    renderDoneTable();
     renderMeterTable();
     renderIssueTable();
     renderWithdrawnTable();
@@ -1850,7 +1787,6 @@ async function loadCompletedCases(){
       vendorClass: VENDOR_CLASS[c.vendor] || 'vendor-other',
     }));
     renderEntryTable();
-    renderDoneTable();
     renderMeterTable();
     renderIssueTable();
     renderWithdrawnTable();
@@ -1955,7 +1891,7 @@ function renderEntryTable(){
   const doneRows = COMPLETED_CASES
     .filter(r => {
       const cs = getCaseStatus(r.record_id);
-      return !(cs && cs.completed_date) && !(cs && cs.issue_note);
+      return !(cs && cs.meter_planned_date) && !(cs && cs.issue_note);
     })
     .map(r => ({...r, _status: 'scheduled'}));
   const allRows = [...waitingRows, ...doneRows];
@@ -1991,7 +1927,7 @@ function renderEntryTable(){
       ? `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this,'reschedule')">重新安排出貨日期</button>
          <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openEntryModal(this)">排定進場日期</button>${renderRebarBadge(r.record_id)}`
       : `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openEntryModal(this,'reschedule')">重新安排進場日期</button>
-         <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openCompleteModal('${r.record_id}')">✓ 完工</button>${renderRebarBadge(r.record_id)}`;
+         <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openCompleteMeterModal('${r.record_id}')">✓ 完工&掛表</button>`;
     return `
     <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}" data-entrydatefull="${r.entry_date||''}">
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
@@ -2007,50 +1943,6 @@ function renderEntryTable(){
 }
 
 // ---- 已完工（尚未排掛表）----
-function renderDoneTable(){
-  const tbody = document.getElementById('doneRows');
-  if(!tbody) return;
-  const baseRows = COMPLETED_CASES.filter(r => {
-    const cs = getCaseStatus(r.record_id);
-    return cs && cs.completed_date && !cs.meter_planned_date && !cs.issue_note;
-  });
-  if(baseRows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有已完工待安排掛表的案件——在「案件進場安排」按下「完工」後,案件會出現在這裡</td></tr>';
-    return;
-  }
-  let rows = applyTableFilterSort('done', baseRows);
-  if(!TABLE_STATE.done.sortKey){
-    rows.sort((a,b) => {
-      const ca = getCaseStatus(a.record_id), cb = getCaseStatus(b.record_id);
-      return (cb.completed_date||'').localeCompare(ca.completed_date||'');
-    });
-  }
-  if(rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
-    return;
-  }
-  tbody.innerHTML = rows.map(r => {
-    const cs = getCaseStatus(r.record_id);
-    const invDate = getInverterDate(r.record_id);
-    const shipText = fmtDate(r.ship_date) + (invDate ? `（變流器 ${fmtDate(invDate)}）` : '');
-    return `
-    <tr>
-      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
-      <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
-      <td>${r.address}</td>
-      <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
-      <td>${shipText}</td>
-      <td>${fmtDate(r.entry_date)}</td>
-      <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openCompleteModal('${r.record_id}')">${fmtDate(cs.completed_date)}　✎</button></td>
-      <td>
-        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="openPlanMeterModal('${r.record_id}')">安排掛表日期</button>
-        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="unmarkComplete('${r.record_id}')">移回</button>
-      </td>
-    </tr>
-  `;
-  }).join('');
-}
-
 // ---- 掛表安排（已排定預計掛表日期，等待確認寫回 Airtable）----
 function renderMeterTable(){
   const tbody = document.getElementById('meterRows');
@@ -2060,7 +1952,7 @@ function renderMeterTable(){
     return cs && cs.meter_planned_date && !cs.meter_confirmed && !cs.issue_note;
   });
   if(baseRows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有等待完成掛表的案件——在「已完工」頁面按「安排掛表日期」後,案件會出現在這裡</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有等待完成掛表的案件——在「案件進場安排」按下「完工&掛表」後,案件會出現在這裡</td></tr>';
     return;
   }
   let rows = applyTableFilterSort('meter', baseRows);
@@ -2213,7 +2105,6 @@ document.addEventListener('click', function(){
 // ---- 通用表格篩選／排序（案件進場安排／已完工／掛表安排／異常案件／歷史紀錄共用）----
 const TABLE_STATE = {
   entry:   { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
-  done:    { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
   meter:   { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
   issue:   { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
   archive: { sortKey: null, sortAsc: true, vendor: 'all', q: '' },
@@ -2221,7 +2112,6 @@ const TABLE_STATE = {
 };
 const TABLE_SORT_FIELDS = {
   entry: ['case','module'],
-  done: ['case','module'],
   meter: ['case','module'],
   issue: ['case'],
   archive: ['case','module'],
@@ -2229,7 +2119,6 @@ const TABLE_SORT_FIELDS = {
 };
 const TABLE_RENDER_FN = {
   entry: () => renderEntryTable(),
-  done: () => renderDoneTable(),
   meter: () => renderMeterTable(),
   issue: () => renderIssueTable(),
   archive: () => renderArchiveTable(),
@@ -2289,7 +2178,7 @@ function applyTableFilterSort(tab, rows){
   return out;
 }
 document.addEventListener('click', function(){
-  ['entry','done','meter','issue','archive','withdrawn'].forEach(tab => {
+  ['entry','meter','issue','archive','withdrawn'].forEach(tab => {
     const dd = document.getElementById(tab + 'VendorDropdown');
     if(dd) dd.classList.remove('show');
   });
