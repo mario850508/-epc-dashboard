@@ -1358,10 +1358,6 @@ async function confirmMeter(){
   if(!dateVal){ showToast('請選擇掛表日期'); return; }
   const recordId = meterTargetRecordId;
   const found = COMPLETED_CASES.find(c => c.record_id === recordId);
-  if(!found || !found.meter_milestone_record_id){
-    showToast('這筆案件目前找不到掛表里程碑記錄，請先點「手動更新」重新整理後端資料再試一次');
-    return;
-  }
   const btn = document.querySelector('#meterModalOverlay .btn-primary');
   const originalText = btn.textContent;
   btn.textContent = '寫入中…';
@@ -1372,7 +1368,7 @@ async function confirmMeter(){
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         case_record_id: recordId,
-        milestone_record_id: found.meter_milestone_record_id,
+        milestone_record_id: (found && found.meter_milestone_record_id) || undefined,
         hang_meter_date: dateVal,
       }),
     });
@@ -2328,10 +2324,6 @@ function openScheduleModal(btn, mode){
     showToast('這筆案件尚未填寫模組／變流器資訊，請先至 Airtable 輸入模組／變流器資訊後再排定出貨時間。');
     return;
   }
-  if(!row.dataset.shipMilestoneId){
-    showToast('這筆案件在 Airtable「進度管理」表找不到對應的「大料出貨時間」里程碑記錄，無法排定，請確認 Airtable 資料。');
-    return;
-  }
   scheduleTargetRow = row;
   scheduleMode = mode;
   document.getElementById('scheduleCaseTitle').textContent = row.dataset.case;
@@ -2359,7 +2351,7 @@ async function confirmSchedule(){
     const res = await fetch(API_BASE + '/api/schedule', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({milestone_record_id: milestoneId, ship_date: shipDate}),
+      body: JSON.stringify({milestone_record_id: milestoneId || undefined, case_record_id: recordId, ship_date: shipDate}),
     });
     if(!res.ok){
       const err = await res.json().catch(()=>({}));
@@ -2407,10 +2399,6 @@ async function confirmEntry(){
   if(!entryDate){ showToast('請填寫進場日期'); return; }
 
   const milestoneId = entryTargetRow.dataset.entryMilestoneId;
-  if(!milestoneId){
-    showToast('這筆案件在 Airtable 找不到「進場屋主預約」里程碑記錄，無法排定。');
-    return;
-  }
   const recordId = entryTargetRow.dataset.recordId;
   const caseNo = entryTargetRow.dataset.case;
   const contactName = document.getElementById('entryContactName').value.trim();
@@ -2425,7 +2413,7 @@ async function confirmEntry(){
     const res = await fetch(API_BASE + '/api/entry-date', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({milestone_record_id: milestoneId, entry_date: entryDate}),
+      body: JSON.stringify({milestone_record_id: milestoneId || undefined, case_record_id: recordId, entry_date: entryDate}),
     });
     if(!res.ok){
       const err = await res.json().catch(()=>({}));
