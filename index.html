@@ -215,6 +215,7 @@
   .vendor-sc{background:#FDECEC;color:#D64545;}
   .vendor-sz{background:#E9F3FF;color:#1E70C8;}
   .vendor-sg{background:#FFF3D9;color:#B37A00;}
+  .vendor-gd{background:#EAF7EE;color:#1E8A4C;}
   .vendor-other{background:var(--surface-2);color:var(--text-muted);}
 
   .vendor-filter{display:flex;gap:8px;margin:10px 0 16px;flex-wrap:wrap;}
@@ -228,6 +229,7 @@
   .vendor-chip.vendor-sc.active{background:#D64545;border-color:#D64545;}
   .vendor-chip.vendor-sz.active{background:#1E70C8;border-color:#1E70C8;}
   .vendor-chip.vendor-sg.active{background:#B37A00;border-color:#B37A00;}
+  .vendor-chip.vendor-gd.active{background:#1E8A4C;border-color:#1E8A4C;}
   .chip.chip-dim{opacity:.15;}
 
   .quick-mark{position:relative;}
@@ -559,6 +561,7 @@
                     <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectPendingVendor(event,'三創')">三創</div>
                     <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectPendingVendor(event,'尚展')">尚展</div>
                     <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectPendingVendor(event,'曙光')">曙光</div>
+                  <div class="vendor-dropdown-item" data-vendor="光鼎" onclick="selectPendingVendor(event,'光鼎')">光鼎</div>
                   </div>
                 </th>
                 <th>案場地址</th>
@@ -595,6 +598,7 @@
                   <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('entry',event,'三創')">三創</div>
                   <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('entry',event,'尚展')">尚展</div>
                   <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('entry',event,'曙光')">曙光</div>
+                  <div class="vendor-dropdown-item" data-vendor="光鼎" onclick="selectTableVendor('entry',event,'光鼎')">光鼎</div>
                 </div>
               </th>
               <th>案場地址</th>
@@ -634,6 +638,7 @@
                   <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('meter',event,'三創')">三創</div>
                   <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('meter',event,'尚展')">尚展</div>
                   <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('meter',event,'曙光')">曙光</div>
+                  <div class="vendor-dropdown-item" data-vendor="光鼎" onclick="selectTableVendor('meter',event,'光鼎')">光鼎</div>
                 </div>
               </th>
               <th>案場地址</th>
@@ -677,6 +682,7 @@
                   <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('issue',event,'三創')">三創</div>
                   <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('issue',event,'尚展')">尚展</div>
                   <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('issue',event,'曙光')">曙光</div>
+                  <div class="vendor-dropdown-item" data-vendor="光鼎" onclick="selectTableVendor('issue',event,'光鼎')">光鼎</div>
                 </div>
               </th>
               <th>案場地址</th>
@@ -716,6 +722,7 @@
                   <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('archive',event,'三創')">三創</div>
                   <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('archive',event,'尚展')">尚展</div>
                   <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('archive',event,'曙光')">曙光</div>
+                  <div class="vendor-dropdown-item" data-vendor="光鼎" onclick="selectTableVendor('archive',event,'光鼎')">光鼎</div>
                 </div>
               </th>
               <th>案場地址</th>
@@ -979,6 +986,7 @@
                     <div class="vendor-dropdown-item" data-vendor="三創" onclick="selectTableVendor('withdrawn',event,'三創')">三創</div>
                     <div class="vendor-dropdown-item" data-vendor="尚展" onclick="selectTableVendor('withdrawn',event,'尚展')">尚展</div>
                     <div class="vendor-dropdown-item" data-vendor="曙光" onclick="selectTableVendor('withdrawn',event,'曙光')">曙光</div>
+                  <div class="vendor-dropdown-item" data-vendor="光鼎" onclick="selectTableVendor('withdrawn',event,'光鼎')">光鼎</div>
                   </div>
                 </th>
                 <th>案場地址</th>
@@ -1115,6 +1123,7 @@
           <div class="vendor-chip vendor-sc" data-vendor="sc" onclick="filterVendor('sc')">三創</div>
           <div class="vendor-chip vendor-sz" data-vendor="sz" onclick="filterVendor('sz')">尚展</div>
           <div class="vendor-chip vendor-sg" data-vendor="sg" onclick="filterVendor('sg')">曙光</div>
+          <div class="vendor-chip vendor-gd" data-vendor="gd" onclick="filterVendor('gd')">光鼎</div>
         </div>
         <div class="cal-header">
           <div class="cal-nav">
@@ -1155,7 +1164,7 @@
 <script>
 const API_BASE = 'https://epc-backend-4aj2.onrender.com';
 
-const VENDOR_CLASS = {'三創':'vendor-sc','尚展':'vendor-sz','曙光':'vendor-sg'};
+const VENDOR_CLASS = {'三創':'vendor-sc','尚展':'vendor-sz','曙光':'vendor-sg','光鼎':'vendor-gd'};
 
 let PENDING_CASES = [];
 let ENTRY_CASES = [];
@@ -2643,7 +2652,7 @@ function fmtISODate(y, m, d){
   // m 為 0-based 月份
   return y + '-' + String(m+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
 }
-const VENDOR_CODE = {'三創':'sc','尚展':'sz','曙光':'sg'};
+const VENDOR_CODE = {'三創':'sc','尚展':'sz','曙光':'sg','光鼎':'gd'};
 // 案號前綴（原始案場公司）對應的簡稱，依「原始案號」欄位比對
 const CASE_PREFIX_MAP = {
   '潤特新北':'新', '潤特桃園':'桃', '潤特新竹':'竹', '潤特苗栗':'苗', '潤特臺中':'中', '潤特台中':'中',
