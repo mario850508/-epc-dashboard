@@ -542,6 +542,7 @@
             <span id="pendingUpdatedAt" style="margin-left:8px;font-size:11px;color:var(--text-muted);font-weight:400;"></span>
             <button class="btn btn-ghost notes-trigger-btn" id="manualRefreshBtn" onclick="triggerManualRefresh()">🔄 手動更新</button>
             <button class="btn btn-ghost notes-trigger-btn" onclick="openNotesModal()">📝 註記清單</button>
+            <button class="btn btn-ghost notes-trigger-btn" onclick="openMaterialModal()">📦 未使用料件</button>
             <button class="btn btn-ghost notes-trigger-btn" onclick="openNotifyModal()">📋 產出通知訊息</button>
           </div>
 
@@ -611,7 +612,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 案件在「待安排出貨案件」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排」,案件仍會留在這裡,直到你按下「完工」才會移入「已完工」（完工狀態只記錄在本機瀏覽器,不會寫回 Airtable）。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
+            🔗 案件在「待安排出貨案件」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排」,案件仍會留在這裡,直到你按下「完工」才會移入「已完工」（完工日期、屋主資訊等都會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
           </div>
         </div>
       </div>
@@ -651,7 +652,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。點「完工時間」可以修正日期。案件要到「掛表安排」頁面實際排定掛表日期後,才會移入「歷史紀錄」。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
+            🔗 這份清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。點「完工時間」可以修正日期。案件要到「掛表安排」頁面實際排定掛表日期後,才會移入「歷史紀錄」。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
           </div>
         </div>
       </div>
@@ -733,7 +734,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面;按「撤案」會移到「撤案清單」（點上方按鈕查看）。點「案號」欄位標題可排序,點「廠商」可篩選特定廠商,下方搜尋框可用案號、地址內容篩選。
+            🔗 這份清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面;按「撤案」會移到「撤案清單」（點上方按鈕查看）。點「案號」欄位標題可排序,點「廠商」可篩選特定廠商,下方搜尋框可用案號、地址內容篩選。
           </div>
         </div>
       </div>
@@ -772,7 +773,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。案件在「掛表安排」實際排定掛表日期並成功寫入 Airtable 後,會移到這裡。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
+            🔗 此清單也會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。案件在「掛表安排」實際排定掛表日期並成功寫入 Airtable 後,會移到這裡。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
           </div>
         </div>
       </div>
@@ -791,7 +792,7 @@
             </div>
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">模組出貨時間（寫入 Airtable「大料出貨時間」）</label>
             <input type="date" class="quick-mark-input" id="scheduleShipDate" style="margin-bottom:14px;">
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">變流器出貨時間（僅記錄在本機瀏覽器,不會寫入 Airtable）</label>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">變流器出貨時間（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）</label>
             <input type="date" class="quick-mark-input" id="scheduleInverterDate" style="margin-bottom:18px;">
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmSchedule()">確認排定，移入案件進場安排</button>
           </div>
@@ -836,7 +837,7 @@
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">進場日期</label>
             <input type="date" class="quick-mark-input" id="entryDate" style="margin-bottom:18px;">
             <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px;">
-              <label style="font-size:12px;font-weight:700;display:block;margin-bottom:10px;">屋主聯絡資訊（只記錄在本機瀏覽器,不會寫回 Airtable）</label>
+              <label style="font-size:12px;font-weight:700;display:block;margin-bottom:10px;">屋主聯絡資訊（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）</label>
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">聯絡人</label>
               <input type="text" class="quick-mark-input" id="entryContactName" style="margin-bottom:12px;" placeholder="例如：王先生">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">聯絡電話</label>
@@ -861,7 +862,7 @@
               <div style="font-weight:700;font-size:14px;" id="completeCaseTitle">—</div>
               <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="completeCaseAddr">—</div>
             </div>
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">完工日期（只記錄在本機瀏覽器,不會寫回 Airtable）</label>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">完工日期（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）</label>
             <input type="date" class="quick-mark-input" id="completeDate" style="margin-bottom:18px;">
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmComplete()">確認</button>
           </div>
@@ -880,7 +881,7 @@
               <div style="font-weight:700;font-size:14px;" id="planMeterCaseTitle">—</div>
               <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="planMeterCaseAddr">—</div>
             </div>
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計掛表日期（只記錄在本機瀏覽器,不會寫回 Airtable;排定後案件會移入「掛表安排」）</label>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計掛表日期（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到;排定後案件會移入「掛表安排」）</label>
             <input type="date" class="quick-mark-input" id="planMeterDate" style="margin-bottom:18px;">
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmPlanMeter()">確認，移入掛表安排</button>
           </div>
@@ -918,7 +919,7 @@
               <div style="font-weight:700;font-size:14px;" id="issueCaseTitle">—</div>
               <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="issueCaseAddr">—</div>
             </div>
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">異常狀況說明（只記錄在本機瀏覽器,不會寫回 Airtable）</label>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">異常狀況說明（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）</label>
             <textarea class="quick-mark-input" id="issueNote" rows="4" style="margin-bottom:18px;width:100%;font-family:inherit;resize:vertical;" placeholder="例如：屋主要求延後掛表、電力公司文件缺件…"></textarea>
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmIssue()">確認標記</button>
           </div>
@@ -940,7 +941,7 @@
             <div style="background:#FDF1F1;color:#C9383D;font-size:12.5px;padding:10px 12px;border-radius:10px;margin-bottom:14px;">
               確認撤案後,此案件會從「異常案件」清單移到下方「撤案清單」,不會再出現在待出貨/進場/完工等一般流程中。
             </div>
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">撤案原因（只記錄在本機瀏覽器,不會寫回 Airtable）</label>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">撤案原因（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）</label>
             <textarea class="quick-mark-input" id="withdrawNote" rows="4" style="margin-bottom:18px;width:100%;font-family:inherit;resize:vertical;" placeholder="例如：屋主取消合作、案場條件不符…"></textarea>
             <button class="btn btn-danger" style="width:100%;justify-content:center;padding:11px;" onclick="confirmWithdraw()">確認撤案</button>
           </div>
@@ -963,7 +964,7 @@
             <input type="text" class="quick-mark-input" id="ownerInfoName" style="margin-bottom:12px;" placeholder="例如：王先生">
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">聯絡電話</label>
             <input type="text" class="quick-mark-input" id="ownerInfoPhone" style="margin-bottom:12px;" placeholder="例如：0912-345-678">
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">備註（只記錄在本機瀏覽器,不會寫回 Airtable）</label>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">備註（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）</label>
             <textarea class="quick-mark-input" id="ownerInfoNote" rows="3" style="margin-bottom:18px;width:100%;font-family:inherit;resize:vertical;" placeholder="例如：平日不在家,建議約假日"></textarea>
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmOwnerInfo()">儲存</button>
           </div>
@@ -1005,7 +1006,7 @@
               </tbody>
             </table>
             <div class="login-note">
-              🔗 此清單只記錄在本機瀏覽器（不同電腦/清除瀏覽器資料不會同步）。在「異常案件」按下「撤案」的案件會移到這裡；按「取消撤案」可以移回「異常案件」清單。
+              🔗 這份清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。在「異常案件」按下「撤案」的案件會移到這裡；按「取消撤案」可以移回「異常案件」清單。
             </div>
           </div>
         </div>
@@ -1039,7 +1040,7 @@
                 </tbody>
               </table>
               <div class="login-note">
-                🔗 名單中的案件,一旦 Airtable 的「併聯審查」欄位填入日期,就會自動進入「待安排出貨案件」並標示特殊規格,不用等同意備案。此清單只記錄在本機瀏覽器,不會寫回 Airtable。
+                🔗 名單中的案件,一旦 Airtable 的「併聯審查」欄位填入日期,就會自動進入「待安排出貨案件」並標示特殊規格,不用等同意備案。此清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。
               </div>
             </div>
 
@@ -1059,8 +1060,60 @@
                 </tbody>
               </table>
               <div class="login-note">
-                🔗 這裡先記錄還用不到的注意事項;等該案件的「同意備案」填入日期、進入待安排出貨清單時,備住的內容會一併顯示出來提醒你。此清單只記錄在本機瀏覽器,不會寫回 Airtable。
+                🔗 這裡先記錄還用不到的注意事項;等該案件的「同意備案」填入日期、進入待安排出貨清單時,備住的內容會一併顯示出來提醒你。此清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 未使用料件 modal -->
+      <div class="modal-overlay" id="materialModalOverlay" onclick="if(event.target===this) closeMaterialModal()">
+        <div class="modal-box">
+          <div class="modal-header">
+            <div class="modal-title">📦 未使用料件</div>
+            <button class="modal-close" onclick="closeMaterialModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="panel">
+              <div class="note-add-row note-add-row-wide">
+                <input type="text" class="quick-mark-input" id="materialCaseInput" placeholder="案號或案場（可留空）">
+                <input type="text" class="quick-mark-input" id="materialContentInput" placeholder="料件內容,例如：CPSPV6000ETLA ×2、未使用退回">
+                <button class="btn btn-primary" onclick="addMaterialNote()">＋ 加入清單</button>
+              </div>
+              <table style="margin-top:14px;">
+                <thead><tr><th>案號／案場</th><th>料件內容</th><th>記錄日期</th><th>操作</th></tr></thead>
+                <tbody id="materialRows">
+                  <tr>
+                    <td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有未使用料件</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="login-note">
+                🔗 這裡記錄目前尚未使用、可以留到下次案場使用的料件。此清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。在「異常案件」按下「撤案」時,如果該案已經出貨,系統會另外跳出提示,問你要不要把料件自動加進這裡。
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 撤案後詢問是否加入未使用料件 modal -->
+      <div class="modal-overlay" id="withdrawMaterialPromptOverlay" onclick="if(event.target===this) closeWithdrawMaterialPrompt()">
+        <div class="modal-box" style="max-width:440px;">
+          <div class="modal-header">
+            <div class="modal-title">📦 加入未使用料件？</div>
+            <button class="modal-close" onclick="closeWithdrawMaterialPrompt()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="withdrawMaterialCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">這筆案件已經出貨,撤案後這些料件可能會用不到,要不要先記到「未使用料件」清單？</div>
+            </div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">料件內容（可修改後再加入）</label>
+            <textarea class="quick-mark-input" id="withdrawMaterialContent" rows="3" style="margin-bottom:18px;width:100%;font-family:inherit;resize:vertical;"></textarea>
+            <div style="display:flex;gap:10px;">
+              <button class="btn btn-ghost" style="flex:1;justify-content:center;padding:11px;" onclick="closeWithdrawMaterialPrompt()">不用，謝謝</button>
+              <button class="btn btn-primary" style="flex:1;justify-content:center;padding:11px;" onclick="confirmWithdrawMaterial()">加入未使用料件清單</button>
             </div>
           </div>
         </div>
@@ -1425,6 +1478,7 @@ async function confirmWithdraw(){
     renderIssueTable();
     renderWithdrawnTable();
     showToast('已撤案，移入「撤案清單」');
+    maybePromptWithdrawMaterial(recordId, found);
   }catch(err){
     showToast('撤案失敗：' + err.message);
     console.error(err);
@@ -1595,6 +1649,7 @@ async function loadAppData(){
     renderArchiveTable();
     renderEarlyNoteList();
     renderParkedNoteList();
+    renderMaterialList();
     renderCalendar();
     renderWeekList();
   }catch(err){
@@ -2455,6 +2510,115 @@ function renderParkedNoteList(){
       <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="deleteParkedNote('${n.app_record_id}')">刪除</button></td>
     </tr>
   `).join('');
+}
+
+function openMaterialModal(){
+  renderMaterialList();
+  document.getElementById('materialModalOverlay').classList.add('show');
+}
+function closeMaterialModal(){
+  document.getElementById('materialModalOverlay').classList.remove('show');
+}
+async function addMaterialNote(){
+  const caseInput = document.getElementById('materialCaseInput');
+  const contentInput = document.getElementById('materialContentInput');
+  const caseText = caseInput.value.trim();
+  const content = contentInput.value.trim();
+  if(!content){ showToast('請填寫料件內容'); return; }
+  try{
+    const res = await fetch(API_BASE + '/api/app-data/note', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({type: '未使用料件', case_text: caseText || '（未指定案場）', content}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    caseInput.value = '';
+    contentInput.value = '';
+    await loadAppData();
+    renderMaterialList();
+    showToast('已加入「未使用料件」清單');
+  }catch(err){
+    showToast('新增失敗：' + err.message);
+    console.error(err);
+  }
+}
+async function deleteMaterialNote(appRecordId){
+  try{
+    const res = await fetch(API_BASE + '/api/app-data/' + appRecordId, {method: 'DELETE'});
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    APP_NOTES = APP_NOTES.filter(n => n.app_record_id !== appRecordId);
+    renderMaterialList();
+  }catch(err){
+    showToast('刪除失敗：' + err.message);
+    console.error(err);
+  }
+}
+function renderMaterialList(){
+  const tbody = document.getElementById('materialRows');
+  if(!tbody) return;
+  const list = APP_NOTES.filter(n => n.type === '未使用料件');
+  if(list.length === 0){
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有未使用料件</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(n => `
+    <tr>
+      <td><div class="case-id">${n.case_text}</div></td>
+      <td>${n.content}</td>
+      <td>${fmtDate(n.date)}</td>
+      <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="deleteMaterialNote('${n.app_record_id}')">刪除</button></td>
+    </tr>
+  `).join('');
+}
+
+// ---- 撤案時，若案件已出貨，詢問是否把料件加入「未使用料件」清單 ----
+let withdrawMaterialCaseText = '';
+function maybePromptWithdrawMaterial(recordId, found){
+  if(!found || !found.ship_date) return; // 還沒出貨，不用問
+  withdrawMaterialCaseText = found.case;
+  document.getElementById('withdrawMaterialCaseTitle').textContent = found.case + (found.alias ? '　'+found.alias : '');
+  const parts = [];
+  if(found.module) parts.push('模組：' + found.module);
+  if(found.inverter) parts.push('逆變器：' + found.inverter);
+  document.getElementById('withdrawMaterialContent').value = parts.join('　');
+  document.getElementById('withdrawMaterialPromptOverlay').classList.add('show');
+}
+function closeWithdrawMaterialPrompt(){
+  document.getElementById('withdrawMaterialPromptOverlay').classList.remove('show');
+}
+async function confirmWithdrawMaterial(){
+  const content = document.getElementById('withdrawMaterialContent').value.trim();
+  if(!content){ showToast('請填寫料件內容'); return; }
+  const btn = document.querySelector('#withdrawMaterialPromptOverlay .btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = '加入中…';
+  btn.disabled = true;
+  try{
+    const res = await fetch(API_BASE + '/api/app-data/note', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({type: '未使用料件', case_text: withdrawMaterialCaseText, content}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    closeWithdrawMaterialPrompt();
+    await loadAppData();
+    showToast('已加入「未使用料件」清單');
+  }catch(err){
+    showToast('加入失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
 }
 
 function showEpcTab(tab){
