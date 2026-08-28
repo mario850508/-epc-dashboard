@@ -663,6 +663,7 @@
         <div class="panel">
           <div class="panel-title">
             異常案件
+            <button class="btn btn-ghost notes-trigger-btn" onclick="recheckAllDocStatus()">🔄 重新檢查函文進度</button>
             <button class="btn btn-ghost notes-trigger-btn" onclick="openWithdrawnModal()">🚫 撤案清單 <span class="module-tag tag-cloud" style="margin-left:4px;" id="withdrawnCountTag">共 0 筆</span></button>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:16px;">
@@ -699,7 +700,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 這份清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面;按「撤案」會移到「撤案清單」（點上方按鈕查看）。「待取得函文」是選填功能,標記異常時可以順便選案件是卡在等哪份函文（免雜／細部協商／台電購售契約）,系統會即時查 Airtable「進度管理」表目前的實際進度;一旦偵測到函文已取得,案件會自動排除異常、回到「待安排出貨&植筋」清單,「觸發依據」欄位也會自動改顯示這份函文的日期。點「案號」欄位標題可排序,點「廠商」可篩選特定廠商,下方搜尋框可用案號、地址內容篩選。
+            🔗 這份清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。在上方輸入案號即可加入；按「已排除異常」會移出此清單,案件依原本階段繼續正常顯示在對應頁面;按「撤案」會移到「撤案清單」（點上方按鈕查看）。「待取得函文」是選填功能,標記異常時可以順便選案件是卡在等哪份函文（免雜／細部協商／台電購售契約）,只有第一次看到會即時查 Airtable「進度管理」表的實際進度,之後重繪畫面（包含背景自動同步）都用快取結果顯示,不會一直重查;想看最新狀態可以點上方「🔄 重新檢查函文進度」,或在「待安排出貨&植筋」按「手動更新」（會一併刷新這裡）。一旦偵測到函文已取得,案件會自動排除異常、回到「待安排出貨&植筋」清單,「觸發依據」欄位也會自動改顯示這份函文的日期。點「案號」欄位標題可排序,點「廠商」可篩選特定廠商,下方搜尋框可用案號、地址內容篩選。
           </div>
         </div>
       </div>
@@ -1946,9 +1947,24 @@ async function triggerManualRefresh(){
   }
 
   const ok = await pollForCacheUpdate();
+  // pollForCacheUpdate 只會刷新出貨/進場/已進場這三份（Airtable 案件池快取）；
+  // 這裡另外一併刷新「APP資料」（屋主資訊/植筋/撤案/未使用料件…）跟「異常案件」
+  // 裡每一筆「待取得函文」的最新進度，讓「手動更新」真的是一次更新到底，
+  // 不用你自己再跑去異常案件分頁另外重查。
+  await loadAppData();
+  recheckAllDocStatus();
   showToast(ok ? '已更新完成' : '更新時間較長,請稍後再檢查一次');
   btn.disabled = false;
   btn.textContent = '🔄 手動更新';
+}
+function recheckAllDocStatus(){
+  Object.keys(APP_CASE_STATUS).forEach(id => {
+    const cs = APP_CASE_STATUS[id];
+    if(cs.issue_note && !cs.withdrawn_note && cs.waiting_doc_type){
+      delete docStatusCache[id];
+      checkDocStatus(id, cs.waiting_doc_type);
+    }
+  });
 }
 
 function renderPendingTable(){
@@ -2143,7 +2159,6 @@ function renderIssueTable(){
         ${it.waiting_doc_type ? `
           <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:2px;">${it.waiting_doc_type}</div>
           <div id="docStatus_${it.id}" style="font-size:12px;">${renderDocStatusHtml(docStatusCache[it.id])}</div>
-          <button class="btn btn-ghost" style="padding:2px 8px;font-size:10.5px;margin-top:3px;" onclick="checkDocStatus('${it.id}','${it.waiting_doc_type}')">🔄 重新檢查</button>
         ` : '<span style="color:var(--text-muted);">—</span>'}
       </td>
       <td>${fmtDate(it.issue_date)}</td>
