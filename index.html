@@ -948,6 +948,31 @@
         </div>
       </div>
 
+      <!-- 填寫模組／逆變器規格 modal -->
+      <div class="modal-overlay" id="caseSpecModalOverlay" onclick="if(event.target===this) closeCaseSpecModal()">
+        <div class="modal-box" style="max-width:520px;">
+          <div class="modal-header">
+            <div class="modal-title">🔧 填寫模組／逆變器規格</div>
+            <button class="modal-close" onclick="closeCaseSpecModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="caseSpecCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="caseSpecCaseAddr">—</div>
+            </div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">模組型號</label>
+            <input type="text" class="quick-mark-input" id="caseSpecModuleModel" style="margin-bottom:10px;" placeholder="例如：500W_TS60-CMH-500 H6QT">
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">模組數量</label>
+            <input type="number" class="quick-mark-input" id="caseSpecModuleQty" style="margin-bottom:16px;" min="0">
+            <label style="font-size:12px;font-weight:700;display:block;margin-bottom:8px;">逆變器（可加多筆,型號要從 Airtable 現有清單裡選,不能自己打字）</label>
+            <div id="caseSpecInverterRows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
+            <button class="btn btn-ghost" style="margin-bottom:18px;" onclick="addCaseSpecInverterRow()">＋ 新增逆變器</button>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;">這裡填寫的內容會直接寫回 Airtable「專案細節」表,不用再回 Airtable 手動填。</div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmCaseSpec()">儲存</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 植筋安排 modal -->
       <div class="modal-overlay" id="rebarModalOverlay" onclick="if(event.target===this) closeRebarModal()">
         <div class="modal-box" style="max-width:440px;">
@@ -1907,6 +1932,121 @@ async function loadCompletedCases(){
 }
 
 let lastKnownUpdatedAt = null;
+// ---- 填寫模組／逆變器規格（直接寫回 Airtable「專案細節」表）----
+let INVERTER_OPTIONS = null;
+async function loadInverterOptionsIfNeeded(){
+  if(INVERTER_OPTIONS) return INVERTER_OPTIONS;
+  try{
+    const res = await fetch(API_BASE + '/api/inverter-options', {cache: 'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    INVERTER_OPTIONS = data.options || [];
+  }catch(err){
+    INVERTER_OPTIONS = [];
+    showToast('讀取逆變器型號清單失敗：' + err.message);
+  }
+  return INVERTER_OPTIONS;
+}
+let caseSpecTargetRecordId = null;
+async function openCaseSpecModal(recordId){
+  caseSpecTargetRecordId = recordId;
+  const found = findCaseAnywhere(recordId);
+  document.getElementById('caseSpecCaseTitle').textContent = (found && found.case) || '—';
+  document.getElementById('caseSpecCaseAddr').textContent = found ? (found.address + '　' + found.vendor) : '';
+
+  // 既有模組字串格式是「型號 ×數量」，解析回結構化欄位方便編輯
+  let moduleModel = '', moduleQty = '';
+  if(found && found.module){
+    const m = found.module.match(/^(.*)\s×([\d.]+)\s*$/);
+    if(m){ moduleModel = m[1]; moduleQty = m[2]; } else { moduleModel = found.module; }
+  }
+  document.getElementById('caseSpecModuleModel').value = moduleModel;
+  document.getElementById('caseSpecModuleQty').value = moduleQty;
+
+  await loadInverterOptionsIfNeeded();
+
+  const container = document.getElementById('caseSpecInverterRows');
+  container.innerHTML = '';
+  const existingInverters = [];
+  if(found && found.inverter){
+    found.inverter.split('、').forEach(seg => {
+      const m = seg.match(/^(.*)\s×([\d.]+)\s*$/);
+      if(m) existingInverters.push({name: m[1].trim(), qty: m[2]});
+      else if(seg.trim()) existingInverters.push({name: seg.trim(), qty: ''});
+    });
+  }
+  if(existingInverters.length === 0){
+    addCaseSpecInverterRow();
+  } else {
+    existingInverters.forEach(inv => {
+      const match = (INVERTER_OPTIONS || []).find(o => o.name === inv.name);
+      addCaseSpecInverterRow(match ? match.record_id : '', inv.qty);
+    });
+  }
+
+  document.getElementById('caseSpecModalOverlay').classList.add('show');
+}
+function closeCaseSpecModal(){
+  document.getElementById('caseSpecModalOverlay').classList.remove('show');
+}
+function addCaseSpecInverterRow(selectedRecordId, qty){
+  const container = document.getElementById('caseSpecInverterRows');
+  const row = document.createElement('div');
+  row.className = 'case-spec-inverter-row';
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;';
+  const optionsHtml = ['<option value="">— 選擇逆變器型號 —</option>']
+    .concat((INVERTER_OPTIONS || []).map(o =>
+      `<option value="${o.record_id}"${o.record_id === selectedRecordId ? ' selected' : ''}>${o.name}</option>`
+    )).join('');
+  row.innerHTML = `
+    <select class="quick-mark-input inverter-select" style="flex:1;">${optionsHtml}</select>
+    <input type="number" class="quick-mark-input inverter-qty" style="width:90px;" min="0" value="${qty || ''}" placeholder="數量">
+    <button class="btn btn-ghost" style="padding:6px 10px;" onclick="this.closest('.case-spec-inverter-row').remove()">✕</button>
+  `;
+  container.appendChild(row);
+}
+async function confirmCaseSpec(){
+  const moduleModel = document.getElementById('caseSpecModuleModel').value.trim();
+  const moduleQtyVal = document.getElementById('caseSpecModuleQty').value;
+  const rows = document.querySelectorAll('#caseSpecInverterRows .case-spec-inverter-row');
+  const inverters = [];
+  rows.forEach(row => {
+    const sel = row.querySelector('.inverter-select');
+    const qtyInput = row.querySelector('.inverter-qty');
+    if(sel && sel.value){
+      inverters.push({record_id: sel.value, qty: qtyInput.value ? Number(qtyInput.value) : null});
+    }
+  });
+  const btn = document.querySelector('#caseSpecModalOverlay .btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = '儲存中…';
+  btn.disabled = true;
+  try{
+    const res = await fetch(API_BASE + '/api/case-spec', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        case_record_id: caseSpecTargetRecordId,
+        module_model: moduleModel,
+        module_qty: moduleQtyVal ? Number(moduleQtyVal) : null,
+        inverters,
+      }),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    closeCaseSpecModal();
+    showToast('已寫入 Airtable,規格更新完成');
+    await pollForCacheUpdate();
+  }catch(err){
+    showToast('儲存失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
 function pollForCacheUpdate(){
   return new Promise((resolve) => {
     let tries = 0;
@@ -1995,8 +2135,8 @@ function renderPendingTable(){
   tbody.innerHTML = rows.map(r => {
     const hasSpec = !!r.module;
     const specCell = hasSpec
-      ? `<td>${r.module}</td><td>${r.inverter || ''}</td>`
-      : `<td colspan="2"><span class="warn-pill">⚠ 尚未填寫規格</span></td>`;
+      ? `<td>${r.module}<button class="btn btn-ghost" style="padding:1px 6px;font-size:10px;margin-left:4px;" onclick="openCaseSpecModal('${r.record_id}')">✎</button></td><td>${r.inverter || ''}</td>`
+      : `<td colspan="2"><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;background:var(--epc-soft);color:var(--epc);border-color:transparent;" onclick="openCaseSpecModal('${r.record_id}')">⚠ 尚未填寫規格,點此填寫</button></td>`;
     const cs = getCaseStatus(r.record_id);
     const triggerPill = (cs && cs.waiting_doc_type && cs.waiting_doc_date)
       ? `<span class="pm-pill" style="background:var(--m-rebar-soft);color:var(--m-rebar);">${cs.waiting_doc_type} ${fmtDate(cs.waiting_doc_date)}</span>`
