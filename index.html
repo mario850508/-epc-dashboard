@@ -1081,7 +1081,10 @@
           <div class="modal-body">
             <div class="panel">
               <div class="note-add-row note-add-row-wide" style="align-items:flex-start;">
-                <input type="text" class="quick-mark-input" id="materialCaseInput" placeholder="案號或案場（可留空）" onblur="autofillMaterialShipDate()">
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                  <input type="text" class="quick-mark-input" id="materialCaseInput" placeholder="案號或案場（可留空）" onblur="autofillMaterialFromCase()">
+                  <span id="materialCaseHint" style="font-size:10.5px;color:var(--m-rebar);min-height:14px;"></span>
+                </div>
                 <input type="text" class="quick-mark-input" id="materialContentInput" placeholder="料件內容,例如：CPSPV6000ETLA ×2、未使用退回">
                 <div style="display:flex;flex-direction:column;gap:2px;">
                   <input type="date" class="quick-mark-input" id="materialShipDateInput" style="width:150px;">
@@ -1090,15 +1093,15 @@
                 <button class="btn btn-primary" onclick="addMaterialNote()">＋ 加入清單</button>
               </div>
               <table style="margin-top:14px;">
-                <thead><tr><th>案號／案場</th><th>料件內容</th><th>出貨日期</th><th>記錄日期</th><th>操作</th></tr></thead>
+                <thead><tr><th>案號／案場</th><th>廠商</th><th>料件內容</th><th>出貨日期</th><th>記錄日期</th><th>操作</th></tr></thead>
                 <tbody id="materialRows">
                   <tr>
-                    <td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有未使用料件</td>
+                    <td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有未使用料件</td>
                   </tr>
                 </tbody>
               </table>
               <div class="login-note">
-                🔗 這裡記錄目前尚未使用、可以留到下次案場使用的料件。此清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。在「異常案件」按下「撤案」時,如果該案已經出貨,系統會另外跳出提示,問你要不要把料件自動加進這裡。點「編輯」可以修正案號、料件內容,或補填/修改出貨日期。點「使用」可以把這筆料件登記成用在其他案場,會一併記錄到「料件使用清單」。
+                🔗 這裡記錄目前尚未使用、可以留到下次案場使用的料件。此清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。填案號後如果比對到系統裡現有的案件,會自動帶入模組/逆變器內容、出貨日期,並顯示廠商；找不到對應案件的話,案號可以留空或自己輸入,料件內容也自己填寫就好。在「異常案件」按下「撤案」時,如果該案已經出貨,系統會另外跳出提示,問你要不要把料件自動加進這裡。點「編輯」可以修正案號、料件內容,或補填/修改出貨日期。點「使用」可以把這筆料件登記成用在其他案場,會一併記錄到「料件使用清單」。
               </div>
             </div>
           </div>
@@ -2726,6 +2729,8 @@ async function addMaterialNote(){
     caseInput.value = '';
     contentInput.value = '';
     shipDateInput.value = '';
+    const hintEl = document.getElementById('materialCaseHint');
+    if(hintEl) hintEl.textContent = '';
     await loadAppData();
     renderMaterialList();
     showToast('已加入「未使用料件」清單');
@@ -2753,12 +2758,18 @@ function renderMaterialList(){
   if(!tbody) return;
   const list = APP_NOTES.filter(n => n.type === '未使用料件');
   if(list.length === 0){
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有未使用料件</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有未使用料件</td></tr>';
     return;
   }
-  tbody.innerHTML = list.map(n => `
+  tbody.innerHTML = list.map(n => {
+    const found = findCaseByCaseNo(n.case_text);
+    const vendorCell = found
+      ? `<span class="vendor-pill ${VENDOR_CLASS[found.vendor] || 'vendor-other'}">${found.vendor}</span>`
+      : '<span style="color:var(--text-muted);">—</span>';
+    return `
     <tr>
       <td><div class="case-id">${n.case_text}</div></td>
+      <td>${vendorCell}</td>
       <td style="white-space:pre-wrap;">${n.content}</td>
       <td>${n.ship_date ? fmtDate(n.ship_date) : '<span style="color:var(--text-muted);">無出貨日期</span>'}</td>
       <td>${fmtDate(n.date)}</td>
@@ -2768,21 +2779,47 @@ function renderMaterialList(){
         <button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;margin-left:4px;" onclick="deleteMaterialNote('${n.app_record_id}')">刪除</button>
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 }
-// 未使用料件新增時，如果填的案號跟系統裡現有的案件完全一致，自動帶出該案的出貨日期
-// （優先抓模組出貨日期；沒有的話抓變流器出貨日期），使用者仍可自行修改或清空。
-function autofillMaterialShipDate(){
+// 依「案號」在系統現有案件裡（待安排出貨/案件進場安排/已進場/歷史紀錄）找完全相符的一筆，
+// 找不到就回傳 null（表示是自由輸入的案場，沒有對應的即時資料）。
+function findCaseByCaseNo(caseNo){
+  if(!caseNo) return null;
+  const all = [
+    ...PENDING_CASES,
+    ...ENTRY_CASES,
+    ...COMPLETED_CASES,
+    ...APP_ARCHIVED.map(a => ({...a, record_id: a.case_record_id})),
+  ];
+  return all.find(c => c.case === caseNo) || null;
+}
+// 未使用料件新增時，如果填的案號跟系統裡現有的案件完全一致，自動帶出這個案件的
+// 模組/逆變器料件內容、出貨日期，並在案號下方顯示廠商；使用者已經自己填過的欄位
+// 不會被覆蓋。找不到對應案件時清空提示文字，讓使用者自己輸入。
+function autofillMaterialFromCase(){
   const caseInput = document.getElementById('materialCaseInput');
+  const contentInput = document.getElementById('materialContentInput');
   const shipDateInput = document.getElementById('materialShipDateInput');
-  if(!caseInput || !shipDateInput || shipDateInput.value) return; // 使用者已經自己填過就不覆蓋
+  const hintEl = document.getElementById('materialCaseHint');
+  if(!caseInput) return;
   const caseNo = caseInput.value.trim();
-  if(!caseNo) return;
-  const all = [...PENDING_CASES, ...ENTRY_CASES, ...COMPLETED_CASES, ...APP_ARCHIVED.map(a => ({...a, record_id: a.case_record_id}))];
-  const found = all.find(c => c.case === caseNo);
-  if(!found) return;
-  const shipDate = found.ship_date || getInverterDate(found.record_id) || '';
-  if(shipDate) shipDateInput.value = shipDate;
+  const found = findCaseByCaseNo(caseNo);
+  if(!found){
+    if(hintEl) hintEl.textContent = caseNo ? '找不到對應案件,可自行輸入料件內容' : '';
+    return;
+  }
+  if(shipDateInput && !shipDateInput.value){
+    const shipDate = found.ship_date || getInverterDate(found.record_id) || '';
+    if(shipDate) shipDateInput.value = shipDate;
+  }
+  if(contentInput && !contentInput.value.trim()){
+    const parts = [];
+    if(found.module) parts.push('模組：' + found.module);
+    if(found.inverter) parts.push('逆變器：' + found.inverter);
+    if(parts.length) contentInput.value = parts.join('\n');
+  }
+  if(hintEl) hintEl.textContent = found.vendor ? `已比對到案件（${found.vendor}）` : '已比對到案件';
 }
 
 // ---- 未使用料件：編輯案號／內容／出貨日期 ----
