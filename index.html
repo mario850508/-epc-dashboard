@@ -1762,15 +1762,21 @@ let APP_CASE_STATUS = {};  // { [case_record_id]: {app_record_id, completed_date
 let APP_NOTES = [];        // [{app_record_id, type, case_text, content, date}]
 let APP_ARCHIVED = [];     // 已封存（掛表已確認）案件，含完整顯示快照
 
-async function loadAppData(){
+async function loadAppData(includeArchived){
+  if(includeArchived === undefined) includeArchived = true;
   try{
-    const res = await fetch(API_BASE + '/api/app-data', {cache: 'no-store'});
+    const url = API_BASE + '/api/app-data' + (includeArchived ? '' : '?include_archived=false');
+    const res = await fetch(url, {cache: 'no-store'});
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     APP_CASE_STATUS = {};
     (data.case_status || []).forEach(cs => { APP_CASE_STATUS[cs.case_record_id] = cs; });
     APP_NOTES = data.notes || [];
-    APP_ARCHIVED = (data.archived || []).map(a => ({...a, vendorClass: VENDOR_CLASS[a.vendor] || 'vendor-other'}));
+    if(data.archived !== undefined){
+      // 快速輪詢帶 include_archived=false 時後端不會回傳這個欄位，
+      // 這種情況下沿用目前記憶體裡既有的 APP_ARCHIVED，不要清空。
+      APP_ARCHIVED = (data.archived || []).map(a => ({...a, vendorClass: VENDOR_CLASS[a.vendor] || 'vendor-other'}));
+    }
     renderPendingTable();
     renderEntryTable();
     renderMeterTable();
@@ -2350,7 +2356,43 @@ document.addEventListener('DOMContentLoaded', function(){
   loadEntryCases();
   loadCompletedCases();
   loadAppData();
+  startAutoSync();
 });
+
+// ---- 多人協作背景自動同步 ----
+// 每 6 秒偷偷檢查一次是否有其他人更新過資料，有的話就悄悄重新抓取、重新畫面，
+// 不用整頁重新整理，也不會打斷使用者正在填寫的表單（modal 是獨立元素，不受影響）。
+// pending/entry/completed 這三份走「快取版本比對」（updated_at 沒變就不重抓，省流量）；
+// APP資料裡「案件狀態／註記」這種輕量資料每輪都重抓；「歷史紀錄」因為每一筆都要額外
+// 查 1-2 次 Airtable、案件一多會逼近 Airtable 每秒 5 次請求的限制，所以只每 5 輪
+// （約 30 秒）才連同歷史紀錄一起做一次完整刷新。
+let autoSyncTimer = null;
+let autoSyncInFlight = false;
+let autoSyncTick = 0;
+const AUTO_SYNC_INTERVAL_MS = 6000;
+const AUTO_SYNC_ARCHIVE_EVERY_N_TICKS = 5;
+function startAutoSync(){
+  if(autoSyncTimer) return;
+  autoSyncTimer = setInterval(async () => {
+    if(autoSyncInFlight) return; // 避免上一輪還沒跑完又疊一輪
+    autoSyncInFlight = true;
+    autoSyncTick++;
+    try{
+      const res = await fetch(API_BASE + '/api/pending-cases', {cache: 'no-store'});
+      const data = await res.json();
+      if(data.updated_at && data.updated_at !== lastKnownUpdatedAt){
+        lastKnownUpdatedAt = data.updated_at;
+        await Promise.all([loadPendingCases(), loadEntryCases(), loadCompletedCases()]);
+      }
+      const includeArchived = (autoSyncTick % AUTO_SYNC_ARCHIVE_EVERY_N_TICKS === 0);
+      await loadAppData(includeArchived);
+    }catch(err){
+      // 忽略單次輪詢失敗，等下一輪繼續
+    }finally{
+      autoSyncInFlight = false;
+    }
+  }, AUTO_SYNC_INTERVAL_MS);
+}
 
 function showView(name){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
