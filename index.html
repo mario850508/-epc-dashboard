@@ -1475,6 +1475,7 @@ async function confirmIssue(){
   btn.disabled = true;
   try{
     await saveCaseStatusField(recordId, caseNo, {issue_note: note, issue_date: todayStr(), waiting_doc_type: waitingDocType || null});
+    delete docStatusCache[recordId]; // 函文種類可能被改過，清掉快取讓它重新查一次
     closeIssueModal();
     renderPendingTable();
     renderEntryTable();
@@ -1497,6 +1498,7 @@ async function resolveIssue(recordId){
   const caseNo = (cs && cs.case_no) || '';
   try{
     await saveCaseStatusField(recordId, caseNo, {issue_note: null, issue_date: null});
+    delete docStatusCache[recordId];
     renderPendingTable();
     renderEntryTable();
     renderMeterTable();
@@ -2140,7 +2142,7 @@ function renderIssueTable(){
       <td>
         ${it.waiting_doc_type ? `
           <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:2px;">${it.waiting_doc_type}</div>
-          <div id="docStatus_${it.id}" style="font-size:12px;">查詢中…</div>
+          <div id="docStatus_${it.id}" style="font-size:12px;">${renderDocStatusHtml(docStatusCache[it.id])}</div>
           <button class="btn btn-ghost" style="padding:2px 8px;font-size:10.5px;margin-top:3px;" onclick="checkDocStatus('${it.id}','${it.waiting_doc_type}')">🔄 重新檢查</button>
         ` : '<span style="color:var(--text-muted);">—</span>'}
       </td>
@@ -2155,16 +2157,22 @@ function renderIssueTable(){
     </tr>
   `;
   }).join('');
-  // 表格畫好之後，非同步逐一去查每一筆「等待函文」案件在 Airtable 的實際進度，
-  // 不用整批快取（只有少數案件會用到這個功能，即時查詢即可）。
+  // 只在「第一次看到這個案件」時才主動查一次 Airtable，之後重繪表格（包含每 6 秒一次的
+  // 背景自動同步）都直接用快取結果顯示，不會每次都重新查詢。要看最新狀態就按「重新檢查」。
   items.forEach(it => {
-    if(it.waiting_doc_type) checkDocStatus(it.id, it.waiting_doc_type);
+    if(it.waiting_doc_type && !docStatusCache[it.id]) checkDocStatus(it.id, it.waiting_doc_type);
   });
+}
+let docStatusCache = {};
+function renderDocStatusHtml(status){
+  if(!status) return '查詢中…';
+  if(status.completed) return `<span style="color:var(--success);font-weight:600;">✓ 已取得 ${fmtDate(status.actual_date)}</span>`;
+  if(status.found_milestone === false) return `<span style="color:var(--m-rebar);">尚未取得函文</span>`;
+  return `<span style="color:var(--m-rebar);">尚未取得</span>`;
 }
 async function checkDocStatus(recordId, docType){
   const el = document.getElementById('docStatus_' + recordId);
-  if(!el) return;
-  el.innerHTML = '查詢中…';
+  if(el) el.innerHTML = '查詢中…';
   try{
     const res = await fetch(API_BASE + '/api/milestone-status?case_record_id=' + encodeURIComponent(recordId) + '&type=' + encodeURIComponent(docType), {cache: 'no-store'});
     if(!res.ok){
@@ -2174,17 +2182,16 @@ async function checkDocStatus(recordId, docType){
     const data = await res.json();
     if(data.completed){
       // 已取得，自動排除異常，讓案件回到「待安排出貨&植筋」，並保留函文日期做為新的觸發依據
+      delete docStatusCache[recordId];
       await autoResolveByDocument(recordId, docType, data.actual_date);
       return;
     }
-    if(!el) return;
-    if(data.found_milestone === false){
-      el.innerHTML = `<span style="color:var(--text-muted);">Airtable 查無此里程碑</span>`;
-    } else {
-      el.innerHTML = `<span style="color:var(--m-rebar);">尚未取得</span>`;
-    }
+    docStatusCache[recordId] = data;
+    const elAfter = document.getElementById('docStatus_' + recordId);
+    if(elAfter) elAfter.innerHTML = renderDocStatusHtml(data);
   }catch(err){
-    if(el) el.innerHTML = '<span style="color:var(--text-muted);">查詢失敗</span>';
+    const elErr = document.getElementById('docStatus_' + recordId);
+    if(elErr) elErr.innerHTML = '<span style="color:var(--text-muted);">查詢失敗</span>';
     console.error(err);
   }
 }
