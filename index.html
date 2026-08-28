@@ -1081,13 +1081,13 @@
           <div class="modal-body">
             <div class="panel">
               <div class="note-add-row note-add-row-wide" style="align-items:flex-start;">
-                <div style="display:flex;flex-direction:column;gap:2px;flex:0 0 190px;">
-                  <input type="text" class="quick-mark-input" id="materialCaseInput" placeholder="案號或案場（可留空）" onblur="autofillMaterialFromCase()">
+                <div style="display:flex;flex-direction:column;gap:2px;width:190px;flex:0 0 auto;">
+                  <input type="text" class="quick-mark-input" id="materialCaseInput" style="flex:none;width:100%;" placeholder="案號或案場（可留空）" onblur="autofillMaterialFromCase()">
                   <span id="materialCaseHint" style="font-size:10.5px;color:var(--m-rebar);min-height:14px;"></span>
                 </div>
-                <textarea class="quick-mark-input" id="materialContentInput" rows="2" style="flex:1;font-family:inherit;resize:vertical;" placeholder="料件內容,例如：CPSPV6000ETLA ×2、未使用退回"></textarea>
-                <div style="display:flex;flex-direction:column;gap:2px;flex:0 0 150px;">
-                  <input type="date" class="quick-mark-input" id="materialShipDateInput" style="width:100%;">
+                <textarea class="quick-mark-input" id="materialContentInput" rows="3" style="flex:1;font-family:inherit;resize:vertical;" placeholder="料件內容,例如：CPSPV6000ETLA ×2、未使用退回"></textarea>
+                <div style="display:flex;flex-direction:column;gap:2px;width:150px;flex:0 0 auto;">
+                  <input type="date" class="quick-mark-input" id="materialShipDateInput" style="flex:none;width:100%;">
                   <span style="font-size:10.5px;color:var(--text-muted);">出貨日期（填案號後自動帶入,可自行修改）</span>
                 </div>
                 <button class="btn btn-primary" onclick="addMaterialNote()">＋ 加入清單</button>
