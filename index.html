@@ -963,11 +963,12 @@
               <div style="font-weight:700;font-size:14px;" id="caseSpecCaseTitle">—</div>
               <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="caseSpecCaseAddr">—</div>
             </div>
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">模組型號</label>
-            <select class="quick-mark-input" id="caseSpecModuleModel" style="margin-bottom:10px;"></select>
-            <input type="text" class="quick-mark-input" id="caseSpecModuleModelText" style="margin-bottom:10px;display:none;" placeholder="例如：500W_TS60-CMH-500 H6QT">
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">模組數量</label>
-            <input type="number" class="quick-mark-input" id="caseSpecModuleQty" style="margin-bottom:16px;" min="0">
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">模組（型號＋數量）</label>
+            <div style="display:flex;gap:8px;margin-bottom:16px;">
+              <select class="quick-mark-input" id="caseSpecModuleModel" style="flex:1;"></select>
+              <input type="text" class="quick-mark-input" id="caseSpecModuleModelText" style="flex:1;display:none;" placeholder="例如：500W_TS60-CMH-500 H6QT">
+              <input type="number" class="quick-mark-input" id="caseSpecModuleQty" style="width:90px;" min="0" placeholder="數量">
+            </div>
             <label style="font-size:12px;font-weight:700;display:block;margin-bottom:8px;">逆變器（可加多筆,型號要從 Airtable 現有清單裡選,不能自己打字）</label>
             <div id="caseSpecInverterRows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
             <button class="btn btn-ghost" style="margin-bottom:18px;" onclick="addCaseSpecInverterRow()">＋ 新增逆變器</button>
