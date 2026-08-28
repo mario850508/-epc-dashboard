@@ -953,7 +953,10 @@
         <div class="modal-box" style="max-width:520px;">
           <div class="modal-header">
             <div class="modal-title">🔧 填寫模組／逆變器規格</div>
-            <button class="modal-close" onclick="closeCaseSpecModal()">✕</button>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openModelManageModal()">🗂 管理型號清單</button>
+              <button class="modal-close" onclick="closeCaseSpecModal()">✕</button>
+            </div>
           </div>
           <div class="modal-body">
             <div style="margin-bottom:14px;">
@@ -961,7 +964,8 @@
               <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="caseSpecCaseAddr">—</div>
             </div>
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">模組型號</label>
-            <input type="text" class="quick-mark-input" id="caseSpecModuleModel" style="margin-bottom:10px;" placeholder="例如：500W_TS60-CMH-500 H6QT">
+            <select class="quick-mark-input" id="caseSpecModuleModel" style="margin-bottom:10px;"></select>
+            <input type="text" class="quick-mark-input" id="caseSpecModuleModelText" style="margin-bottom:10px;display:none;" placeholder="例如：500W_TS60-CMH-500 H6QT">
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">模組數量</label>
             <input type="number" class="quick-mark-input" id="caseSpecModuleQty" style="margin-bottom:16px;" min="0">
             <label style="font-size:12px;font-weight:700;display:block;margin-bottom:8px;">逆變器（可加多筆,型號要從 Airtable 現有清單裡選,不能自己打字）</label>
@@ -969,6 +973,31 @@
             <button class="btn btn-ghost" style="margin-bottom:18px;" onclick="addCaseSpecInverterRow()">＋ 新增逆變器</button>
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;">這裡填寫的內容會直接寫回 Airtable「專案細節」表,不用再回 Airtable 手動填。</div>
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmCaseSpec()">儲存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 管理模組／逆變器型號清單 modal -->
+      <div class="modal-overlay" id="modelManageModalOverlay" onclick="if(event.target===this) closeModelManageModal()">
+        <div class="modal-box" style="max-width:500px;">
+          <div class="modal-header">
+            <div class="modal-title">🗂 管理型號清單</div>
+            <button class="modal-close" onclick="closeModelManageModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="font-weight:700;font-size:13.5px;margin-bottom:10px;">模組型號</div>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <input type="text" class="quick-mark-input" id="newModuleModelInput" placeholder="輸入新的模組型號" style="flex:1;">
+              <button class="btn btn-primary" onclick="addNewModuleModel()">＋ 新增</button>
+            </div>
+            <div id="moduleModelListArea" style="max-height:140px;overflow-y:auto;font-size:12.5px;color:var(--text-muted);margin-bottom:20px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;">載入中…</div>
+
+            <div style="font-weight:700;font-size:13.5px;margin-bottom:10px;">逆變器型號</div>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <input type="text" class="quick-mark-input" id="newInverterModelInput" placeholder="輸入新的逆變器型號" style="flex:1;">
+              <button class="btn btn-primary" onclick="addNewInverterModel()">＋ 新增</button>
+            </div>
+            <div id="inverterModelListArea" style="max-height:140px;overflow-y:auto;font-size:12.5px;color:var(--text-muted);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">載入中…</div>
           </div>
         </div>
       </div>
@@ -1934,18 +1963,41 @@ async function loadCompletedCases(){
 let lastKnownUpdatedAt = null;
 // ---- 填寫模組／逆變器規格（直接寫回 Airtable「專案細節」表）----
 let INVERTER_OPTIONS = null;
-async function loadInverterOptionsIfNeeded(){
-  if(INVERTER_OPTIONS) return INVERTER_OPTIONS;
+async function loadInverterOptionsIfNeeded(force){
+  if(INVERTER_OPTIONS && !force) return INVERTER_OPTIONS;
   try{
     const res = await fetch(API_BASE + '/api/inverter-options', {cache: 'no-store'});
     if(!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     INVERTER_OPTIONS = data.options || [];
   }catch(err){
-    INVERTER_OPTIONS = [];
+    INVERTER_OPTIONS = INVERTER_OPTIONS || [];
     showToast('讀取逆變器型號清單失敗：' + err.message);
   }
   return INVERTER_OPTIONS;
+}
+// 模組型號是 Single select 固定選項欄位；如果後端讀不到（例如 Token 沒有
+// schema.bases:read 權限），moduleOptionsAvailable 會是 false，改用一般文字輸入框，
+// 不會整個卡住讓使用者填不了規格。
+let MODULE_OPTIONS = null;
+let moduleOptionsAvailable = true;
+async function loadModuleOptionsIfNeeded(force){
+  if(MODULE_OPTIONS && !force) return MODULE_OPTIONS;
+  try{
+    const res = await fetch(API_BASE + '/api/module-options', {cache: 'no-store'});
+    const data = await res.json();
+    if(!res.ok || data.error || !Array.isArray(data.options)){
+      moduleOptionsAvailable = false;
+      MODULE_OPTIONS = [];
+    } else {
+      moduleOptionsAvailable = true;
+      MODULE_OPTIONS = data.options;
+    }
+  }catch(err){
+    moduleOptionsAvailable = false;
+    MODULE_OPTIONS = MODULE_OPTIONS || [];
+  }
+  return MODULE_OPTIONS;
 }
 let caseSpecTargetRecordId = null;
 async function openCaseSpecModal(recordId){
@@ -1960,8 +2012,23 @@ async function openCaseSpecModal(recordId){
     const m = found.module.match(/^(.*)\s×([\d.]+)\s*$/);
     if(m){ moduleModel = m[1]; moduleQty = m[2]; } else { moduleModel = found.module; }
   }
-  document.getElementById('caseSpecModuleModel').value = moduleModel;
   document.getElementById('caseSpecModuleQty').value = moduleQty;
+
+  await loadModuleOptionsIfNeeded();
+  const moduleSelect = document.getElementById('caseSpecModuleModel');
+  const moduleText = document.getElementById('caseSpecModuleModelText');
+  if(moduleOptionsAvailable){
+    const opts = [...MODULE_OPTIONS];
+    if(moduleModel && !opts.includes(moduleModel)) opts.unshift(moduleModel); // 保留舊資料，即使不在目前選項清單裡
+    moduleSelect.innerHTML = '<option value="">— 選擇模組型號 —</option>' +
+      opts.map(o => `<option value="${o}"${o === moduleModel ? ' selected' : ''}>${o}</option>`).join('');
+    moduleSelect.style.display = '';
+    moduleText.style.display = 'none';
+  } else {
+    moduleSelect.style.display = 'none';
+    moduleText.style.display = '';
+    moduleText.value = moduleModel;
+  }
 
   await loadInverterOptionsIfNeeded();
 
@@ -2006,7 +2073,9 @@ function addCaseSpecInverterRow(selectedRecordId, qty){
   container.appendChild(row);
 }
 async function confirmCaseSpec(){
-  const moduleModel = document.getElementById('caseSpecModuleModel').value.trim();
+  const moduleModel = moduleOptionsAvailable
+    ? document.getElementById('caseSpecModuleModel').value.trim()
+    : document.getElementById('caseSpecModuleModelText').value.trim();
   const moduleQtyVal = document.getElementById('caseSpecModuleQty').value;
   const rows = document.querySelectorAll('#caseSpecInverterRows .case-spec-inverter-row');
   const inverters = [];
@@ -2045,6 +2114,81 @@ async function confirmCaseSpec(){
   }finally{
     btn.textContent = originalText;
     btn.disabled = false;
+  }
+}
+
+// ---- 管理模組／逆變器型號清單 ----
+async function openModelManageModal(){
+  document.getElementById('modelManageModalOverlay').classList.add('show');
+  await renderModelManageLists();
+}
+function closeModelManageModal(){
+  document.getElementById('modelManageModalOverlay').classList.remove('show');
+}
+async function renderModelManageLists(){
+  const moduleArea = document.getElementById('moduleModelListArea');
+  const inverterArea = document.getElementById('inverterModelListArea');
+  moduleArea.textContent = '載入中…';
+  inverterArea.textContent = '載入中…';
+
+  await loadModuleOptionsIfNeeded(true);
+  if(!moduleOptionsAvailable){
+    moduleArea.innerHTML = '目前無法讀取模組型號選項（後端 Airtable Token 可能沒有 schema 讀取權限），暫時只能用文字輸入,無法在此新增。';
+  } else if(MODULE_OPTIONS.length === 0){
+    moduleArea.textContent = '目前沒有任何模組型號選項。';
+  } else {
+    moduleArea.innerHTML = MODULE_OPTIONS.map(o => `<div style="padding:2px 0;">${o}</div>`).join('');
+  }
+
+  await loadInverterOptionsIfNeeded(true);
+  if((INVERTER_OPTIONS || []).length === 0){
+    inverterArea.textContent = '目前沒有任何逆變器型號選項。';
+  } else {
+    inverterArea.innerHTML = INVERTER_OPTIONS.map(o => `<div style="padding:2px 0;">${o.name}</div>`).join('');
+  }
+}
+async function addNewModuleModel(){
+  const input = document.getElementById('newModuleModelInput');
+  const name = input.value.trim();
+  if(!name){ showToast('請輸入型號名稱'); return; }
+  try{
+    const res = await fetch(API_BASE + '/api/module-options', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    input.value = '';
+    showToast('已新增模組型號');
+    await renderModelManageLists();
+  }catch(err){
+    showToast('新增失敗：' + err.message);
+    console.error(err);
+  }
+}
+async function addNewInverterModel(){
+  const input = document.getElementById('newInverterModelInput');
+  const name = input.value.trim();
+  if(!name){ showToast('請輸入型號名稱'); return; }
+  try{
+    const res = await fetch(API_BASE + '/api/inverter-options', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    input.value = '';
+    showToast('已新增逆變器型號');
+    await renderModelManageLists();
+  }catch(err){
+    showToast('新增失敗：' + err.message);
+    console.error(err);
   }
 }
 function pollForCacheUpdate(){
