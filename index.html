@@ -2015,7 +2015,10 @@ async function openCaseSpecModal(recordId){
   }
   document.getElementById('caseSpecModuleQty').value = moduleQty;
 
-  await loadModuleOptionsIfNeeded();
+  // 兩份選項清單改成同時抓，不用一個做完才做下一個，可以省掉不少等待時間；
+  // 而且這兩份資料在頁面載入時就已經在背景偷偷預先抓過一次了，正常情況下這裡
+  // 幾乎是秒開（除非使用者真的是頁面才剛打開沒幾秒就立刻點開這個視窗）。
+  await Promise.all([loadModuleOptionsIfNeeded(), loadInverterOptionsIfNeeded()]);
   const moduleSelect = document.getElementById('caseSpecModuleModel');
   const moduleText = document.getElementById('caseSpecModuleModelText');
   if(moduleOptionsAvailable){
@@ -2030,8 +2033,6 @@ async function openCaseSpecModal(recordId){
     moduleText.style.display = '';
     moduleText.value = moduleModel;
   }
-
-  await loadInverterOptionsIfNeeded();
 
   const container = document.getElementById('caseSpecInverterRows');
   container.innerHTML = '';
@@ -2669,6 +2670,10 @@ document.addEventListener('DOMContentLoaded', function(){
   loadCompletedCases();
   loadAppData();
   startAutoSync();
+  // 提早在背景偷偷把「模組型號」「逆變器型號」這兩份選項清單抓好，
+  // 之後使用者點開「填寫規格」視窗時大機率已經是現成的，不用現場等。
+  loadModuleOptionsIfNeeded();
+  loadInverterOptionsIfNeeded();
 });
 
 // ---- 多人協作背景自動同步 ----
