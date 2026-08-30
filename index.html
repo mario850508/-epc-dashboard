@@ -818,8 +818,13 @@
             </div>
 
             <div class="panel" style="margin-bottom:16px;">
-              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案號</label>
-              <input type="text" class="quick-mark-input" id="notebookCaseInput" placeholder="例如：工程新竹6號（選填，填了會自動帶出案件資料）" style="margin-bottom:10px;" onblur="lookupNotebookCase()">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案場（可輸入案號、地址關鍵字、或屋主姓名的一部分來模糊搜尋，選填）</label>
+              <div class="quick-mark" style="margin-bottom:10px;">
+                <div class="quick-mark-input-wrap">
+                  <input type="text" class="quick-mark-input" id="notebookCaseInput" placeholder="例如：桃園81號、龍潭中正、張榮煌…" autocomplete="off" oninput="onNotebookCaseInput()">
+                  <div class="quick-mark-results" id="notebookSearchResults"></div>
+                </div>
+              </div>
               <div id="notebookCaseSummary" style="display:none;background:var(--surface-2);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.7;"></div>
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">紀錄內容</label>
               <textarea class="quick-mark-input" id="notebookContentInput" rows="3" style="width:100%;font-family:inherit;resize:vertical;margin-bottom:10px;" placeholder="例如：已電話跟廠商約 9/5 出貨，待確認金額"></textarea>
@@ -3726,6 +3731,8 @@ function openNotebookModal(){
   document.getElementById('notebookCaseInput').value = '';
   document.getElementById('notebookContentInput').value = '';
   document.getElementById('notebookCaseSummary').style.display = 'none';
+  hideNotebookSearchResults();
+  notebookSelectedCaseRecordId = null;
   notebookEditingLocalId = null;
   notebookEditingOnlineId = null;
   showNotebookTab('local');
@@ -3751,22 +3758,89 @@ function showNotebookTab(tab){
   }
 }
 
-async function lookupNotebookCase(){
+// ---- 案場模糊搜尋（案號／地址／別名都可以比對一部分關鍵字）----
+let notebookSearchTimer = null;
+let notebookSelectedCaseRecordId = null;
+function hideNotebookSearchResults(){
+  const box = document.getElementById('notebookSearchResults');
+  if(box){ box.classList.remove('show'); box.innerHTML = ''; }
+}
+function onNotebookCaseInput(){
+  // 使用者正在打字，代表之前選定的案件（如果有）已經不算數了，
+  // 摘要面板先藏起來，等重新選定候選項目後才會再顯示。
+  notebookSelectedCaseRecordId = null;
+  document.getElementById('notebookCaseSummary').style.display = 'none';
+  const q = document.getElementById('notebookCaseInput').value.trim();
+  clearTimeout(notebookSearchTimer);
+  if(!q){ hideNotebookSearchResults(); return; }
+  // 簡單 debounce，等使用者停下來 300 毫秒才真的送出查詢，避免每打一個字就打一次 API。
+  notebookSearchTimer = setTimeout(() => runNotebookCaseSearch(q), 300);
+}
+async function runNotebookCaseSearch(q){
+  const box = document.getElementById('notebookSearchResults');
+  if(!box) return;
+  box.innerHTML = '<div class="qm-empty">搜尋中…</div>';
+  box.classList.add('show');
+  try{
+    const res = await fetch(API_BASE + '/api/case-search?q=' + encodeURIComponent(q), {cache: 'no-store'});
+    const data = await res.json();
+    if(!res.ok){
+      box.innerHTML = `<div class="qm-empty">搜尋失敗：${data.error || ('HTTP ' + res.status)}</div>`;
+      return;
+    }
+    const results = data.results || [];
+    if(results.length === 0){
+      box.innerHTML = '<div class="qm-empty">找不到符合的案場，可以直接記錄文字內容，不影響儲存。</div>';
+      return;
+    }
+    box.innerHTML = results.map(r => `
+      <div class="qm-result" onclick='selectNotebookCase(${JSON.stringify(r).replace(/'/g, "&#39;")})'>
+        <div>
+          <div class="qm-result-name">${r.case}${r.alias ? '　' + r.alias : ''}</div>
+          <div class="qm-result-addr">${r.address || ''}</div>
+        </div>
+        <span class="vendor-pill ${VENDOR_CLASS[r.vendor] || 'vendor-other'}">${r.vendor || ''}</span>
+      </div>
+    `).join('');
+  }catch(err){
+    box.innerHTML = `<div class="qm-empty">搜尋失敗：${err.message}</div>`;
+    console.error(err);
+  }
+}
+async function selectNotebookCase(r){
+  hideNotebookSearchResults();
+  document.getElementById('notebookCaseInput').value = r.case;
+  notebookSelectedCaseRecordId = r.record_id;
+  await lookupNotebookCaseDetail(r.record_id);
+}
+// 點選單以外的地方，候選清單自動收起來
+document.addEventListener('click', function(e){
+  const box = document.getElementById('notebookSearchResults');
   const input = document.getElementById('notebookCaseInput');
+  if(!box || !input) return;
+  if(e.target !== input && !box.contains(e.target)) hideNotebookSearchResults();
+});
+
+async function lookupNotebookCaseDetail(caseRecordId){
+  await lookupNotebookCaseByParams('case_record_id=' + encodeURIComponent(caseRecordId));
+}
+async function lookupNotebookCaseByText(caseText){
+  if(!caseText){ document.getElementById('notebookCaseSummary').style.display = 'none'; return; }
+  await lookupNotebookCaseByParams('case_no=' + encodeURIComponent(caseText));
+}
+async function lookupNotebookCaseByParams(qs){
   const summaryEl = document.getElementById('notebookCaseSummary');
-  const caseNo = input.value.trim();
-  if(!caseNo){ summaryEl.style.display = 'none'; return; }
   summaryEl.style.display = 'block';
   summaryEl.innerHTML = '查詢中…';
   try{
-    const res = await fetch(API_BASE + '/api/case-lookup?case_no=' + encodeURIComponent(caseNo), {cache: 'no-store'});
+    const res = await fetch(API_BASE + '/api/case-lookup?' + qs, {cache: 'no-store'});
     const data = await res.json();
     if(!res.ok){
       summaryEl.innerHTML = '<span style="color:var(--text-muted);">查詢失敗：' + (data.error || ('HTTP ' + res.status)) + '</span>';
       return;
     }
     if(!data.found){
-      summaryEl.innerHTML = '<span style="color:var(--text-muted);">找不到這個案號，仍可直接記錄文字內容，不影響儲存。</span>';
+      summaryEl.innerHTML = '<span style="color:var(--text-muted);">這筆案件目前查不到資料，仍可直接記錄文字內容，不影響儲存。</span>';
       return;
     }
     const m = data.milestones || {};
@@ -3895,7 +3969,8 @@ function editLocalNotebookEntry(id){
   document.getElementById('notebookAddBtn').textContent = '更新本地紀錄';
   notebookEditingLocalId = id;
   notebookEditingOnlineId = null;
-  lookupNotebookCase();
+  notebookSelectedCaseRecordId = null;
+  lookupNotebookCaseByText(n.case_text);
 }
 function deleteLocalNotebookEntry(id){
   const list = loadLocalNotebook().filter(n => n.id !== id);
@@ -3954,7 +4029,8 @@ function editOnlineNotebookEntry(appRecordId){
   document.getElementById('notebookAddBtn').textContent = '更新線上紀錄';
   notebookEditingOnlineId = appRecordId;
   notebookEditingLocalId = null;
-  lookupNotebookCase();
+  notebookSelectedCaseRecordId = null;
+  lookupNotebookCaseByText(n.case_text);
 }
 async function deleteOnlineNotebookEntry(appRecordId){
   try{
