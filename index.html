@@ -775,13 +775,20 @@
           </div>
           <div class="modal-body">
             <div class="login-note" style="margin-top:0;margin-bottom:12px;">
-              已整理「案件進場安排」裡所有案件的出貨資訊,複製後可直接貼到 Slack 通知採購。可設定模組出貨日期區間篩選,留空代表不篩選（顯示全部）。
+              已整理「案件進場安排」裡所有案件的出貨資訊,複製後可直接貼到 Slack 通知採購。可篩選特定廠商,也可設定模組出貨日期區間,留空/選「全部廠商」代表不篩選（顯示全部）。
             </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
-              <input type="date" class="quick-mark-input" id="notifyDateFrom" style="flex:1;" onchange="openNotifyModal()">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
+              <select class="quick-mark-input" id="notifyVendorFilter" style="max-width:150px;" onchange="openNotifyModal()">
+                <option value="all">全部廠商</option>
+                <option value="三創">三創</option>
+                <option value="尚展">尚展</option>
+                <option value="曙光">曙光</option>
+                <option value="光鼎">光鼎</option>
+              </select>
+              <input type="date" class="quick-mark-input" id="notifyDateFrom" style="flex:1;min-width:130px;" onchange="openNotifyModal()">
               <span style="color:var(--text-muted);font-size:13px;">至</span>
-              <input type="date" class="quick-mark-input" id="notifyDateTo" style="flex:1;" onchange="openNotifyModal()">
-              <button class="btn btn-ghost" style="white-space:nowrap;padding:9px 14px;" onclick="document.getElementById('notifyDateFrom').value='';document.getElementById('notifyDateTo').value='';openNotifyModal();">清除篩選</button>
+              <input type="date" class="quick-mark-input" id="notifyDateTo" style="flex:1;min-width:130px;" onchange="openNotifyModal()">
+              <button class="btn btn-ghost" style="white-space:nowrap;padding:9px 14px;" onclick="document.getElementById('notifyDateFrom').value='';document.getElementById('notifyDateTo').value='';document.getElementById('notifyVendorFilter').value='all';openNotifyModal();">清除篩選</button>
             </div>
             <textarea id="notifyTextarea" readonly style="width:100%;min-height:260px;border:1px solid var(--border);border-radius:10px;padding:14px;font-size:12.5px;font-family:ui-monospace,monospace;line-height:1.7;color:var(--text);background:var(--surface-2);resize:vertical;"></textarea>
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:12px;" onclick="copyNotifyText()">📎 複製訊息</button>
@@ -2850,9 +2857,11 @@ function showView(name){
   document.querySelectorAll('.nav-sub-item').forEach(n=>n.classList.remove('active'));
 }
 function openNotifyModal(){
+  const vendorVal = document.getElementById('notifyVendorFilter') ? document.getElementById('notifyVendorFilter').value : 'all';
   const fromVal = document.getElementById('notifyDateFrom').value;
   const toVal = document.getElementById('notifyDateTo').value;
   let cases = ENTRY_CASES;
+  if(vendorVal !== 'all') cases = cases.filter(r => r.vendor === vendorVal);
   if(fromVal) cases = cases.filter(r => r.ship_date && r.ship_date >= fromVal);
   if(toVal) cases = cases.filter(r => r.ship_date && r.ship_date <= toVal);
 
@@ -2860,9 +2869,12 @@ function openNotifyModal(){
   if(ENTRY_CASES.length === 0){
     text = '目前「案件進場安排」還沒有案件。';
   } else if(cases.length === 0){
-    text = '這個日期區間內沒有符合條件的出貨案件。';
+    text = '這個篩選條件下沒有符合的出貨案件。';
   } else {
-    const rangeNote = (fromVal || toVal) ? `（出貨日期 ${fromVal ? fmtDate(fromVal) : '最早'} ～ ${toVal ? fmtDate(toVal) : '最晚'}）` : '';
+    const noteParts = [];
+    if(vendorVal !== 'all') noteParts.push('廠商：' + vendorVal);
+    if(fromVal || toVal) noteParts.push(`出貨日期 ${fromVal ? fmtDate(fromVal) : '最早'} ～ ${toVal ? fmtDate(toVal) : '最晚'}`);
+    const rangeNote = noteParts.length ? `（${noteParts.join('，')}）` : '';
     const lines = [`【EPC 模組／變流器出貨通知】共 ${cases.length} 件${rangeNote}`, ''];
     cases.forEach((r, i) => {
       const invDate = getInverterDate(r.record_id);
