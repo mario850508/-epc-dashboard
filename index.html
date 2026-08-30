@@ -969,8 +969,9 @@
               <input type="text" class="quick-mark-input" id="caseSpecModuleModelText" style="flex:1;display:none;" placeholder="例如：500W_TS60-CMH-500 H6QT">
               <input type="number" class="quick-mark-input" id="caseSpecModuleQty" style="width:90px;" min="0" placeholder="數量">
             </div>
-            <label style="font-size:12px;font-weight:700;display:block;margin-bottom:8px;">逆變器（可加多筆,型號要從 Airtable 現有清單裡選,不能自己打字）</label>
+            <label style="font-size:12px;font-weight:700;display:block;margin-bottom:8px;">逆變器（可加多筆,可直接輸入型號關鍵字快速篩選,但仍必須從 Airtable 現有清單裡選一個,不能自己亂打字）</label>
             <div id="caseSpecInverterRows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
+            <datalist id="inverterOptionsDatalist"></datalist>
             <button class="btn btn-ghost" style="margin-bottom:18px;" onclick="addCaseSpecInverterRow()">＋ 新增逆變器</button>
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;">這裡填寫的內容會直接寫回 Airtable「專案細節」表,不用再回 Airtable 手動填。</div>
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmCaseSpec()">儲存</button>
@@ -1969,7 +1970,10 @@ let lastKnownUpdatedAt = null;
 // ---- 填寫模組／逆變器規格（直接寫回 Airtable「專案細節」表）----
 let INVERTER_OPTIONS = null;
 async function loadInverterOptionsIfNeeded(force){
-  if(INVERTER_OPTIONS && !force) return INVERTER_OPTIONS;
+  if(INVERTER_OPTIONS && !force){
+    renderInverterDatalist();
+    return INVERTER_OPTIONS;
+  }
   try{
     const res = await fetch(API_BASE + '/api/inverter-options', {cache: 'no-store'});
     if(!res.ok) throw new Error('HTTP ' + res.status);
@@ -1979,7 +1983,21 @@ async function loadInverterOptionsIfNeeded(force){
     INVERTER_OPTIONS = INVERTER_OPTIONS || [];
     showToast('讀取逆變器型號清單失敗：' + err.message);
   }
+  renderInverterDatalist();
   return INVERTER_OPTIONS;
+}
+// 逆變器輸入框改用 <input list="..."> 搭配 <datalist>，讓使用者可以打字篩選、
+// 但選出來的值仍必須完全對應清單裡的一個名稱，才會被視為有效選擇（見
+// addCaseSpecInverterRow 裡 input 的 change 事件，用完整比對名稱找回 record_id；
+// 找不到就代表使用者亂打字，儲存時會被擋下來）。每次型號清單重新整理都要
+// 同步刷新這份 datalist，不然使用者打字時看到的建議會是舊清單。
+function renderInverterDatalist(){
+  const dl = document.getElementById('inverterOptionsDatalist');
+  if(!dl) return;
+  dl.innerHTML = (INVERTER_OPTIONS || []).map(o => {
+    const escaped = (o.name || '').replace(/"/g, '&quot;');
+    return `<option value="${escaped}"></option>`;
+  }).join('');
 }
 // 模組型號是 Single select 固定選項欄位；如果後端讀不到（例如 Token 沒有
 // schema.bases:read 權限），moduleOptionsAvailable 會是 false，改用一般文字輸入框，
@@ -2053,7 +2071,7 @@ async function openCaseSpecModal(recordId){
   } else {
     existingInverters.forEach(inv => {
       const match = (INVERTER_OPTIONS || []).find(o => o.name === inv.name);
-      addCaseSpecInverterRow(match ? match.record_id : '', inv.qty);
+      addCaseSpecInverterRow(match ? match.record_id : '', inv.qty, inv.name);
     });
   }
 
@@ -2062,21 +2080,30 @@ async function openCaseSpecModal(recordId){
 function closeCaseSpecModal(){
   document.getElementById('caseSpecModalOverlay').classList.remove('show');
 }
-function addCaseSpecInverterRow(selectedRecordId, qty){
+function addCaseSpecInverterRow(selectedRecordId, qty, existingName){
   const container = document.getElementById('caseSpecInverterRows');
   const row = document.createElement('div');
   row.className = 'case-spec-inverter-row';
   row.style.cssText = 'display:flex;gap:8px;align-items:center;';
-  const optionsHtml = ['<option value="">— 選擇逆變器型號 —</option>']
-    .concat((INVERTER_OPTIONS || []).map(o =>
-      `<option value="${o.record_id}"${o.record_id === selectedRecordId ? ' selected' : ''}>${o.name}</option>`
-    )).join('');
+  const initialName = existingName
+    || ((INVERTER_OPTIONS || []).find(o => o.record_id === selectedRecordId) || {}).name
+    || '';
+  const escapedName = initialName.replace(/"/g, '&quot;');
   row.innerHTML = `
-    <select class="quick-mark-input inverter-select" style="flex:1;">${optionsHtml}</select>
+    <input type="text" class="quick-mark-input inverter-input" list="inverterOptionsDatalist" value="${escapedName}" placeholder="輸入關鍵字篩選逆變器型號" data-record-id="${selectedRecordId || ''}">
     <input type="number" class="quick-mark-input inverter-qty" style="width:90px;" min="0" value="${qty || ''}" placeholder="數量">
     <button class="btn btn-ghost" style="padding:6px 10px;" onclick="this.closest('.case-spec-inverter-row').remove()">✕</button>
   `;
   container.appendChild(row);
+  const input = row.querySelector('.inverter-input');
+  // 使用者打字或從 datalist 建議清單裡點選時都會觸發 input 事件；只要目前輸入的
+  // 文字完全對應清單裡某一筆的名稱，就記下對應的 record_id，儲存時才知道要連結
+  // 到 Airtable 哪一筆記錄。對不上任何一筆時 data-record-id 清空，交給
+  // confirmCaseSpec() 檔下不合法的輸入。
+  input.addEventListener('input', () => {
+    const match = (INVERTER_OPTIONS || []).find(o => o.name === input.value);
+    input.dataset.recordId = match ? match.record_id : '';
+  });
 }
 async function confirmCaseSpec(){
   const moduleModel = moduleOptionsAvailable
@@ -2085,13 +2112,23 @@ async function confirmCaseSpec(){
   const moduleQtyVal = document.getElementById('caseSpecModuleQty').value;
   const rows = document.querySelectorAll('#caseSpecInverterRows .case-spec-inverter-row');
   const inverters = [];
+  let hasInvalidInverter = false;
   rows.forEach(row => {
-    const sel = row.querySelector('.inverter-select');
+    const input = row.querySelector('.inverter-input');
     const qtyInput = row.querySelector('.inverter-qty');
-    if(sel && sel.value){
-      inverters.push({record_id: sel.value, qty: qtyInput.value ? Number(qtyInput.value) : null});
+    const name = input.value.trim();
+    if(!name) return; // 這一列沒填，略過
+    const recordId = input.dataset.recordId;
+    if(!recordId){
+      hasInvalidInverter = true; // 打的文字沒有對應到清單裡任何一筆，視為不合法
+      return;
     }
+    inverters.push({record_id: recordId, qty: qtyInput.value ? Number(qtyInput.value) : null});
   });
+  if(hasInvalidInverter){
+    showToast('有逆變器型號的輸入內容不在現有清單中，請從輸入時跳出的建議選項裡點選一個');
+    return;
+  }
   const btn = document.querySelector('#caseSpecModalOverlay .btn-primary');
   const originalText = btn.textContent;
   btn.textContent = '儲存中…';
