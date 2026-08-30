@@ -551,6 +551,7 @@
             <button class="btn btn-ghost notes-trigger-btn" onclick="openNotesModal()">📝 註記清單</button>
             <button class="btn btn-ghost notes-trigger-btn" onclick="openMaterialModal()">📦 未使用料件</button>
             <button class="btn btn-ghost notes-trigger-btn" onclick="openNotifyModal()">📋 產出通知訊息</button>
+            <button class="btn btn-ghost notes-trigger-btn" onclick="openNotebookModal()">📓 筆記本</button>
           </div>
 
           <div class="pending-toolbar">
@@ -799,6 +800,55 @@
             </div>
             <textarea id="notifyTextarea" readonly style="width:100%;min-height:260px;border:1px solid var(--border);border-radius:10px;padding:14px;font-size:12.5px;font-family:ui-monospace,monospace;line-height:1.7;color:var(--text);background:var(--surface-2);resize:vertical;"></textarea>
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:12px;" onclick="copyNotifyText()">📎 複製訊息</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 筆記本 modal -->
+      <div class="modal-overlay" id="notebookModalOverlay" onclick="if(event.target===this) closeNotebookModal()">
+        <div class="modal-box" style="max-width:640px;">
+          <div class="modal-header">
+            <div class="modal-title">📓 筆記本</div>
+            <button class="modal-close" onclick="closeNotebookModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="tabs" style="margin-bottom:16px;">
+              <div class="tab active" data-notebook-tab="local" onclick="showNotebookTab('local')">本地紀錄（只存這台電腦）</div>
+              <div class="tab" data-notebook-tab="online" onclick="showNotebookTab('online')">線上紀錄（同事都能看到）</div>
+            </div>
+
+            <div class="panel" style="margin-bottom:16px;">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案號</label>
+              <input type="text" class="quick-mark-input" id="notebookCaseInput" placeholder="例如：工程新竹6號（選填，填了會自動帶出案件資料）" style="margin-bottom:10px;" onblur="lookupNotebookCase()">
+              <div id="notebookCaseSummary" style="display:none;background:var(--surface-2);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.7;"></div>
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">紀錄內容</label>
+              <textarea class="quick-mark-input" id="notebookContentInput" rows="3" style="width:100%;font-family:inherit;resize:vertical;margin-bottom:10px;" placeholder="例如：已電話跟廠商約 9/5 出貨，待確認金額"></textarea>
+              <button class="btn btn-primary" id="notebookAddBtn" onclick="addNotebookEntry()">＋ 加入本地紀錄</button>
+            </div>
+
+            <div class="subview active" id="notebook-tab-local">
+              <table>
+                <thead><tr><th>案號</th><th>內容</th><th>記錄日期</th><th>操作</th></tr></thead>
+                <tbody id="notebookLocalRows">
+                  <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有本地紀錄</td></tr>
+                </tbody>
+              </table>
+              <div class="login-note">
+                🔗 本地紀錄只存在「這台電腦、這個瀏覽器」裡，換電腦或清掉瀏覽器資料就會不見，同事在別台電腦也看不到——適合先隨手記下來、還不確定要不要讓大家知道的內容。想讓同事一起看到，點「⬆ 上傳」把這筆移到線上紀錄（上傳後這台電腦的本地紀錄會被移除，改成存在線上）。
+              </div>
+            </div>
+
+            <div class="subview" id="notebook-tab-online">
+              <table>
+                <thead><tr><th>案號</th><th>內容</th><th>記錄日期</th><th>操作</th></tr></thead>
+                <tbody id="notebookOnlineRows">
+                  <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有線上紀錄</td></tr>
+                </tbody>
+              </table>
+              <div class="login-note">
+                🔗 線上紀錄會寫回 Airtable「APP資料」表，不同電腦／同事都能同步看到，適合已經確認、需要跟團隊共享的內容。
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1442,11 +1492,12 @@ function updateChipVendorFilterUI(key, containerId){
 }
 
 // ===================================================================
-// 台灣國定假日（2026-08-30 新增）：手動整理自行政院人事行政總處公告的
-// 115年（2026年）政府行政機關辦公日曆表。目前只收錄 2026 年（外加 2027
-// 元旦方便跨年翻頁時銜接），之後年度需要時要手動補充這份清單。
+// 台灣國定假日（2026-08-30 新增，2026-08-31 補上 2027 年）：手動整理自
+// 行政院人事行政總處公告的 115年（2026年）／116年（2027年）政府行政機關
+// 辦公日曆表。目前收錄 2026、2027 兩整年，之後年度需要時要手動補充這份清單。
 // ===================================================================
 const TW_HOLIDAYS = {
+  // ---- 2026 年（115年）----
   '2026-01-01': '元旦',
   '2026-02-15': '小年夜',
   '2026-02-16': '除夕',
@@ -1464,8 +1515,67 @@ const TW_HOLIDAYS = {
   '2026-10-10': '國慶日',
   '2026-10-25': '台灣光復節',
   '2026-12-25': '行憲紀念日',
+  // ---- 2027 年（116年）----
   '2027-01-01': '元旦',
+  '2027-02-04': '小年夜',
+  '2027-02-05': '除夕',
+  '2027-02-06': '春節',
+  '2027-02-07': '春節',
+  '2027-02-08': '春節',
+  '2027-02-09': '春節補假',
+  '2027-02-10': '春節補假',
+  '2027-02-28': '和平紀念日',
+  '2027-04-04': '兒童節',
+  '2027-04-05': '清明節',
+  '2027-04-06': '兒童節補假',
+  '2027-05-01': '勞動節',
+  '2027-06-09': '端午節',
+  '2027-09-15': '中秋節',
+  '2027-09-28': '教師節',
+  '2027-10-10': '國慶日',
+  '2027-10-25': '台灣光復節',
+  '2027-12-25': '行憲紀念日',
+  '2027-12-31': '元旦補假',
 };
+
+// ===================================================================
+// 連假偵測（2026-08-31 新增）：把「週六、週日、國定假日」視為休息日，找出
+// 3 天以上連續的休息日區間，日曆上會在整段區間淡淡標色，並在第一天顯示
+// 「🎉共N天連假」。只計算實際的國定假日／週末，不含使用者自行請假延長的部分。
+// ===================================================================
+function computeConsecutiveOffRanges(startDateStr, endDateStr){
+  const isOff = (ds) => {
+    const dow = new Date(ds + 'T00:00:00').getDay();
+    return dow === 0 || dow === 6 || !!TW_HOLIDAYS[ds];
+  };
+  const ranges = [];
+  let cur = new Date(startDateStr + 'T00:00:00');
+  const end = new Date(endDateStr + 'T00:00:00');
+  let runStart = null;
+  while(cur <= end){
+    const ds = fmtISODate(cur.getFullYear(), cur.getMonth(), cur.getDate());
+    if(isOff(ds)){
+      if(!runStart) runStart = ds;
+    } else if(runStart){
+      const prev = new Date(cur);
+      prev.setDate(prev.getDate() - 1);
+      ranges.push({start: runStart, end: fmtISODate(prev.getFullYear(), prev.getMonth(), prev.getDate())});
+      runStart = null;
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  if(runStart){
+    ranges.push({start: runStart, end: fmtISODate(end.getFullYear(), end.getMonth(), end.getDate())});
+  }
+  return ranges
+    .map(r => ({...r, days: Math.round((new Date(r.end + 'T00:00:00') - new Date(r.start + 'T00:00:00')) / 86400000) + 1}))
+    .filter(r => r.days >= 3);
+}
+// 開機時算好整段範圍（涵蓋目前收錄的 2026～2027），之後查詢直接查表，不用每次重算。
+const HOLIDAY_RANGES = computeConsecutiveOffRanges('2026-01-01', '2027-12-31');
+function getHolidayRangeForDate(dateStr){
+  return HOLIDAY_RANGES.find(r => dateStr >= r.start && dateStr <= r.end) || null;
+}
 
 function todayStr(){
   const d = new Date();
@@ -1910,6 +2020,7 @@ function renderWithdrawnTable(){
       vendor: (found && found.vendor) || '',
       vendorClass: (found && (VENDOR_CLASS[found.vendor] || 'vendor-other')) || 'vendor-other',
       address: (found && found.address) || '（找不到即時資料，可能已離開排程池）',
+      sales_person: (found && found.sales_person) || '',
       withdrawn_note: cs.withdrawn_note,
       withdrawn_date: cs.withdrawn_date,
     };
@@ -1925,7 +2036,7 @@ function renderWithdrawnTable(){
   tbody.innerHTML = items.map(it => {
     return `
     <tr>
-      <td><div class="case-id">${it.case}</div><div class="case-alias">${it.alias||''}</div></td>
+      <td><div class="case-id">${it.case}</div><div class="case-alias">${it.alias||''}</div>${salesLineHtml(it.sales_person)}</td>
       <td>${it.vendor ? `<span class="vendor-pill ${it.vendorClass}">${it.vendor}</span>` : ''}</td>
       <td>${it.address}</td>
       <td style="max-width:260px;white-space:pre-wrap;">${it.withdrawn_note}</td>
@@ -1960,6 +2071,13 @@ function fmtDate(iso){
 function glueCount(str){
   if(!str) return str;
   return str.replace(/[ \t]+(×[\d.]+)/g, '\u00A0$1');
+}
+// 2026-08-31 新增：在案號／別名下方顯示這筆案件的負責業務（綠點業務），
+// 所有案件列表（待安排出貨&植筋／案件進場安排／掛表安排／異常案件／
+// 撤案清單／歷史紀錄）共用同一個小函式，樣式統一。沒有業務資料（例如
+// Airtable 那邊「綠點業務」欄位還沒設定，或這筆案件沒填）就不顯示這行。
+function salesLineHtml(salesPerson){
+  return salesPerson ? `<div class="case-alias" style="color:var(--primary-dark);">業務：${salesPerson}</div>` : '';
 }
 
 // ===================================================================
@@ -1996,6 +2114,7 @@ async function loadAppData(includeArchived){
     renderParkedNoteList();
     renderMaterialList();
     renderMaterialUseList();
+    renderNotebookOnlineList();
     renderCalendar();
     renderWeekList();
   }catch(err){
@@ -2562,7 +2681,7 @@ function renderPendingTable(){
       : `<span class="pm-pill" style="background:var(--success-soft);color:var(--success);">同意備案 ${r.agree}</span>`;
     return `
       <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${hasSpec ? r.module : '尚未填寫規格'}" data-inverter="${hasSpec ? (r.inverter||'') : ''}">
-        <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
+        <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
         <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
         <td>${r.address}</td>
         <td>${triggerPill}</td>
@@ -2620,7 +2739,7 @@ function renderEntryTable(){
          <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openCompleteMeterModal('${r.record_id}')">✓ 完工&掛表</button>`;
     return `
     <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}" data-entrydatefull="${r.entry_date||''}">
-      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
+      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
       <td colspan="2">${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
@@ -2660,7 +2779,7 @@ function renderMeterTable(){
     const cs = getCaseStatus(r.record_id);
     return `
     <tr>
-      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
+      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
       <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
@@ -2692,6 +2811,7 @@ function renderIssueTable(){
       vendor: (found && found.vendor) || '',
       vendorClass: (found && (VENDOR_CLASS[found.vendor] || 'vendor-other')) || 'vendor-other',
       address: (found && found.address) || '（找不到即時資料，可能已離開排程池）',
+      sales_person: (found && found.sales_person) || '',
       stage: deriveStageLabel(id),
       issue_note: cs.issue_note,
       issue_date: cs.issue_date,
@@ -2709,7 +2829,7 @@ function renderIssueTable(){
   tbody.innerHTML = items.map(it => {
     return `
     <tr>
-      <td><div class="case-id">${it.case}</div><div class="case-alias">${it.alias||''}</div></td>
+      <td><div class="case-id">${it.case}</div><div class="case-alias">${it.alias||''}</div>${salesLineHtml(it.sales_person)}</td>
       <td>${it.vendor ? `<span class="vendor-pill ${it.vendorClass}">${it.vendor}</span>` : ''}</td>
       <td>${it.address}</td>
       <td><span class="pm-pill">${it.stage}</span></td>
@@ -2812,7 +2932,7 @@ function renderArchiveTable(){
     const shipText = fmtDate(r.ship_date) + (invDate ? `（變流器 ${fmtDate(invDate)}）` : '');
     return `
     <tr>
-      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div></td>
+      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
       <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
@@ -3567,6 +3687,290 @@ async function confirmWithdrawMaterial(){
   }
 }
 
+// ===================================================================
+// 筆記本（2026-08-31 新增）：跟廠商電話排行程時可以先隨手記錄下來，之後再
+// 回頭安排。分「本地紀錄」（只存在這台電腦的瀏覽器 localStorage，換裝置或
+// 清瀏覽器資料就會不見，同事看不到）跟「線上紀錄」（寫回 Airtable「APP資料」
+// 表，類型是「電話紀錄」，比照其他註記清單，同事在不同電腦都能同步看到）。
+// 本地紀錄可以「上傳」變成線上紀錄，上傳後會從本地清單移除、改存在線上。
+// 輸入案號時會呼叫後端 /api/case-lookup 即時查 Airtable，自動帶出案件基本
+// 資料（案號／別名／地址／廠商／業務／模組／逆變器）跟關鍵進度日期
+// （併聯審查／同意備案／細部協商／台電購售契約／免雜），方便講電話當下
+// 快速掌握案件現況，不用切去別的分頁對照。
+// ===================================================================
+const NOTEBOOK_NOTE_TYPE = '電話紀錄';
+const NOTEBOOK_LOCAL_STORAGE_KEY = 'epc_notebook_local';
+let notebookActiveTab = 'local';
+let notebookEditingLocalId = null;
+let notebookEditingOnlineId = null;
+
+function loadLocalNotebook(){
+  try{
+    const raw = localStorage.getItem(NOTEBOOK_LOCAL_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(err){
+    console.error('讀取本地筆記本失敗：', err);
+    return [];
+  }
+}
+function saveLocalNotebook(list){
+  try{
+    localStorage.setItem(NOTEBOOK_LOCAL_STORAGE_KEY, JSON.stringify(list));
+  }catch(err){
+    showToast('本地紀錄儲存失敗（瀏覽器儲存空間可能已滿）：' + err.message);
+    console.error(err);
+  }
+}
+
+function openNotebookModal(){
+  document.getElementById('notebookCaseInput').value = '';
+  document.getElementById('notebookContentInput').value = '';
+  document.getElementById('notebookCaseSummary').style.display = 'none';
+  notebookEditingLocalId = null;
+  notebookEditingOnlineId = null;
+  showNotebookTab('local');
+  renderNotebookLocalList();
+  renderNotebookOnlineList();
+  document.getElementById('notebookModalOverlay').classList.add('show');
+}
+function closeNotebookModal(){
+  document.getElementById('notebookModalOverlay').classList.remove('show');
+}
+function showNotebookTab(tab){
+  notebookActiveTab = tab;
+  const overlay = document.getElementById('notebookModalOverlay');
+  overlay.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const tabEl = overlay.querySelector(`.tab[data-notebook-tab="${tab}"]`);
+  if(tabEl) tabEl.classList.add('active');
+  overlay.querySelectorAll('.subview').forEach(v => v.classList.remove('active'));
+  const viewEl = document.getElementById('notebook-tab-' + tab);
+  if(viewEl) viewEl.classList.add('active');
+  const btn = document.getElementById('notebookAddBtn');
+  if(btn && !notebookEditingLocalId && !notebookEditingOnlineId){
+    btn.textContent = tab === 'local' ? '＋ 加入本地紀錄' : '＋ 加入線上紀錄';
+  }
+}
+
+async function lookupNotebookCase(){
+  const input = document.getElementById('notebookCaseInput');
+  const summaryEl = document.getElementById('notebookCaseSummary');
+  const caseNo = input.value.trim();
+  if(!caseNo){ summaryEl.style.display = 'none'; return; }
+  summaryEl.style.display = 'block';
+  summaryEl.innerHTML = '查詢中…';
+  try{
+    const res = await fetch(API_BASE + '/api/case-lookup?case_no=' + encodeURIComponent(caseNo), {cache: 'no-store'});
+    const data = await res.json();
+    if(!res.ok){
+      summaryEl.innerHTML = '<span style="color:var(--text-muted);">查詢失敗：' + (data.error || ('HTTP ' + res.status)) + '</span>';
+      return;
+    }
+    if(!data.found){
+      summaryEl.innerHTML = '<span style="color:var(--text-muted);">找不到這個案號，仍可直接記錄文字內容，不影響儲存。</span>';
+      return;
+    }
+    const m = data.milestones || {};
+    const salesLine = data.sales_field_configured
+      ? `<div>業務：${data.sales_person || '（未填寫）'}</div>`
+      : `<div style="color:var(--text-muted);">業務：（尚未設定業務欄位，需請開發者確認 Airtable 欄位名稱）</div>`;
+    summaryEl.innerHTML = `
+      <div style="font-weight:700;margin-bottom:4px;">${data.case}${data.alias ? '　'+data.alias : ''} <span class="vendor-pill ${VENDOR_CLASS[data.vendor]||'vendor-other'}" style="margin-left:4px;">${data.vendor||''}</span></div>
+      <div>地址：${data.address || '（未填寫）'}</div>
+      ${salesLine}
+      <div>模組：${data.module || '（未填寫）'}</div>
+      <div>逆變器：${data.inverter || '（未填寫）'}</div>
+      <div style="margin-top:6px;font-weight:700;">函文進度</div>
+      <div>併聯審查：${m['併聯審查'] ? fmtDate(m['併聯審查']) : '尚未'}</div>
+      <div>同意備案：${m['同意備案'] ? fmtDate(m['同意備案']) : '尚未'}</div>
+      <div>細部協商：${m['細部協商'] ? fmtDate(m['細部協商']) : '尚未'}</div>
+      <div>台電契約：${m['台電購售契約'] ? fmtDate(m['台電購售契約']) : '尚未'}</div>
+      <div>免雜：${m['免雜'] ? fmtDate(m['免雜']) : '尚未'}</div>
+    `;
+  }catch(err){
+    summaryEl.innerHTML = '<span style="color:var(--text-muted);">查詢失敗：' + err.message + '</span>';
+    console.error(err);
+  }
+}
+
+async function addNotebookEntry(){
+  const caseInput = document.getElementById('notebookCaseInput');
+  const contentInput = document.getElementById('notebookContentInput');
+  const caseText = caseInput.value.trim();
+  const content = contentInput.value.trim();
+  if(!content){ showToast('請填寫紀錄內容'); return; }
+
+  if(notebookActiveTab === 'local'){
+    const list = loadLocalNotebook();
+    if(notebookEditingLocalId){
+      const idx = list.findIndex(n => n.id === notebookEditingLocalId);
+      if(idx >= 0) list[idx] = {...list[idx], case_text: caseText, content};
+      notebookEditingLocalId = null;
+    } else {
+      list.unshift({
+        id: 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        case_text: caseText,
+        content,
+        date: todayStr(),
+      });
+    }
+    saveLocalNotebook(list);
+    renderNotebookLocalList();
+    caseInput.value = '';
+    contentInput.value = '';
+    document.getElementById('notebookCaseSummary').style.display = 'none';
+    document.getElementById('notebookAddBtn').textContent = '＋ 加入本地紀錄';
+    showToast('已加入本地紀錄（只存在這台電腦）');
+    return;
+  }
+
+  const btn = document.getElementById('notebookAddBtn');
+  const originalText = btn.textContent;
+  btn.textContent = '儲存中…';
+  btn.disabled = true;
+  try{
+    if(notebookEditingOnlineId){
+      const res = await fetch(API_BASE + '/api/app-data/note/' + notebookEditingOnlineId, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({case_text: caseText || '（未指定案場）', content}),
+      });
+      if(!res.ok){
+        const err = await res.json().catch(()=>({}));
+        throw new Error(err.error || ('HTTP ' + res.status));
+      }
+      notebookEditingOnlineId = null;
+    } else {
+      const res = await fetch(API_BASE + '/api/app-data/note', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({type: NOTEBOOK_NOTE_TYPE, case_text: caseText || '（未指定案場）', content}),
+      });
+      if(!res.ok){
+        const err = await res.json().catch(()=>({}));
+        throw new Error(err.error || ('HTTP ' + res.status));
+      }
+    }
+    await loadAppData();
+    caseInput.value = '';
+    contentInput.value = '';
+    document.getElementById('notebookCaseSummary').style.display = 'none';
+    showToast('已同步到線上紀錄，同事也能看到這筆');
+  }catch(err){
+    showToast('儲存失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = notebookActiveTab === 'local' ? '＋ 加入本地紀錄' : '＋ 加入線上紀錄';
+  }
+}
+
+function renderNotebookLocalList(){
+  const tbody = document.getElementById('notebookLocalRows');
+  if(!tbody) return;
+  const list = loadLocalNotebook();
+  if(list.length === 0){
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有本地紀錄</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(n => `
+    <tr>
+      <td><div class="case-id">${n.case_text || '（未指定案場）'}</div></td>
+      <td style="white-space:pre-wrap;">${n.content}</td>
+      <td>${fmtDate(n.date)}</td>
+      <td>
+        <button class="btn btn-primary" style="padding:4px 10px;font-size:11.5px;" onclick="uploadLocalNotebookEntry('${n.id}')">⬆ 上傳</button>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;margin-left:4px;" onclick="editLocalNotebookEntry('${n.id}')">編輯</button>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;margin-left:4px;" onclick="deleteLocalNotebookEntry('${n.id}')">刪除</button>
+      </td>
+    </tr>
+  `).join('');
+}
+function editLocalNotebookEntry(id){
+  const list = loadLocalNotebook();
+  const n = list.find(x => x.id === id);
+  if(!n) return;
+  showNotebookTab('local');
+  document.getElementById('notebookCaseInput').value = n.case_text || '';
+  document.getElementById('notebookContentInput').value = n.content || '';
+  document.getElementById('notebookAddBtn').textContent = '更新本地紀錄';
+  notebookEditingLocalId = id;
+  notebookEditingOnlineId = null;
+  lookupNotebookCase();
+}
+function deleteLocalNotebookEntry(id){
+  const list = loadLocalNotebook().filter(n => n.id !== id);
+  saveLocalNotebook(list);
+  renderNotebookLocalList();
+}
+async function uploadLocalNotebookEntry(id){
+  const list = loadLocalNotebook();
+  const n = list.find(x => x.id === id);
+  if(!n) return;
+  try{
+    const res = await fetch(API_BASE + '/api/app-data/note', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({type: NOTEBOOK_NOTE_TYPE, case_text: n.case_text || '（未指定案場）', content: n.content}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    saveLocalNotebook(list.filter(x => x.id !== id));
+    renderNotebookLocalList();
+    await loadAppData();
+    showToast('已上傳到線上紀錄，同事現在也能看到這筆');
+  }catch(err){
+    showToast('上傳失敗：' + err.message);
+    console.error(err);
+  }
+}
+function renderNotebookOnlineList(){
+  const tbody = document.getElementById('notebookOnlineRows');
+  if(!tbody) return;
+  const list = APP_NOTES.filter(n => n.type === NOTEBOOK_NOTE_TYPE);
+  if(list.length === 0){
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有線上紀錄</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(n => `
+    <tr>
+      <td><div class="case-id">${n.case_text}</div></td>
+      <td style="white-space:pre-wrap;">${n.content}</td>
+      <td>${fmtDate(n.date)}</td>
+      <td>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="editOnlineNotebookEntry('${n.app_record_id}')">編輯</button>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;margin-left:4px;" onclick="deleteOnlineNotebookEntry('${n.app_record_id}')">刪除</button>
+      </td>
+    </tr>
+  `).join('');
+}
+function editOnlineNotebookEntry(appRecordId){
+  const n = APP_NOTES.find(x => x.app_record_id === appRecordId);
+  if(!n) return;
+  showNotebookTab('online');
+  document.getElementById('notebookCaseInput').value = n.case_text || '';
+  document.getElementById('notebookContentInput').value = n.content || '';
+  document.getElementById('notebookAddBtn').textContent = '更新線上紀錄';
+  notebookEditingOnlineId = appRecordId;
+  notebookEditingLocalId = null;
+  lookupNotebookCase();
+}
+async function deleteOnlineNotebookEntry(appRecordId){
+  try{
+    const res = await fetch(API_BASE + '/api/app-data/' + appRecordId, {method: 'DELETE'});
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    APP_NOTES = APP_NOTES.filter(n => n.app_record_id !== appRecordId);
+    renderNotebookOnlineList();
+  }catch(err){
+    showToast('刪除失敗：' + err.message);
+    console.error(err);
+  }
+}
+
 function showEpcTab(tab){
   showView('epc');
   document.querySelectorAll('#view-epc .subview').forEach(v=>v.classList.remove('active'));
@@ -3711,7 +4115,9 @@ function renderDayDetail(dateStr){
   const d = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]));
   const weekday = ['日','一','二','三','四','五','六'][d.getDay()];
   const holidayName = TW_HOLIDAYS[dateStr];
-  title.textContent = p[1] + '/' + p[2] + '（' + weekday + '）當日排程' + (holidayName ? `　🎌 ${holidayName}` : '');
+  const holidayRange = getHolidayRangeForDate(dateStr);
+  const rangeNote = holidayRange ? `　（${holidayRange.days}天連假 ${fmtDate(holidayRange.start)}～${fmtDate(holidayRange.end)}）` : '';
+  title.textContent = p[1] + '/' + p[2] + '（' + weekday + '）當日排程' + (holidayName ? `　🎌 ${holidayName}` : '') + rangeNote;
   const events = collectCalendarEvents().filter(e => e.date === dateStr);
   if(events.length === 0){
     rows.innerHTML = '<div class="login-note">這天目前沒有排程。</div>';
@@ -3822,9 +4228,12 @@ function renderCalendar(){
     const isToday = cellDate === todayIso;
     const selectedClass = cellDate === calSelectedDate ? ' cal-cell-selected' : '';
     const holidayName = TW_HOLIDAYS[cellDate];
-    cellsHtml += `<div class="cal-cell${muted?' muted':''}${selectedClass}" data-date="${cellDate}" onclick="selectCalDay('${cellDate}')">
+    const holidayRange = getHolidayRangeForDate(cellDate);
+    const rangeStyle = holidayRange ? 'background:#FFF6EC;' : '';
+    cellsHtml += `<div class="cal-cell${muted?' muted':''}${selectedClass}" data-date="${cellDate}" style="${rangeStyle}" onclick="selectCalDay('${cellDate}')">
       <div class="cal-date${isToday?' today':''}" style="${holidayName ? 'color:#D64545;' : ''}">${dayLabel}</div>
       ${holidayName ? `<div style="font-size:9.5px;color:#D64545;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${holidayName}">${holidayName}</div>` : ''}
+      ${holidayRange && holidayRange.start === cellDate ? `<div style="font-size:9.5px;color:#E8890C;font-weight:700;white-space:nowrap;">🎉共${holidayRange.days}天連假</div>` : ''}
       ${chipsHtml}
     </div>`;
   }
