@@ -1039,7 +1039,7 @@
               <input type="text" class="quick-mark-input" id="caseSpecModuleQty" style="width:90px;background:var(--surface-2);color:var(--text-muted);" disabled placeholder="片數">
             </div>
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;">片數由 Airtable 自動計算，這裡僅顯示目前數值，無法在此修改。</div>
-            <label style="font-size:12px;font-weight:700;display:block;margin-bottom:8px;">逆變器（可加多筆,可直接輸入型號關鍵字快速篩選,但仍必須從 Airtable 現有清單裡選一個,不能自己亂打字）</label>
+            <label style="font-size:12px;font-weight:700;display:block;margin-bottom:8px;">逆變器（可加多筆,型號可直接輸入關鍵字快速篩選,但仍必須從 Airtable 現有清單裡選一個,不能自己亂打字；數量填「這個型號總共要幾顆」,儲存時系統會自動幫你在 Airtable「採購-逆變器」表建立/比對對應筆數的記錄,不用自己手動一筆一筆新增）</label>
             <div id="caseSpecInverterRows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
             <datalist id="inverterOptionsDatalist"></datalist>
             <button class="btn btn-ghost" style="margin-bottom:18px;" onclick="addCaseSpecInverterRow()">＋ 新增逆變器</button>
@@ -2324,20 +2324,27 @@ async function openCaseSpecModal(recordId){
 
   const container = document.getElementById('caseSpecInverterRows');
   container.innerHTML = '';
-  const existingInverters = [];
+  // 案件的逆變器欄位背後是「一筆記錄＝一顆實體逆變器」，同型號的多顆逆變器
+  // 會是好幾筆各自 ×1 的獨立記錄，字串上會顯示成「CPSPV6600ETL1 ×1、
+  // CPSPV6600ETL1 ×1」這種重複型號的樣子。這裡把同名的加總成一行、一個總數量，
+  // 這樣使用者看到的、也是儲存時會送出的，都是「型號＋這個型號總共幾顆」，
+  // 不用逐筆對照。
+  const existingInvertersMap = {};
   if(found && found.inverter){
     found.inverter.split('、').forEach(seg => {
       const m = seg.match(/^(.*)\s×([\d.]+)\s*$/);
-      if(m) existingInverters.push({name: m[1].trim(), qty: m[2]});
-      else if(seg.trim()) existingInverters.push({name: seg.trim(), qty: ''});
+      let name, q;
+      if(m){ name = m[1].trim(); q = Number(m[2]); }
+      else if(seg.trim()){ name = seg.trim(); q = 1; }
+      if(name) existingInvertersMap[name] = (existingInvertersMap[name] || 0) + (isNaN(q) ? 1 : q);
     });
   }
-  if(existingInverters.length === 0){
+  const existingInverterNames = Object.keys(existingInvertersMap);
+  if(existingInverterNames.length === 0){
     addCaseSpecInverterRow();
   } else {
-    existingInverters.forEach(inv => {
-      const match = (INVERTER_OPTIONS || []).find(o => o.name === inv.name);
-      addCaseSpecInverterRow(match ? match.record_id : '', inv.qty, inv.name);
+    existingInverterNames.forEach(name => {
+      addCaseSpecInverterRow(name, existingInvertersMap[name]);
     });
   }
 
@@ -2346,56 +2353,49 @@ async function openCaseSpecModal(recordId){
 function closeCaseSpecModal(){
   document.getElementById('caseSpecModalOverlay').classList.remove('show');
 }
-function addCaseSpecInverterRow(selectedRecordId, qty, existingName){
+function addCaseSpecInverterRow(existingName, qty){
   const container = document.getElementById('caseSpecInverterRows');
   const row = document.createElement('div');
   row.className = 'case-spec-inverter-row';
   row.style.cssText = 'display:flex;gap:8px;align-items:center;';
-  const initialName = existingName
-    || ((INVERTER_OPTIONS || []).find(o => o.record_id === selectedRecordId) || {}).name
-    || '';
-  const escapedName = initialName.replace(/"/g, '&quot;');
+  const escapedName = (existingName || '').replace(/"/g, '&quot;');
   row.innerHTML = `
-    <input type="text" class="quick-mark-input inverter-input" list="inverterOptionsDatalist" value="${escapedName}" placeholder="輸入關鍵字篩選逆變器型號" data-record-id="${selectedRecordId || ''}">
-    <input type="number" class="quick-mark-input inverter-qty" style="width:90px;" min="0" value="${qty || ''}" placeholder="數量">
+    <input type="text" class="quick-mark-input inverter-input" list="inverterOptionsDatalist" value="${escapedName}" placeholder="輸入關鍵字篩選逆變器型號">
+    <input type="number" class="quick-mark-input inverter-qty" style="width:90px;" min="1" value="${qty || 1}" placeholder="數量">
     <button class="btn btn-ghost" style="padding:6px 10px;" onclick="this.closest('.case-spec-inverter-row').remove()">✕</button>
   `;
   container.appendChild(row);
-  const input = row.querySelector('.inverter-input');
-  // 使用者打字或從 datalist 建議清單裡點選時都會觸發 input 事件；只要目前輸入的
-  // 文字完全對應清單裡某一筆的名稱，就記下對應的 record_id，儲存時才知道要連結
-  // 到 Airtable 哪一筆記錄。對不上任何一筆時 data-record-id 清空，交給
-  // confirmCaseSpec() 檔下不合法的輸入。
-  input.addEventListener('input', () => {
-    const match = (INVERTER_OPTIONS || []).find(o => o.name === input.value);
-    input.dataset.recordId = match ? match.record_id : '';
-  });
 }
 async function confirmCaseSpec(){
   const moduleModel = moduleOptionsAvailable
     ? document.getElementById('caseSpecModuleModel').value.trim()
     : document.getElementById('caseSpecModuleModelText').value.trim();
-  // 「片數」欄位在 Airtable 是計算欄位（公式／rollup 自動算出來的），
-  // 外部一律無法寫入，所以這裡不讀也不送這個值，避免整包寫入被 Airtable 拒絕。
+  // 「片數」欄位在 Airtable 是計算欄位（依系統容量自動換算），外部無法寫入，
+  // 這裡不讀也不送這個值。逆變器則是送「型號＋這個型號總共要幾顆」，實際
+  // 建立/比對記錄的邏輯交給後端 sync_inverter_units_for_case() 處理。
   const rows = document.querySelectorAll('#caseSpecInverterRows .case-spec-inverter-row');
-  const inverters = [];
+  const knownInverterNames = new Set((INVERTER_OPTIONS || []).map(o => o.name));
+  const combined = {};
   let hasInvalidInverter = false;
   rows.forEach(row => {
     const input = row.querySelector('.inverter-input');
     const qtyInput = row.querySelector('.inverter-qty');
     const name = input.value.trim();
     if(!name) return; // 這一列沒填，略過
-    const recordId = input.dataset.recordId;
-    if(!recordId){
+    if(!knownInverterNames.has(name)){
       hasInvalidInverter = true; // 打的文字沒有對應到清單裡任何一筆，視為不合法
       return;
     }
-    inverters.push({record_id: recordId, qty: qtyInput.value ? Number(qtyInput.value) : null});
+    const qty = qtyInput.value ? Number(qtyInput.value) : 1;
+    if(qty < 1) return;
+    // 同一個型號如果被分成好幾列填寫，加總成一個數字再送出，避免後端重複比對。
+    combined[name] = (combined[name] || 0) + qty;
   });
   if(hasInvalidInverter){
     showToast('有逆變器型號的輸入內容不在現有清單中，請從輸入時跳出的建議選項裡點選一個');
     return;
   }
+  const inverters = Object.keys(combined).map(name => ({name, qty: combined[name]}));
   const btn = document.querySelector('#caseSpecModalOverlay .btn-primary');
   const originalText = btn.textContent;
   btn.textContent = '儲存中…';
