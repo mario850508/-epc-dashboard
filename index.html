@@ -999,6 +999,10 @@
               <button class="btn btn-primary" onclick="addNewInverterModel()">＋ 新增</button>
             </div>
             <div id="inverterModelListArea" style="max-height:140px;overflow-y:auto;font-size:12.5px;color:var(--text-muted);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">載入中…</div>
+
+            <div style="font-weight:700;font-size:13.5px;margin:20px 0 10px;">已隱藏的型號</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">被隱藏的型號不會出現在「填寫規格」的下拉選單中,但不會動到 Airtable 裡任何舊案件已經填過的資料,隨時可以按「恢復」找回來。</div>
+            <div id="hiddenModelListArea" style="max-height:160px;overflow-y:auto;font-size:12.5px;color:var(--text-muted);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">載入中…</div>
           </div>
         </div>
       </div>
@@ -2016,7 +2020,7 @@ async function openCaseSpecModal(recordId){
   document.getElementById('caseSpecModuleQty').value = moduleQty;
 
   // 兩份選項清單改成同時抓，不用一個做完才做下一個，可以省掉不少等待時間；
-  // 而且這兩份資料在頁面載入時就已經在背景偷偷預先抓過一次了，正常情況下這裡
+  // 而且這兩份資料在頁面載入時就已經在背景偷偷預先抓好一次了，正常情況下這裡
   // 幾乎是秒開（除非使用者真的是頁面才剛打開沒幾秒就立刻點開這個視窗）。
   await Promise.all([loadModuleOptionsIfNeeded(), loadInverterOptionsIfNeeded()]);
   const moduleSelect = document.getElementById('caseSpecModuleModel');
@@ -2139,14 +2143,104 @@ async function renderModelManageLists(){
   } else if(MODULE_OPTIONS.length === 0){
     moduleArea.textContent = '目前沒有任何模組型號選項。';
   } else {
-    moduleArea.innerHTML = MODULE_OPTIONS.map(o => `<div style="padding:2px 0;">${o}</div>`).join('');
+    moduleArea.innerHTML = MODULE_OPTIONS.map(o => {
+      const escaped = o.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;gap:8px;">
+        <span>${o}</span>
+        <button class="btn btn-ghost" style="padding:2px 8px;font-size:11px;flex-shrink:0;" onclick="hideModuleModel('${escaped}')">隱藏</button>
+      </div>`;
+    }).join('');
   }
 
   await loadInverterOptionsIfNeeded(true);
   if((INVERTER_OPTIONS || []).length === 0){
     inverterArea.textContent = '目前沒有任何逆變器型號選項。';
   } else {
-    inverterArea.innerHTML = INVERTER_OPTIONS.map(o => `<div style="padding:2px 0;">${o.name}</div>`).join('');
+    inverterArea.innerHTML = INVERTER_OPTIONS.map(o => {
+      const escapedName = (o.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;gap:8px;">
+        <span>${o.name}</span>
+        <button class="btn btn-ghost" style="padding:2px 8px;font-size:11px;flex-shrink:0;" onclick="hideInverterModel('${o.record_id}','${escapedName}')">隱藏</button>
+      </div>`;
+    }).join('');
+  }
+
+  await renderHiddenModelsList();
+}
+
+// ---- 隱藏型號清單（軟隱藏，不動 Airtable 原始資料，寫在 APP資料 表）----
+async function renderHiddenModelsList(){
+  const area = document.getElementById('hiddenModelListArea');
+  if(!area) return;
+  area.textContent = '載入中…';
+  try{
+    const res = await fetch(API_BASE + '/api/hidden-models', {cache: 'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const list = data.hidden || [];
+    if(list.length === 0){
+      area.textContent = '目前沒有隱藏任何型號。';
+      return;
+    }
+    area.innerHTML = list.map(h => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;gap:8px;">
+        <span>${h.name}<span style="color:var(--text-muted);">（${h.category === 'module' ? '模組' : '逆變器'}）</span></span>
+        <button class="btn btn-ghost" style="padding:2px 8px;font-size:11px;flex-shrink:0;" onclick="unhideModel('${h.app_record_id}')">恢復</button>
+      </div>
+    `).join('');
+  }catch(err){
+    area.textContent = '讀取隱藏清單失敗：' + err.message;
+    console.error(err);
+  }
+}
+async function hideModuleModel(name){
+  try{
+    const res = await fetch(API_BASE + '/api/hidden-models', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({category: 'module', value: name}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    showToast('已隱藏「' + name + '」，不會再出現在填寫規格的選單中');
+    await renderModelManageLists();
+  }catch(err){
+    showToast('隱藏失敗：' + err.message);
+    console.error(err);
+  }
+}
+async function hideInverterModel(recordId, name){
+  try{
+    const res = await fetch(API_BASE + '/api/hidden-models', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({category: 'inverter', value: recordId + '::' + name}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    showToast('已隱藏「' + name + '」，不會再出現在填寫規格的選單中');
+    await renderModelManageLists();
+  }catch(err){
+    showToast('隱藏失敗：' + err.message);
+    console.error(err);
+  }
+}
+async function unhideModel(appRecordId){
+  try{
+    const res = await fetch(API_BASE + '/api/hidden-models/' + appRecordId, {method: 'DELETE'});
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    showToast('已恢復顯示');
+    await renderModelManageLists();
+  }catch(err){
+    showToast('恢復失敗：' + err.message);
+    console.error(err);
   }
 }
 async function addNewModuleModel(){
