@@ -352,17 +352,17 @@
         <div class="nav-item" data-view="home" onclick="showView('home')">
           <span class="nav-icon">🏠</span> 總覽
         </div>
-        <div class="nav-item" data-view="pdf" onclick="showView('pdf')">
+        <div class="nav-item" data-view="pdf" onclick="toggleNavSection('pdf')">
           <span class="nav-icon">📄</span> PDF 公文更名
         </div>
-        <div class="nav-sub">
+        <div class="nav-sub" id="navSub-pdf">
           <div class="nav-sub-item" data-sub="pdf-rename" onclick="showPdfTab('pdf-rename')">公文更名</div>
           <div class="nav-sub-item" data-sub="pdf-line" onclick="showPdfTab('pdf-line')">LINE 收件紀錄</div>
         </div>
-        <div class="nav-item" data-view="epc" onclick="showView('epc')">
+        <div class="nav-item" data-view="epc" onclick="toggleNavSection('epc')">
           <span class="nav-icon">🚚</span> EPC 出貨／進場排程
         </div>
-        <div class="nav-sub">
+        <div class="nav-sub" id="navSub-epc">
           <div class="nav-sub-item" data-sub="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
           <div class="nav-sub-item" data-sub="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
           <div class="nav-sub-item" data-sub="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨&植筋</div>
@@ -582,7 +582,7 @@
             <tbody id="pendingRows"></tbody>
           </table>
           <div class="login-note" id="pendingLoginNote">
-            🔗 資料每天 00:00／06:00／12:00／18:00 自動整批更新一次(伺服器背景排程),平常開啟頁面是直接讀取這份快取,不會每次都重新查 Airtable。點「排定日期」寫入成功後,會立刻觸發一次重新整理,清單會馬上反映最新狀態。標示「⚠ 尚未填寫規格」的案件仍會列在清單中提醒你安排出貨,只是模組/逆變器資訊還沒填。點欄位標題（案號／別名、觸發依據、模組、逆變器）可切換排序,輸入框可用案號、別名、模組、逆變器內容篩選,點廠商 chip 可篩選特定廠商。點「🪛」植筋按鈕可以安排植筋日期,或勾選「跟進場一起」;植筋日期一旦過了當天,隔天會自動視為完成,不用手動標記。
+            🔗 資料每天 00:00／06:00／12:00／18:00 自動整批更新一次(伺服器背景排程),平常開啟頁面是直接讀取這份快取,不會每次都重新查 Airtable。點「排定日期」寫入成功後,會立刻觸發一次重新整理,清單會馬上反映最新狀態。標示「⚠ 尚未填寫規格」的案件仍會列在清單中提醒你安排出貨,只是模組/逆變器資訊還沒填。點欄位標題（案號／別名、觸發依據、模組、逆變器）可切換排序,輸入框可用案號、別名、模組、逆變器內容篩選,點廠商 chip 可篩選特定廠商。點「🪛」植筋按鈕可以安排植筋日期,或勾選「跟進場一起」;植筋日期一旦過了當天,隔天會自動視為完成,不用手動標記。「🏠」屋主資訊按鈕可以先在這個階段填寫屋主聯絡人／電話／備註,跟「案件進場安排」共用同一份資料,不用等到進場階段才能填,也不用重複輸入。
           </div>
         </div>
       </div>
@@ -661,7 +661,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 這裡列出已完工且已排定預計掛表日期的案件（在「案件進場安排」按「完工&掛表」後會直接出現在這裡）。點預計日期可以修正；按「完成掛表」會跳出確認,寫入後案件會移入「歷史紀錄」。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
+            🔗 這裡列出已完工且已排定預計掛表日期的案件（在「案件進場安排」按「完工&掛表」後會直接出現在這裡）。點預計日期可以修正；按「完成掛表」會跳出確認,寫入後案件會移入「歷史紀錄」。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。地址下方會顯示屋主聯絡人／電話（在「案件進場安排」填過的資料）,點一下可以查看完整備註或修改。
           </div>
         </div>
       </div>
@@ -2085,6 +2085,23 @@ function glueCount(str){
 function salesLineHtml(salesPerson){
   return salesPerson ? `<div class="case-alias" style="color:var(--primary-dark);">業務：${salesPerson}</div>` : '';
 }
+// 2026-08-31 新增：「屋主資訊」小按鈕，點下去開啟既有的屋主資訊視窗
+// （openOwnerInfoModal，跟「案件進場安排」共用同一套資料，寫在 APP資料 表的
+// owner_contact_* 欄位）。已經填過的話直接顯示聯絡人／電話，方便一眼看到，
+// 不用點進去才知道有沒有資料；「待安排出貨&植筋」「掛表安排」都可以用這個
+// 按鈕先填/查看，不用等到案件進場安排階段才能填。
+function ownerInfoButtonHtml(recordId){
+  const cs = getCaseStatus(recordId);
+  const hasContact = cs && (cs.owner_contact_name || cs.owner_contact_phone || cs.owner_contact_note);
+  let label;
+  if(hasContact){
+    const parts = [cs.owner_contact_name, cs.owner_contact_phone].filter(Boolean);
+    label = parts.length ? parts.join('　') : '已填寫備註';
+  } else {
+    label = '尚未填寫';
+  }
+  return `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openOwnerInfoModal('${recordId}')">🏠 ${label}</button>`;
+}
 
 // ===================================================================
 // APP資料（已完工／掛表安排／異常案件／變流器日期／註記清單）
@@ -2692,7 +2709,7 @@ function renderPendingTable(){
         <td>${r.address}</td>
         <td>${triggerPill}</td>
         ${specCell}
-        <td><button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this)">📅 排定日期</button>${renderRebarBadge(r.record_id)}</td>
+        <td><button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this)">📅 排定日期</button>${renderRebarBadge(r.record_id)}<div style="margin-top:6px;">${ownerInfoButtonHtml(r.record_id)}</div></td>
       </tr>
     `;
   }).join('');
@@ -2787,7 +2804,9 @@ function renderMeterTable(){
     <tr>
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
-      <td>${r.address}</td>
+      <td>${r.address}
+        <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
+      </td>
       <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
       <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openPlanMeterModal('${r.record_id}')">${fmtDate(cs.meter_planned_date)}　✎</button></td>
       <td>
@@ -3095,6 +3114,15 @@ function showView(name){
   document.querySelector('.nav-item[data-view="'+name+'"]').classList.add('active');
   document.querySelectorAll('.nav-sub-item').forEach(n=>n.classList.remove('active'));
   saveNavState({view: name});
+}
+// 2026-08-31 新增：側邊選單「PDF 公文更名」「EPC 出貨／進場排程」這兩個
+// 有子項目的分類，點一下標題可以摺疊/展開底下的子選單（手風琴效果），
+// 同時照舊切換到該分類的頁面。每次點擊單純把目前的顯示狀態反過來，
+// 跟目前在哪個頁面無關，操作直覺。
+function toggleNavSection(name){
+  const sub = document.getElementById('navSub-' + name);
+  if(sub) sub.style.display = (sub.style.display === 'none') ? 'flex' : 'none';
+  showView(name);
 }
 function openNotifyModal(){
   const vendorVal = document.getElementById('notifyVendorFilter') ? document.getElementById('notifyVendorFilter').value : 'all';
