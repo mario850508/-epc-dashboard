@@ -1498,9 +1498,12 @@ function updateChipVendorFilterUI(key, containerId){
 }
 
 // ===================================================================
-// 台灣國定假日（2026-08-30 新增，2026-08-31 補上 2027 年）：手動整理自
-// 行政院人事行政總處公告的 115年（2026年）／116年（2027年）政府行政機關
-// 辦公日曆表。目前收錄 2026、2027 兩整年，之後年度需要時要手動補充這份清單。
+// 台灣國定假日（2026-08-30 新增，2026-08-31 依行政院人事行政總處官方公告
+// 全面查證更新）：直接查證行政院人事行政總處公告的 115年（2026年）「附表3」
+// ／116年（2027年）政府行政機關辦公日曆表，把先前漏掉的補假日（和平紀念日、
+// 兒童節、清明節、國慶日、台灣光復節、勞動節、行憲紀念日這幾個逢週六／週日
+// 需要補假的情況）一次補齊，之後年度需要時要記得同樣去查官方公告，不要用
+// 「推算」的（很容易漏算補假規則：逢六補前一天，逢日補後一天）。
 // ===================================================================
 const TW_HOLIDAYS = {
   // ---- 2026 年（115年）----
@@ -1511,15 +1514,20 @@ const TW_HOLIDAYS = {
   '2026-02-18': '春節',
   '2026-02-19': '春節',
   '2026-02-20': '小年夜補假',
+  '2026-02-27': '和平紀念日補假',  // 2/28 適逢週六，於前一日 2/27（五）補假
   '2026-02-28': '和平紀念日',
+  '2026-04-03': '兒童節補假',      // 4/4 適逢週六，於前一日 4/3（五）補假
   '2026-04-04': '兒童節',
   '2026-04-05': '清明節',
+  '2026-04-06': '清明節補假',      // 4/5 適逢週日，於次一日 4/6（一）補假
   '2026-05-01': '勞動節',
   '2026-06-19': '端午節',
   '2026-09-25': '中秋節',
   '2026-09-28': '教師節',
+  '2026-10-09': '國慶日補假',      // 10/10 適逢週六，於前一日 10/9（五）補假
   '2026-10-10': '國慶日',
   '2026-10-25': '台灣光復節',
+  '2026-10-26': '台灣光復節補假',  // 10/25 適逢週日，於次一日 10/26（一）補假
   '2026-12-25': '行憲紀念日',
   // ---- 2027 年（116年）----
   '2027-01-01': '元旦',
@@ -1531,17 +1539,21 @@ const TW_HOLIDAYS = {
   '2027-02-09': '春節補假',
   '2027-02-10': '春節補假',
   '2027-02-28': '和平紀念日',
+  '2027-03-01': '和平紀念日補假',  // 2/28 適逢週日，於次一日 3/1（一）補假
   '2027-04-04': '兒童節',
   '2027-04-05': '清明節',
-  '2027-04-06': '兒童節補假',
+  '2027-04-06': '兒童節補假',      // 4/4 適逢週日，於清明節次日 4/6（二）補假
+  '2027-04-30': '勞動節補假',      // 5/1 適逢週六，於前一日 4/30（五）補假
   '2027-05-01': '勞動節',
   '2027-06-09': '端午節',
   '2027-09-15': '中秋節',
   '2027-09-28': '教師節',
   '2027-10-10': '國慶日',
+  '2027-10-11': '國慶日補假',      // 10/10 適逢週日，於次一日 10/11（一）補假
   '2027-10-25': '台灣光復節',
+  '2027-12-24': '行憲紀念日補假',  // 12/25 適逢週六，於前一日 12/24（五）補假
   '2027-12-25': '行憲紀念日',
-  '2027-12-31': '元旦補假',
+  '2027-12-31': '元旦補假',        // 117年(2028)1/1 適逢週六，於前一日 12/31（五）補假
 };
 
 // ===================================================================
@@ -2706,10 +2718,12 @@ function renderPendingTable(){
       <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${hasSpec ? r.module : '尚未填寫規格'}" data-inverter="${hasSpec ? (r.inverter||'') : ''}">
         <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
         <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
-        <td>${r.address}</td>
+        <td>${r.address}
+          <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
+        </td>
         <td>${triggerPill}</td>
         ${specCell}
-        <td><button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this)">📅 排定日期</button>${renderRebarBadge(r.record_id)}<div style="margin-top:6px;">${ownerInfoButtonHtml(r.record_id)}</div></td>
+        <td><button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this)">📅 排定日期</button>${renderRebarBadge(r.record_id)}</td>
       </tr>
     `;
   }).join('');
@@ -2747,13 +2761,7 @@ function renderEntryTable(){
     if(r._status === 'waiting'){
       statusPill = `<span class="pm-pill">待進場</span>`;
     } else {
-      const cs = getCaseStatus(r.record_id);
-      const hasContact = cs && (cs.owner_contact_name || cs.owner_contact_phone || cs.owner_contact_note);
-      statusPill = `<span class="pm-pill" style="background:var(--success-soft);color:var(--success);">已安排</span>
-        <div style="margin-top:5px;">
-          <span class="pm-pill" style="cursor:pointer;background:var(--surface-2);color:var(--text);" onclick="openOwnerInfoModal('${r.record_id}')">🏠 屋主資訊</span>
-        </div>
-        ${hasContact ? '' : '<div style="margin-top:3px;font-size:11px;color:var(--text-muted);">（尚未填寫）</div>'}`;
+      statusPill = `<span class="pm-pill" style="background:var(--success-soft);color:var(--success);">已安排</span>`;
     }
     const actions = r._status === 'waiting'
       ? `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this,'reschedule')">重新安排出貨日期</button>
@@ -2764,7 +2772,9 @@ function renderEntryTable(){
     <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}" data-entrydatefull="${r.entry_date||''}">
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
-      <td>${r.address}</td>
+      <td>${r.address}
+        <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
+      </td>
       <td colspan="2">${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
       <td>${scheduleChips}</td>
       <td>${statusPill}</td>
