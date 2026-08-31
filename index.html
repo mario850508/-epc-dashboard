@@ -3070,12 +3070,31 @@ function startAutoSync(){
   }, AUTO_SYNC_INTERVAL_MS);
 }
 
+// ===================================================================
+// 記住最後停留的頁面（2026-08-31 新增）：存在瀏覽器 localStorage 裡，重新整理
+// 網頁時直接回到原本的頁籤，不用每次都從「總覽」重新點過去。只存在這台電腦，
+// 換裝置不會同步（純粹是導覽方便性，跟案件資料無關，不需要跨裝置同步）。
+// ===================================================================
+const NAV_STATE_STORAGE_KEY = 'epc_nav_state';
+function saveNavState(state){
+  try{ localStorage.setItem(NAV_STATE_STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+}
+function loadNavState(){
+  try{
+    const raw = localStorage.getItem(NAV_STATE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){
+    return null;
+  }
+}
+
 function showView(name){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
   document.querySelectorAll('.nav-item[data-view]').forEach(n=>n.classList.remove('active'));
   document.querySelector('.nav-item[data-view="'+name+'"]').classList.add('active');
   document.querySelectorAll('.nav-sub-item').forEach(n=>n.classList.remove('active'));
+  saveNavState({view: name});
 }
 function openNotifyModal(){
   const vendorVal = document.getElementById('notifyVendorFilter') ? document.getElementById('notifyVendorFilter').value : 'all';
@@ -4058,6 +4077,7 @@ function showEpcTab(tab){
   document.querySelector('.nav-sub-item[data-sub="'+tab+'"]').classList.add('active');
   if(tab === 'epc-calendar') renderCalendar();
   if(tab === 'epc-week') renderWeekList();
+  saveNavState({view: 'epc', epcTab: tab});
 }
 // 日曆頁籤的廠商篩選（複選）：套用/取消套用哪些廠商代碼的事件要顯示，
 // 沿用之前「不符合就整個藏起來」的做法，只是現在可以同時勾選好幾個廠商。
@@ -4340,8 +4360,21 @@ function showPdfTab(tab){
   document.querySelector('.tab[data-tab="'+tab+'"]').classList.add('active');
   document.querySelectorAll('.nav-sub-item').forEach(n=>n.classList.remove('active'));
   document.querySelector('.nav-sub-item[data-sub="'+tab+'"]').classList.add('active');
+  saveNavState({view: 'pdf', pdfTab: tab});
 }
-showView('home');
+
+// 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
+// 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
+(function restoreNavState(){
+  const state = loadNavState();
+  if(state && state.view === 'epc' && state.epcTab && document.getElementById('tab-' + state.epcTab)){
+    showEpcTab(state.epcTab);
+  } else if(state && state.view === 'pdf' && state.pdfTab && document.getElementById('tab-' + state.pdfTab)){
+    showPdfTab(state.pdfTab);
+  } else {
+    showView('home');
+  }
+})();
 </script>
 
 </body>
