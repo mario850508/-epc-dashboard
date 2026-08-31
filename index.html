@@ -611,7 +611,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 案件在「待安排出貨&植筋」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排」,案件仍會留在這裡,直到你按下「完工&掛表」一次填好完工日期跟預計掛表日期,案件就會直接移入「掛表安排」（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
+            🔗 案件在「待安排出貨&植筋」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排」,案件仍會留在這裡,直到你按下「完工&掛表」填好完工日期,案件就會移入「掛表安排」,依「細部協商」「台電購售契約」是否都已取得,自動分類到「待安排掛表」或「待函文取得」（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
           </div>
         </div>
       </div>
@@ -657,15 +657,16 @@
               <th>模組／逆變器</th>
               <th>細部協商</th>
               <th>台電購售契約</th>
+              <th>掛表安排</th>
             </tr></thead>
             <tbody id="meterWaitingRows">
               <tr>
-                <td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
+                <td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
               </tr>
             </tbody>
           </table>
           <div class="login-note">
-            🔗 這裡列出已完工、已排定預計掛表日期，但「細部協商」跟「台電購售契約」還沒有全部取得的案件——這兩份函文的目前狀態直接顯示在這裡（跟 Airtable「進度管理」表同步，每 6 小時自動更新一次，或點「待安排出貨&植筋」的「手動更新」立即重查）。等兩份都取得日期後，案件會自動移到上方「待安排掛表」。
+            🔗 這裡列出已完工、但「細部協商」跟「台電購售契約」還沒有全部取得的案件——這兩份函文的目前狀態直接顯示在這裡（跟 Airtable「進度管理」表同步，每 6 小時自動更新一次，或點「待安排出貨&植筋」的「手動更新」立即重查）。「掛表安排」按鈕在函文還沒到齊時是灰色、按不動的；等兩份都取得日期後，案件會自動移到上方「待安排掛表」，才能真的排掛表日期。
           </div>
         </div>
       </div>
@@ -884,7 +885,7 @@
       <div class="modal-overlay" id="completeMeterModalOverlay" onclick="if(event.target===this) closeCompleteMeterModal()">
         <div class="modal-box" style="max-width:440px;">
           <div class="modal-header">
-            <div class="modal-title">✓ 完工&掛表</div>
+            <div class="modal-title">✓ 標記完工</div>
             <button class="modal-close" onclick="closeCompleteMeterModal()">✕</button>
           </div>
           <div class="modal-body">
@@ -893,10 +894,8 @@
               <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="completeMeterCaseAddr">—</div>
             </div>
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">完工日期</label>
-            <input type="date" class="quick-mark-input" id="completeMeterCompletedDate" style="margin-bottom:14px;">
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計掛表日期</label>
-            <input type="date" class="quick-mark-input" id="completeMeterPlannedDate" style="margin-bottom:6px;">
-            <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:18px;">兩個日期會一起寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到;送出後案件會直接移入「掛表安排」。</div>
+            <input type="date" class="quick-mark-input" id="completeMeterCompletedDate" style="margin-bottom:6px;">
+            <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:18px;">會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到;送出後案件會移入「掛表安排」，依「細部協商」「台電購售契約」是否都已取得，自動分類到「待安排掛表」或「待函文取得」。掛表日期不用在這裡先填，等函文都到齊、案件進到「待安排掛表」後再另外安排。</div>
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmCompleteMeter()">確認，移入掛表安排</button>
           </div>
         </div>
@@ -1586,7 +1585,6 @@ function openCompleteMeterModal(recordId){
   document.getElementById('completeMeterCaseTitle').textContent = caseNo;
   document.getElementById('completeMeterCaseAddr').textContent = addr + '　' + vendor;
   document.getElementById('completeMeterCompletedDate').value = (cs && cs.completed_date) || todayStr();
-  document.getElementById('completeMeterPlannedDate').value = (cs && cs.meter_planned_date) || todayStr();
   document.getElementById('completeMeterModalOverlay').classList.add('show');
 }
 function closeCompleteMeterModal(){
@@ -1594,9 +1592,7 @@ function closeCompleteMeterModal(){
 }
 async function confirmCompleteMeter(){
   const completedVal = document.getElementById('completeMeterCompletedDate').value;
-  const plannedVal = document.getElementById('completeMeterPlannedDate').value;
   if(!completedVal){ showToast('請選擇完工日期'); return; }
-  if(!plannedVal){ showToast('請選擇預計掛表日期'); return; }
   const recordId = completeMeterTargetRecordId;
   const found = COMPLETED_CASES.find(c => c.record_id === recordId);
   const cs = getCaseStatus(recordId);
@@ -1606,11 +1602,11 @@ async function confirmCompleteMeter(){
   btn.textContent = '儲存中…';
   btn.disabled = true;
   try{
-    await saveCaseStatusField(recordId, caseNo, {completed_date: completedVal, meter_planned_date: plannedVal});
+    await saveCaseStatusField(recordId, caseNo, {completed_date: completedVal});
     closeCompleteMeterModal();
     renderEntryTable();
     renderMeterTable();
-    showToast('已記錄完工＆掛表日期，移入「掛表安排」');
+    showToast('已記錄完工日期，移入「掛表安排」');
     showEpcTab('epc-meter');
     loadAppData();  // 背景重新對齊一次，確保跟其他人同步
   }catch(err){
@@ -2764,11 +2760,12 @@ function renderMeterTable(){
   if(!tbody && !waitingTbody) return;
   const baseRows = COMPLETED_CASES.filter(r => {
     const cs = getCaseStatus(r.record_id);
-    return cs && cs.meter_planned_date && !cs.meter_confirmed && !cs.issue_note;
+    return cs && cs.completed_date && !cs.meter_confirmed && !cs.issue_note;
   });
   // 2026-08-31 新增：完工不代表可以掛表，還要「細部協商」跟「台電購售契約」
   // 這兩份函文都確認取得（都有實際日期）才算真的能排掛表。兩份都到齊的
   // 進「待安排掛表」，還缺其中一份（或兩份都缺）的進「待函文取得」。
+  // 預計掛表日期不再是進入這個頁籤的門檻，改成進到「待安排掛表」之後才安排。
   const readyRows = baseRows.filter(r => r.detail_nego_date && r.contract_date);
   const waitingRows = baseRows.filter(r => !(r.detail_nego_date && r.contract_date));
 
@@ -2794,6 +2791,7 @@ function renderMeterTable(){
       } else {
         tbody.innerHTML = rows.map(r => {
           const cs = getCaseStatus(r.record_id);
+          const plannedLabel = cs.meter_planned_date ? fmtDate(cs.meter_planned_date) : '尚未安排';
           return `
           <tr>
             <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
@@ -2802,7 +2800,7 @@ function renderMeterTable(){
               <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
             </td>
             <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
-            <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openPlanMeterModal('${r.record_id}')">${fmtDate(cs.meter_planned_date)}　✎</button></td>
+            <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openPlanMeterModal('${r.record_id}')">${plannedLabel}　✎</button></td>
             <td>
               <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="openMeterModal('${r.record_id}')">完成掛表</button>
             </td>
@@ -2816,7 +2814,7 @@ function renderMeterTable(){
   // ---- 待函文取得（顯示細部協商／台電購售契約目前的狀態）----
   if(waitingTbody){
     if(waitingRows.length === 0){
-      waitingTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有等待函文的案件</td></tr>';
+      waitingTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有等待函文的案件</td></tr>';
     } else {
       const sorted = [...waitingRows].sort((a,b) => (a.case||'').localeCompare(b.case||'', 'zh-Hant'));
       waitingTbody.innerHTML = sorted.map(r => {
@@ -2836,6 +2834,7 @@ function renderMeterTable(){
           <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
           <td>${negoHtml}</td>
           <td>${contractHtml}</td>
+          <td><button class="btn btn-ghost" disabled style="padding:6px 12px;font-size:12px;opacity:.45;cursor:not-allowed;" title="細部協商、台電購售契約還沒有全部取得，暫時無法安排掛表">🔌 掛表安排</button></td>
         </tr>
       `;
       }).join('');
