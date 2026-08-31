@@ -216,6 +216,14 @@
   .vendor-sz{background:#E9F3FF;color:#1E70C8;}
   .vendor-sg{background:#FFF3D9;color:#B37A00;}
   .vendor-gd{background:#EAF7EE;color:#1E8A4C;}
+  .vendor-yyd{background:#F1ECFE;color:#7C3AED;}
+  .vendor-jy{background:#E0F7FA;color:#00838F;}
+  .vendor-cp{background:#FCE4EC;color:#C2185B;}
+  .vendor-ds{background:#EFEBE9;color:#6D4C41;}
+  .vendor-zy{background:#E8EAF6;color:#3F51B5;}
+  .vendor-htz{background:#F1F8E9;color:#689F38;}
+  .vendor-gq{background:#FFF8E1;color:#F57F17;}
+  .vendor-zt{background:#ECEFF1;color:#455A64;}
   .vendor-other{background:var(--surface-2);color:var(--text-muted);}
 
   .vendor-filter{display:flex;gap:8px;margin:10px 0 16px;flex-wrap:wrap;}
@@ -510,7 +518,7 @@
         </div>
       </div>
 
-      <div class="tabs">
+      <div class="tabs" style="position:relative;">
         <div class="tab active" data-tab="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
         <div class="tab" data-tab="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
         <div class="tab" data-tab="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨&植筋</div>
@@ -518,24 +526,23 @@
         <div class="tab" data-tab="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
         <div class="tab" data-tab="epc-issue" onclick="showEpcTab('epc-issue')">異常案件</div>
         <div class="tab" data-tab="epc-archive" onclick="showEpcTab('epc-archive')">歷史紀錄</div>
+        <div style="margin-left:auto;position:relative;padding-bottom:6px;">
+          <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;" onclick="toggleGlobalVendorDropdown(event)">
+            🏭 廠商<span id="globalVendorFilterLabel"></span> ▾
+          </button>
+          <div class="vendor-dropdown" id="globalVendorDropdown" style="right:0;left:auto;min-width:150px;"></div>
+        </div>
       </div>
 
       <!-- 近一週安排 -->
       <div class="subview active" id="tab-epc-week">
         <div class="panel">
           <div class="panel-title" id="weekRangeTitle">近一週安排</div>
-          <div class="vendor-filter" id="weekVendorFilterChips">
-            <div class="vendor-chip active" data-vendor="all" onclick="toggleChipVendorFilter('week','all')">全部廠商</div>
-            <div class="vendor-chip vendor-sc" data-vendor="三創" onclick="toggleChipVendorFilter('week','三創')">三創</div>
-            <div class="vendor-chip vendor-sz" data-vendor="尚展" onclick="toggleChipVendorFilter('week','尚展')">尚展</div>
-            <div class="vendor-chip vendor-sg" data-vendor="曙光" onclick="toggleChipVendorFilter('week','曙光')">曙光</div>
-            <div class="vendor-chip vendor-gd" data-vendor="光鼎" onclick="toggleChipVendorFilter('week','光鼎')">光鼎</div>
-          </div>
           <div id="weekRows">
             <div class="login-note">載入中…</div>
           </div>
           <div class="login-note">
-            🔗 這裡只顯示未來 7 天內的所有排程項目,跨廠商彙整,方便快速掌握近期要出貨/進場的案件,不用逐日翻日曆。上方廠商可以複選,不選任何一個（或點「全部廠商」）代表顯示全部。
+            🔗 這裡只顯示未來 7 天內的所有排程項目,跨廠商彙整,方便快速掌握近期要出貨/進場的案件,不用逐日翻日曆。要篩選廠商請用右上角的「🏭 廠商」按鈕,所有頁面共用同一份篩選設定。
           </div>
         </div>
       </div>
@@ -562,16 +569,7 @@
             <thead>
               <tr>
                 <th class="sortable-th" onclick="sortPendingBy('case')">案號／別名 <span id="pendingSortIcon_case">↕</span></th>
-                <th class="filter-th" onclick="toggleVendorFilterDropdown('pending',event)">
-                  廠商<span id="vendorFilterLabel"></span> ▾
-                  <div class="vendor-dropdown" id="vendorDropdown">
-                    <div class="vendor-dropdown-item active" data-vendor="all" onclick="toggleVendorFilterItem('pending','all',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="all" style="margin-right:6px;pointer-events:none;">全部廠商</div>
-                    <div class="vendor-dropdown-item" data-vendor="三創" onclick="toggleVendorFilterItem('pending','三創',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="三創" style="margin-right:6px;pointer-events:none;">三創</div>
-                    <div class="vendor-dropdown-item" data-vendor="尚展" onclick="toggleVendorFilterItem('pending','尚展',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="尚展" style="margin-right:6px;pointer-events:none;">尚展</div>
-                    <div class="vendor-dropdown-item" data-vendor="曙光" onclick="toggleVendorFilterItem('pending','曙光',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="曙光" style="margin-right:6px;pointer-events:none;">曙光</div>
-                  <div class="vendor-dropdown-item" data-vendor="光鼎" onclick="toggleVendorFilterItem('pending','光鼎',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="光鼎" style="margin-right:6px;pointer-events:none;">光鼎</div>
-                  </div>
-                </th>
+                <th>廠商</th>
                 <th>案場地址</th>
                 <th class="sortable-th" onclick="sortPendingBy('agree_date')">觸發依據 <span id="pendingSortIcon_agree_date">↕</span></th>
                 <th class="sortable-th" onclick="sortPendingBy('module')">模組 <span id="pendingSortIcon_module">↕</span></th>
@@ -599,16 +597,7 @@
           <table>
             <thead><tr>
               <th class="sortable-th" onclick="sortTableBy('entry','case')">案號 <span id="entrySortIcon_case">↕</span></th>
-              <th class="filter-th" onclick="toggleVendorFilterDropdown('entry',event)">
-                廠商<span id="entryVendorFilterLabel"></span> ▾
-                <div class="vendor-dropdown" id="entryVendorDropdown">
-                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="toggleVendorFilterItem('entry','all',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="all" style="margin-right:6px;pointer-events:none;">全部廠商</div>
-                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="toggleVendorFilterItem('entry','三創',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="三創" style="margin-right:6px;pointer-events:none;">三創</div>
-                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="toggleVendorFilterItem('entry','尚展',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="尚展" style="margin-right:6px;pointer-events:none;">尚展</div>
-                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="toggleVendorFilterItem('entry','曙光',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="曙光" style="margin-right:6px;pointer-events:none;">曙光</div>
-                  <div class="vendor-dropdown-item" data-vendor="光鼎" onclick="toggleVendorFilterItem('entry','光鼎',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="光鼎" style="margin-right:6px;pointer-events:none;">光鼎</div>
-                </div>
-              </th>
+              <th>廠商</th>
               <th>案場地址</th>
               <th class="sortable-th" colspan="2" onclick="sortTableBy('entry','module')">模組／逆變器 <span id="entrySortIcon_module">↕</span></th>
               <th>時程安排</th>
@@ -639,16 +628,7 @@
           <table>
             <thead><tr>
               <th class="sortable-th" onclick="sortTableBy('meter','case')">案號 <span id="meterSortIcon_case">↕</span></th>
-              <th class="filter-th" onclick="toggleVendorFilterDropdown('meter',event)">
-                廠商<span id="meterVendorFilterLabel"></span> ▾
-                <div class="vendor-dropdown" id="meterVendorDropdown">
-                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="toggleVendorFilterItem('meter','all',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="all" style="margin-right:6px;pointer-events:none;">全部廠商</div>
-                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="toggleVendorFilterItem('meter','三創',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="三創" style="margin-right:6px;pointer-events:none;">三創</div>
-                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="toggleVendorFilterItem('meter','尚展',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="尚展" style="margin-right:6px;pointer-events:none;">尚展</div>
-                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="toggleVendorFilterItem('meter','曙光',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="曙光" style="margin-right:6px;pointer-events:none;">曙光</div>
-                  <div class="vendor-dropdown-item" data-vendor="光鼎" onclick="toggleVendorFilterItem('meter','光鼎',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="光鼎" style="margin-right:6px;pointer-events:none;">光鼎</div>
-                </div>
-              </th>
+              <th>廠商</th>
               <th>案場地址</th>
               <th class="sortable-th" onclick="sortTableBy('meter','module')">模組／逆變器 <span id="meterSortIcon_module">↕</span></th>
               <th>預計掛表日期</th>
@@ -684,16 +664,7 @@
           <table>
             <thead><tr>
               <th class="sortable-th" onclick="sortTableBy('issue','case')">案號 <span id="issueSortIcon_case">↕</span></th>
-              <th class="filter-th" onclick="toggleVendorFilterDropdown('issue',event)">
-                廠商<span id="issueVendorFilterLabel"></span> ▾
-                <div class="vendor-dropdown" id="issueVendorDropdown">
-                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="toggleVendorFilterItem('issue','all',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="all" style="margin-right:6px;pointer-events:none;">全部廠商</div>
-                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="toggleVendorFilterItem('issue','三創',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="三創" style="margin-right:6px;pointer-events:none;">三創</div>
-                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="toggleVendorFilterItem('issue','尚展',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="尚展" style="margin-right:6px;pointer-events:none;">尚展</div>
-                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="toggleVendorFilterItem('issue','曙光',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="曙光" style="margin-right:6px;pointer-events:none;">曙光</div>
-                  <div class="vendor-dropdown-item" data-vendor="光鼎" onclick="toggleVendorFilterItem('issue','光鼎',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="光鼎" style="margin-right:6px;pointer-events:none;">光鼎</div>
-                </div>
-              </th>
+              <th>廠商</th>
               <th>案場地址</th>
               <th>目前階段</th>
               <th>異常狀況</th>
@@ -725,16 +696,7 @@
           <table>
             <thead><tr>
               <th class="sortable-th" onclick="sortTableBy('archive','case')">案號 <span id="archiveSortIcon_case">↕</span></th>
-              <th class="filter-th" onclick="toggleVendorFilterDropdown('archive',event)">
-                廠商<span id="archiveVendorFilterLabel"></span> ▾
-                <div class="vendor-dropdown" id="archiveVendorDropdown">
-                  <div class="vendor-dropdown-item active" data-vendor="all" onclick="toggleVendorFilterItem('archive','all',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="all" style="margin-right:6px;pointer-events:none;">全部廠商</div>
-                  <div class="vendor-dropdown-item" data-vendor="三創" onclick="toggleVendorFilterItem('archive','三創',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="三創" style="margin-right:6px;pointer-events:none;">三創</div>
-                  <div class="vendor-dropdown-item" data-vendor="尚展" onclick="toggleVendorFilterItem('archive','尚展',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="尚展" style="margin-right:6px;pointer-events:none;">尚展</div>
-                  <div class="vendor-dropdown-item" data-vendor="曙光" onclick="toggleVendorFilterItem('archive','曙光',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="曙光" style="margin-right:6px;pointer-events:none;">曙光</div>
-                  <div class="vendor-dropdown-item" data-vendor="光鼎" onclick="toggleVendorFilterItem('archive','光鼎',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="光鼎" style="margin-right:6px;pointer-events:none;">光鼎</div>
-                </div>
-              </th>
+              <th>廠商</th>
               <th>案場地址</th>
               <th class="sortable-th" onclick="sortTableBy('archive','module')">模組／逆變器 <span id="archiveSortIcon_module">↕</span></th>
               <th>出貨時間</th>
@@ -792,6 +754,14 @@
                 <option value="尚展">尚展</option>
                 <option value="曙光">曙光</option>
                 <option value="光鼎">光鼎</option>
+                <option value="宇陽達">宇陽達</option>
+                <option value="聚曜">聚曜</option>
+                <option value="澄品">澄品</option>
+                <option value="大昇">大昇</option>
+                <option value="展亦">展亦</option>
+                <option value="凰太竹">凰太竹</option>
+                <option value="國欽">國欽</option>
+                <option value="振庭">振庭</option>
               </select>
               <input type="date" class="quick-mark-input" id="notifyDateFrom" style="flex:1;min-width:130px;" onchange="openNotifyModal()">
               <span style="color:var(--text-muted);font-size:13px;">至</span>
@@ -1118,16 +1088,7 @@
             <table>
               <thead><tr>
                 <th class="sortable-th" onclick="sortTableBy('withdrawn','case')">案號 <span id="withdrawnSortIcon_case">↕</span></th>
-                <th class="filter-th" onclick="toggleVendorFilterDropdown('withdrawn',event)">
-                  廠商<span id="withdrawnVendorFilterLabel"></span> ▾
-                  <div class="vendor-dropdown" id="withdrawnVendorDropdown">
-                    <div class="vendor-dropdown-item active" data-vendor="all" onclick="toggleVendorFilterItem('withdrawn','all',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="all" style="margin-right:6px;pointer-events:none;">全部廠商</div>
-                    <div class="vendor-dropdown-item" data-vendor="三創" onclick="toggleVendorFilterItem('withdrawn','三創',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="三創" style="margin-right:6px;pointer-events:none;">三創</div>
-                    <div class="vendor-dropdown-item" data-vendor="尚展" onclick="toggleVendorFilterItem('withdrawn','尚展',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="尚展" style="margin-right:6px;pointer-events:none;">尚展</div>
-                    <div class="vendor-dropdown-item" data-vendor="曙光" onclick="toggleVendorFilterItem('withdrawn','曙光',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="曙光" style="margin-right:6px;pointer-events:none;">曙光</div>
-                  <div class="vendor-dropdown-item" data-vendor="光鼎" onclick="toggleVendorFilterItem('withdrawn','光鼎',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="光鼎" style="margin-right:6px;pointer-events:none;">光鼎</div>
-                  </div>
-                </th>
+                <th>廠商</th>
                 <th>案場地址</th>
                 <th>撤案原因</th>
                 <th>撤案日期</th>
@@ -1341,13 +1302,6 @@
       <div class="subview" id="tab-epc-calendar">
       <div class="panel">
         <div class="panel-title" style="margin-bottom:4px;">排程日曆</div>
-        <div class="vendor-filter" id="calVendorFilterChips">
-          <div class="vendor-chip active" data-vendor="all" onclick="toggleChipVendorFilter('calendar','all')">全部廠商線</div>
-          <div class="vendor-chip vendor-sc" data-vendor="sc" onclick="toggleChipVendorFilter('calendar','sc')">三創</div>
-          <div class="vendor-chip vendor-sz" data-vendor="sz" onclick="toggleChipVendorFilter('calendar','sz')">尚展</div>
-          <div class="vendor-chip vendor-sg" data-vendor="sg" onclick="toggleChipVendorFilter('calendar','sg')">曙光</div>
-          <div class="vendor-chip vendor-gd" data-vendor="gd" onclick="toggleChipVendorFilter('calendar','gd')">光鼎</div>
-        </div>
         <div class="cal-header">
           <div class="cal-nav">
             <button class="icon-btn" onclick="changeCalMonth(-1)">‹</button>
@@ -1388,7 +1342,11 @@
 <script>
 const API_BASE = 'https://epc-backend-4aj2.onrender.com';
 
-const VENDOR_CLASS = {'三創':'vendor-sc','尚展':'vendor-sz','曙光':'vendor-sg','光鼎':'vendor-gd'};
+const VENDOR_CLASS = {
+  '三創':'vendor-sc','尚展':'vendor-sz','曙光':'vendor-sg','光鼎':'vendor-gd',
+  '宇陽達':'vendor-yyd','聚曜':'vendor-jy','澄品':'vendor-cp','大昇':'vendor-ds',
+  '展亦':'vendor-zy','凰太竹':'vendor-htz','國欽':'vendor-gq','振庭':'vendor-zt',
+};
 
 let PENDING_CASES = [];
 let ENTRY_CASES = [];
@@ -1397,104 +1355,95 @@ let pendingSortKey = 'case';
 let pendingSortAsc = true;
 
 // ===================================================================
-// 廠商篩選（複選）：2026-08-30 從單選改成複選，套用在所有有廠商篩選的地方
+// 廠商篩選（2026-08-31 改成全站共用單一設定）：原本每個頁面／頁籤各自有一份
+// 篩選狀態，使用者要在每個分頁重新勾選一次很麻煩。現在改成只有一份
+// GLOBAL_VENDOR_SCOPE，存在瀏覽器 localStorage，右上角「🏭 廠商」按鈕勾選
+// 完，待安排出貨&植筋／案件進場安排／掛表安排／異常案件／撤案清單／
+// 歷史紀錄／排程日曆／近一週安排，全部同步套用同一份篩選結果。
+// Set 是空的代表「沒有篩選、全部廠商都顯示」；非空則只顯示 Set 裡有的廠商。
 // ===================================================================
-// 每個介面各自用一個 Set 存目前勾選的廠商；Set 是空的代表「沒有篩選、全部顯示」
-// （對應「全部廠商」被選取的狀態），非空則只顯示 Set 裡有的廠商。
-// - pending/entry/meter/issue/archive/withdrawn：下拉勾選框，值是廠商全名（三創/尚展/曙光/光鼎）
-// - calendar：日曆頁籤上方的 chip，值是廠商代碼（sc/sz/sg/gd），因為日曆事件內部本來就用代碼比對
-// - week：近一週安排頁籤上方的 chip，值是廠商全名，跟 table 系列一致
-const VENDOR_FILTER_STATE = {
-  pending: new Set(),
-  entry: new Set(),
-  meter: new Set(),
-  issue: new Set(),
-  archive: new Set(),
-  withdrawn: new Set(),
-  calendar: new Set(),
-  week: new Set(),
-};
+const ALL_VENDOR_NAMES = ['三創','尚展','曙光','光鼎','宇陽達','聚曜','澄品','大昇','展亦','凰太竹','國欽','振庭'];
+const GLOBAL_VENDOR_SCOPE_STORAGE_KEY = 'epc_global_vendor_scope';
 
-// 「廠商」下拉勾選框系列（pending + TABLE_STATE 那 5 個頁籤）共用的設定：
-// dropdownId/labelId 對應各自既有的 HTML id，render 是選取變動後要重新畫的表格。
-const VENDOR_FILTER_CONFIG = {
-  pending:   { dropdownId: 'vendorDropdown',           labelId: 'vendorFilterLabel',           render: () => renderPendingTable() },
-  entry:     { dropdownId: 'entryVendorDropdown',       labelId: 'entryVendorFilterLabel',       render: () => renderEntryTable() },
-  meter:     { dropdownId: 'meterVendorDropdown',       labelId: 'meterVendorFilterLabel',       render: () => renderMeterTable() },
-  issue:     { dropdownId: 'issueVendorDropdown',       labelId: 'issueVendorFilterLabel',       render: () => renderIssueTable() },
-  archive:   { dropdownId: 'archiveVendorDropdown',     labelId: 'archiveVendorFilterLabel',     render: () => renderArchiveTable() },
-  withdrawn: { dropdownId: 'withdrawnVendorDropdown',   labelId: 'withdrawnVendorFilterLabel',   render: () => renderWithdrawnTable() },
-};
+function loadGlobalVendorScope(){
+  try{
+    const raw = localStorage.getItem(GLOBAL_VENDOR_SCOPE_STORAGE_KEY);
+    if(!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr.filter(v => ALL_VENDOR_NAMES.includes(v)) : []);
+  }catch(e){
+    return new Set();
+  }
+}
+function saveGlobalVendorScope(){
+  try{
+    localStorage.setItem(GLOBAL_VENDOR_SCOPE_STORAGE_KEY, JSON.stringify(Array.from(GLOBAL_VENDOR_SCOPE)));
+  }catch(e){}
+}
+let GLOBAL_VENDOR_SCOPE = loadGlobalVendorScope();
+function matchesGlobalVendorScope(vendor){
+  return GLOBAL_VENDOR_SCOPE.size === 0 || GLOBAL_VENDOR_SCOPE.has(vendor);
+}
 
-// 打開/收起「廠商」下拉勾選框（點欄位標題觸發）
-function toggleVendorFilterDropdown(key, e){
+function toggleGlobalVendorDropdown(e){
   e.stopPropagation();
-  const cfg = VENDOR_FILTER_CONFIG[key];
-  const dd = document.getElementById(cfg.dropdownId);
-  if(dd) dd.classList.toggle('show');
+  const dd = document.getElementById('globalVendorDropdown');
+  if(!dd) return;
+  if(!dd.dataset.built){
+    dd.innerHTML = '<div class="vendor-dropdown-item active" data-vendor="all" onclick="toggleGlobalVendorItem(\'all\',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="all" style="margin-right:6px;pointer-events:none;">全部廠商</div>'
+      + ALL_VENDOR_NAMES.map(v => `<div class="vendor-dropdown-item" data-vendor="${v}" onclick="toggleGlobalVendorItem('${v}',event)"><input type="checkbox" class="vendor-checkbox" data-vendor="${v}" style="margin-right:6px;pointer-events:none;">${v}</div>`).join('');
+    dd.dataset.built = '1';
+    updateGlobalVendorUI();
+  }
+  dd.classList.toggle('show');
 }
 // 勾選/取消勾選其中一個廠商（複選，不會關閉下拉選單，方便一次勾多個）；
-// 點「全部廠商」等於清空選取，回到「不篩選」狀態。
-function toggleVendorFilterItem(key, vendor, e){
+// 點「全部廠商」等於清空選取，回到「不篩選」狀態。選取變動後，所有頁面／
+// 頁籤全部重新畫一次，確保同步反映最新篩選結果。
+function toggleGlobalVendorItem(vendor, e){
   if(e) e.stopPropagation();
-  const set = VENDOR_FILTER_STATE[key];
   if(vendor === 'all'){
-    set.clear();
+    GLOBAL_VENDOR_SCOPE.clear();
   } else {
-    if(set.has(vendor)) set.delete(vendor); else set.add(vendor);
+    if(GLOBAL_VENDOR_SCOPE.has(vendor)) GLOBAL_VENDOR_SCOPE.delete(vendor); else GLOBAL_VENDOR_SCOPE.add(vendor);
   }
-  updateVendorFilterUI(key);
-  VENDOR_FILTER_CONFIG[key].render();
+  saveGlobalVendorScope();
+  updateGlobalVendorUI();
+  refreshAllVendorFilteredViews();
 }
-function updateVendorFilterUI(key){
-  const cfg = VENDOR_FILTER_CONFIG[key];
-  const set = VENDOR_FILTER_STATE[key];
-  const dd = document.getElementById(cfg.dropdownId);
+function updateGlobalVendorUI(){
+  const dd = document.getElementById('globalVendorDropdown');
   if(dd){
     dd.querySelectorAll('.vendor-checkbox').forEach(cb => {
       const v = cb.dataset.vendor;
-      cb.checked = v === 'all' ? set.size === 0 : set.has(v);
+      cb.checked = v === 'all' ? GLOBAL_VENDOR_SCOPE.size === 0 : GLOBAL_VENDOR_SCOPE.has(v);
     });
     dd.querySelectorAll('.vendor-dropdown-item').forEach(item => {
       const v = item.dataset.vendor;
-      const checked = v === 'all' ? set.size === 0 : set.has(v);
+      const checked = v === 'all' ? GLOBAL_VENDOR_SCOPE.size === 0 : GLOBAL_VENDOR_SCOPE.has(v);
       item.classList.toggle('active', checked);
     });
   }
-  const label = document.getElementById(cfg.labelId);
-  if(label) label.textContent = set.size === 0 ? '' : '（' + Array.from(set).join('、') + '）';
+  const label = document.getElementById('globalVendorFilterLabel');
+  if(label) label.textContent = GLOBAL_VENDOR_SCOPE.size === 0 ? '' : '（' + Array.from(GLOBAL_VENDOR_SCOPE).join('、') + '）';
 }
-// 點選單以外的地方，全部下拉勾選框都收起來
+// 點選單以外的地方，下拉勾選框收起來
 document.addEventListener('click', function(){
-  Object.values(VENDOR_FILTER_CONFIG).forEach(cfg => {
-    const dd = document.getElementById(cfg.dropdownId);
-    if(dd) dd.classList.remove('show');
-  });
+  const dd = document.getElementById('globalVendorDropdown');
+  if(dd) dd.classList.remove('show');
 });
-
-// 廠商 chip 系列（排程日曆／近一週安排）共用：多個 chip 可以同時是 active 狀態，
-// 「全部廠商線」/「全部廠商」這顆 chip 點下去等於清空選取。
-function toggleChipVendorFilter(key, value){
-  const set = VENDOR_FILTER_STATE[key];
-  if(value === 'all'){
-    set.clear();
-  } else {
-    if(set.has(value)) set.delete(value); else set.add(value);
-  }
-  const containerId = key === 'calendar' ? 'calVendorFilterChips' : 'weekVendorFilterChips';
-  updateChipVendorFilterUI(key, containerId);
-  if(key === 'calendar') applyCalendarChipDim();
-  if(key === 'week') renderWeekList();
-}
-function updateChipVendorFilterUI(key, containerId){
-  const set = VENDOR_FILTER_STATE[key];
-  const container = document.getElementById(containerId);
-  if(!container) return;
-  container.querySelectorAll('.vendor-chip').forEach(chip => {
-    const v = chip.dataset.vendor;
-    const active = v === 'all' ? set.size === 0 : set.has(v);
-    chip.classList.toggle('active', active);
-  });
+// 篩選條件變動後，把目前畫面上會用到廠商篩選的所有地方都重新畫一次；
+// 用 typeof 檢查是因為這幾個 render 函式定義在檔案後段，開機時（呼叫
+// updateGlobalVendorUI 那次）它們可能都還沒定義好。
+function refreshAllVendorFilteredViews(){
+  if(typeof renderPendingTable === 'function') renderPendingTable();
+  if(typeof renderEntryTable === 'function') renderEntryTable();
+  if(typeof renderMeterTable === 'function') renderMeterTable();
+  if(typeof renderIssueTable === 'function') renderIssueTable();
+  if(typeof renderArchiveTable === 'function') renderArchiveTable();
+  if(typeof renderWithdrawnTable === 'function') renderWithdrawnTable();
+  if(typeof renderCalendar === 'function') renderCalendar();
+  if(typeof renderWeekList === 'function') renderWeekList();
 }
 
 // ===================================================================
@@ -2682,8 +2631,7 @@ function recheckAllDocStatus(){
 function renderPendingTable(){
   const q = document.getElementById('pendingSearchInput').value.trim();
   let rows = PENDING_CASES.filter(r => {
-    const pendingVendorSet = VENDOR_FILTER_STATE.pending;
-    if(pendingVendorSet.size > 0 && !pendingVendorSet.has(r.vendor)) return false;
+    if(!matchesGlobalVendorScope(r.vendor)) return false;
     if(q && !((r.case||'').includes(q) || (r.alias||'').includes(q)
               || (r.module||'').includes(q) || (r.inverter||'').includes(q))) return false;
     const cs = APP_CASE_STATUS[r.record_id];
@@ -2994,8 +2942,8 @@ function sortPendingBy(key){
   renderPendingTable();
 }
 // ---- 通用表格篩選／排序（案件進場安排／已完工／掛表安排／異常案件／歷史紀錄共用）----
-// 廠商篩選已改用最上面的 VENDOR_FILTER_STATE / VENDOR_FILTER_CONFIG（複選），
-// 這裡的 TABLE_STATE 只保留排序跟關鍵字搜尋兩件事。
+// 廠商篩選已改用最上面的全站共用 GLOBAL_VENDOR_SCOPE，這裡的 TABLE_STATE
+// 只保留排序跟關鍵字搜尋兩件事。
 const TABLE_STATE = {
   entry:   { sortKey: null, sortAsc: true, q: '' },
   meter:   { sortKey: null, sortAsc: true, q: '' },
@@ -3034,9 +2982,7 @@ function tableSearchInput(tab){
 }
 function applyTableFilterSort(tab, rows){
   const st = TABLE_STATE[tab];
-  let out = rows;
-  const vendorSet = VENDOR_FILTER_STATE[tab];
-  if(vendorSet && vendorSet.size > 0) out = out.filter(r => vendorSet.has(r.vendor));
+  let out = rows.filter(r => matchesGlobalVendorScope(r.vendor));
   if(st.q){
     const q = st.q;
     out = out.filter(r => (r.case||'').includes(q) || (r.address||'').includes(q)
@@ -3053,6 +2999,7 @@ function applyTableFilterSort(tab, rows){
   return out;
 }
 document.addEventListener('DOMContentLoaded', function(){
+  updateGlobalVendorUI(); // 讓右上角「🏭 廠商」按鈕的標籤，一開機就反映上次記住的篩選狀態
   loadPendingCases();
   loadEntryCases();
   loadCompletedCases();
@@ -4117,16 +4064,6 @@ function showEpcTab(tab){
   if(tab === 'epc-week') renderWeekList();
   saveNavState({view: 'epc', epcTab: tab});
 }
-// 日曆頁籤的廠商篩選（複選）：套用/取消套用哪些廠商代碼的事件要顯示，
-// 沿用之前「不符合就整個藏起來」的做法，只是現在可以同時勾選好幾個廠商。
-function applyCalendarChipDim(){
-  const set = VENDOR_FILTER_STATE.calendar;
-  document.querySelectorAll('#calGrid .chip').forEach(chip => {
-    const code = chip.getAttribute('data-vendor');
-    const show = set.size === 0 || set.has(code);
-    chip.style.display = show ? '' : 'none';
-  });
-}
 function changeCalMonth(delta){
   calMonth += delta;
   if(calMonth < 0){ calMonth = 11; calYear -= 1; }
@@ -4210,7 +4147,7 @@ function collectCalendarEvents(){
     if(r.entry_date) add(r.entry_date, 'enter', r, rid);
     if(r.meter_date) add(r.meter_date, 'meter', r, rid);
   });
-  return Array.from(map.values());
+  return Array.from(map.values()).filter(e => matchesGlobalVendorScope(e.vendor));
 }
 const CAL_TYPE_LABEL = {
   'ship-module': '模組出貨', 'ship-inverter': '變流器出貨', 'ship-both': '模組&變流器出貨',
@@ -4295,11 +4232,9 @@ function renderWeekList(){
 
   const startIso = fmtISODate(today.getFullYear(), today.getMonth(), today.getDate());
   const endIso = fmtISODate(end.getFullYear(), end.getMonth(), end.getDate());
-  let events = collectCalendarEvents()
+  const events = collectCalendarEvents()
     .filter(e => e.date >= startIso && e.date <= endIso)
     .sort((a,b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : 0));
-  const weekVendorSet = VENDOR_FILTER_STATE.week;
-  if(weekVendorSet.size > 0) events = events.filter(e => weekVendorSet.has(e.vendor));
 
   if(events.length === 0){
     rowsEl.innerHTML = '<div class="login-note">未來 7 天內目前沒有符合篩選條件的排程。</div>';
@@ -4378,8 +4313,6 @@ function renderCalendar(){
     <div class="cal-dow">四</div><div class="cal-dow">五</div><div class="cal-dow">六</div><div class="cal-dow">日</div>
     ${cellsHtml}
   `;
-
-  applyCalendarChipDim();
 
   // 預設選取：若今天落在目前顯示的月份就選今天，否則選當月 1 號
   if(!calSelectedDate || calSelectedDate.slice(0,7) !== fmtISODate(calYear, calMonth, 1).slice(0,7)){
