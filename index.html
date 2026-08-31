@@ -620,7 +620,7 @@
       <div class="subview" id="tab-epc-meter">
         <div class="panel">
           <div class="panel-title">
-            掛表安排
+            待安排掛表 <span class="module-tag tag-cloud" style="margin-left:6px;" id="meterReadyCountTag">共 0 筆</span>
           </div>
           <div class="pending-toolbar">
             <input type="text" class="quick-mark-input" id="meterFilterInput" placeholder="搜尋案號、地址、模組、逆變器…" oninput="tableSearchInput('meter')" style="max-width:280px;">
@@ -641,7 +641,31 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 這裡列出已完工且已排定預計掛表日期的案件（在「案件進場安排」按「完工&掛表」後會直接出現在這裡）。點預計日期可以修正；按「完成掛表」會跳出確認,寫入後案件會移入「歷史紀錄」。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。地址下方會顯示屋主聯絡人／電話（在「案件進場安排」填過的資料）,點一下可以查看完整備註或修改。
+            🔗 這裡只列出已完工、已排定預計掛表日期，而且「細部協商」跟「台電購售契約」都已取得的案件——這兩份函文都到齊，代表真的可以安排掛表了。點預計日期可以修正；按「完成掛表」會跳出確認,寫入後案件會移入「歷史紀錄」。點「案號」「模組／逆變器」欄位標題可排序,輸入框可用案號、地址、模組、逆變器內容搜尋。地址下方會顯示屋主聯絡人／電話（在「案件進場安排」填過的資料）,點一下可以查看完整備註或修改。
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:16px;">
+          <div class="panel-title">
+            待函文取得 <span class="module-tag tag-cloud" style="margin-left:6px;" id="meterWaitingCountTag">共 0 筆</span>
+          </div>
+          <table>
+            <thead><tr>
+              <th>案號</th>
+              <th>廠商</th>
+              <th>案場地址</th>
+              <th>模組／逆變器</th>
+              <th>細部協商</th>
+              <th>台電購售契約</th>
+            </tr></thead>
+            <tbody id="meterWaitingRows">
+              <tr>
+                <td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="login-note">
+            🔗 這裡列出已完工、已排定預計掛表日期，但「細部協商」跟「台電購售契約」還沒有全部取得的案件——這兩份函文的目前狀態直接顯示在這裡（跟 Airtable「進度管理」表同步，每 6 小時自動更新一次，或點「待安排出貨&植筋」的「手動更新」立即重查）。等兩份都取得日期後，案件會自動移到上方「待安排掛表」。
           </div>
         </div>
       </div>
@@ -2736,43 +2760,87 @@ function renderEntryTable(){
 // ---- 掛表安排（已排定預計掛表日期，等待確認寫回 Airtable）----
 function renderMeterTable(){
   const tbody = document.getElementById('meterRows');
-  if(!tbody) return;
+  const waitingTbody = document.getElementById('meterWaitingRows');
+  if(!tbody && !waitingTbody) return;
   const baseRows = COMPLETED_CASES.filter(r => {
     const cs = getCaseStatus(r.record_id);
     return cs && cs.meter_planned_date && !cs.meter_confirmed && !cs.issue_note;
   });
-  if(baseRows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有等待完成掛表的案件——在「案件進場安排」按下「完工&掛表」後,案件會出現在這裡</td></tr>';
-    return;
+  // 2026-08-31 新增：完工不代表可以掛表，還要「細部協商」跟「台電購售契約」
+  // 這兩份函文都確認取得（都有實際日期）才算真的能排掛表。兩份都到齊的
+  // 進「待安排掛表」，還缺其中一份（或兩份都缺）的進「待函文取得」。
+  const readyRows = baseRows.filter(r => r.detail_nego_date && r.contract_date);
+  const waitingRows = baseRows.filter(r => !(r.detail_nego_date && r.contract_date));
+
+  const readyCountTag = document.getElementById('meterReadyCountTag');
+  if(readyCountTag) readyCountTag.textContent = '共 ' + readyRows.length + ' 筆';
+  const waitingCountTag = document.getElementById('meterWaitingCountTag');
+  if(waitingCountTag) waitingCountTag.textContent = '共 ' + waitingRows.length + ' 筆';
+
+  // ---- 待安排掛表（沿用既有的搜尋／排序）----
+  if(tbody){
+    if(readyRows.length === 0){
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有可以安排掛表的案件——細部協商跟台電購售契約都取得後，案件會自動從下方「待函文取得」移過來</td></tr>';
+    } else {
+      let rows = applyTableFilterSort('meter', readyRows);
+      if(!TABLE_STATE.meter.sortKey){
+        rows.sort((a,b) => {
+          const ca = getCaseStatus(a.record_id), cb = getCaseStatus(b.record_id);
+          return (ca.meter_planned_date||'').localeCompare(cb.meter_planned_date||'');
+        });
+      }
+      if(rows.length === 0){
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
+      } else {
+        tbody.innerHTML = rows.map(r => {
+          const cs = getCaseStatus(r.record_id);
+          return `
+          <tr>
+            <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
+            <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
+            <td>${r.address}
+              <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
+            </td>
+            <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+            <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openPlanMeterModal('${r.record_id}')">${fmtDate(cs.meter_planned_date)}　✎</button></td>
+            <td>
+              <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="openMeterModal('${r.record_id}')">完成掛表</button>
+            </td>
+          </tr>
+        `;
+        }).join('');
+      }
+    }
   }
-  let rows = applyTableFilterSort('meter', baseRows);
-  if(!TABLE_STATE.meter.sortKey){
-    rows.sort((a,b) => {
-      const ca = getCaseStatus(a.record_id), cb = getCaseStatus(b.record_id);
-      return (ca.meter_planned_date||'').localeCompare(cb.meter_planned_date||'');
-    });
+
+  // ---- 待函文取得（顯示細部協商／台電購售契約目前的狀態）----
+  if(waitingTbody){
+    if(waitingRows.length === 0){
+      waitingTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有等待函文的案件</td></tr>';
+    } else {
+      const sorted = [...waitingRows].sort((a,b) => (a.case||'').localeCompare(b.case||'', 'zh-Hant'));
+      waitingTbody.innerHTML = sorted.map(r => {
+        const negoHtml = r.detail_nego_date
+          ? `<span style="color:var(--success);font-weight:600;">✓ ${fmtDate(r.detail_nego_date)}</span>`
+          : `<span style="color:var(--m-rebar);">尚未取得</span>`;
+        const contractHtml = r.contract_date
+          ? `<span style="color:var(--success);font-weight:600;">✓ ${fmtDate(r.contract_date)}</span>`
+          : `<span style="color:var(--m-rebar);">尚未取得</span>`;
+        return `
+        <tr>
+          <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
+          <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
+          <td>${r.address}
+            <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
+          </td>
+          <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+          <td>${negoHtml}</td>
+          <td>${contractHtml}</td>
+        </tr>
+      `;
+      }).join('');
+    }
   }
-  if(rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
-    return;
-  }
-  tbody.innerHTML = rows.map(r => {
-    const cs = getCaseStatus(r.record_id);
-    return `
-    <tr>
-      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
-      <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
-      <td>${r.address}
-        <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
-      </td>
-      <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
-      <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openPlanMeterModal('${r.record_id}')">${fmtDate(cs.meter_planned_date)}　✎</button></td>
-      <td>
-        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="openMeterModal('${r.record_id}')">完成掛表</button>
-      </td>
-    </tr>
-  `;
-  }).join('');
 }
 
 // ---- 異常案件 ----
