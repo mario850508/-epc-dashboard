@@ -339,13 +339,72 @@
     display:flex;gap:10px;align-items:flex-start;background:var(--surface-2);border:1px dashed var(--border);
     border-radius:10px;padding:12px 14px;margin-top:14px;font-size:11.5px;color:var(--text-muted);line-height:1.6;
   }
+
+  /* ---------- 手機版響應式（2026-09-01 新增）---------- */
+  .mobile-topbar{
+    display:none;align-items:center;gap:12px;padding:12px 16px;
+    background:var(--surface);border-bottom:1px solid var(--border);
+    position:sticky;top:0;z-index:150;
+  }
+  .mobile-hamburger{
+    width:36px;height:36px;flex-shrink:0;border-radius:10px;border:1px solid var(--border);
+    background:var(--surface);font-size:18px;color:var(--text);cursor:pointer;
+  }
+  .mobile-topbar-brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;}
+  .sidebar-overlay{
+    display:none;position:fixed;inset:0;background:rgba(20,25,40,.45);z-index:190;
+  }
+  .sidebar-overlay.show{display:block;}
+
+  @media (max-width: 860px){
+    body{flex-direction:column;}
+    .mobile-topbar{display:flex;}
+    .sidebar{
+      position:fixed;top:0;left:0;bottom:0;width:250px;z-index:200;
+      transform:translateX(-100%);transition:transform .22s ease;
+      box-shadow:10px 0 30px rgba(20,30,60,.18);
+    }
+    .sidebar.open{transform:translateX(0);}
+    .main{padding:16px 14px 32px;}
+    .page-title{font-size:19px;}
+    .grid{grid-template-columns:1fr;}
+    .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+    .tabs .tab{flex-shrink:0;white-space:nowrap;}
+    .panel{padding:14px;}
+    .panel, .modal-body{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+    .panel table, .modal-body table{min-width:640px;}
+    .modal-box{max-width:100%;border-radius:0;min-height:100%;}
+    .modal-overlay{padding:0;align-items:stretch;}
+    .modal-body{max-height:calc(100vh - 60px);}
+    .cal-cell{min-height:60px;padding:4px;}
+    .chip{font-size:9px;padding:1px 4px;}
+    .cal-month{font-size:14px;min-width:auto;}
+    .note-add-row, .note-add-row-wide, .pending-toolbar{flex-wrap:wrap;}
+    .note-add-row-wide input:first-child{flex:1 1 100%;}
+    /* iOS Safari 會在 input font-size 小於 16px 時自動放大畫面，統一調成 16px 避免這個狀況 */
+    .quick-mark-input, select, textarea, input[type="date"], input[type="text"], input[type="number"]{
+      font-size:16px;
+    }
+    .stat-value{font-size:22px;}
+    .module-card{padding:16px 18px;flex-direction:column;align-items:flex-start;gap:10px;}
+    .module-desc{max-width:100%;}
+  }
 </style>
 </head>
 <body>
 
   <div class="toast" id="toastBanner"></div>
 
-  <aside class="sidebar">
+  <div class="mobile-topbar">
+    <button class="mobile-hamburger" onclick="toggleSidebar()" aria-label="開啟選單">☰</button>
+    <div class="mobile-topbar-brand">
+      <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">陽</div>
+      <span>陽光管理主控台</span>
+    </div>
+  </div>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <aside class="sidebar" id="sidebar">
     <div class="brand">
       <div class="brand-mark">陽</div>
       <div>
@@ -3140,6 +3199,18 @@ function loadNavState(){
   }
 }
 
+// 2026-09-01 新增：手機版側邊欄開關（漢堡選單）。桌面版寬度下這兩個函式
+// 存在也不會有作用（.sidebar 在桌面版本來就一直顯示，CSS 只在
+// @media (max-width:860px) 內才會套用滑出效果）。
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+}
+
 function showView(name){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+name).classList.add('active');
@@ -3147,6 +3218,7 @@ function showView(name){
   document.querySelector('.nav-item[data-view="'+name+'"]').classList.add('active');
   document.querySelectorAll('.nav-sub-item').forEach(n=>n.classList.remove('active'));
   saveNavState({view: name});
+  closeSidebar(); // 手機版選了頁面後，選單自動收起來，桌面版沒有影響
 }
 // 2026-08-31 新增：側邊選單「PDF 公文更名」「EPC 出貨／進場排程」這兩個
 // 有子項目的分類，點一下標題可以摺疊/展開底下的子選單（手風琴效果），
