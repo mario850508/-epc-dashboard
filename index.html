@@ -631,12 +631,14 @@
               <th>廠商</th>
               <th>案場地址</th>
               <th class="sortable-th" onclick="sortTableBy('meter','module')">模組／逆變器 <span id="meterSortIcon_module">↕</span></th>
+              <th>細部協商</th>
+              <th>台電購售契約</th>
               <th>預計掛表日期</th>
               <th>操作</th>
             </tr></thead>
             <tbody id="meterRows">
               <tr>
-                <td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
+                <td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td>
               </tr>
             </tbody>
           </table>
@@ -2777,7 +2779,7 @@ function renderMeterTable(){
   // ---- 待安排掛表（沿用既有的搜尋／排序）----
   if(tbody){
     if(readyRows.length === 0){
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有可以安排掛表的案件——細部協商跟台電購售契約都取得後，案件會自動從下方「待函文取得」移過來</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有可以安排掛表的案件——細部協商跟台電購售契約都取得後，案件會自動從下方「待函文取得」移過來</td></tr>';
     } else {
       let rows = applyTableFilterSort('meter', readyRows);
       if(!TABLE_STATE.meter.sortKey){
@@ -2787,11 +2789,17 @@ function renderMeterTable(){
         });
       }
       if(rows.length === 0){
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合篩選條件的案件</td></tr>';
       } else {
         tbody.innerHTML = rows.map(r => {
           const cs = getCaseStatus(r.record_id);
           const plannedLabel = cs.meter_planned_date ? fmtDate(cs.meter_planned_date) : '尚未安排';
+          const negoHtml = r.detail_nego_date
+            ? `<span style="color:var(--success);font-weight:600;">✓ ${fmtDate(r.detail_nego_date)}</span>`
+            : `<span style="color:var(--m-rebar);">尚未取得</span>`;
+          const contractHtml = r.contract_date
+            ? `<span style="color:var(--success);font-weight:600;">✓ ${fmtDate(r.contract_date)}</span>`
+            : `<span style="color:var(--m-rebar);">尚未取得</span>`;
           return `
           <tr>
             <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
@@ -2800,6 +2808,8 @@ function renderMeterTable(){
               <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
             </td>
             <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
+            <td>${negoHtml}</td>
+            <td>${contractHtml}</td>
             <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openPlanMeterModal('${r.record_id}')">${plannedLabel}　✎</button></td>
             <td>
               <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="openMeterModal('${r.record_id}')">完成掛表</button>
