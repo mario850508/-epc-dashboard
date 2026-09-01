@@ -2,6 +2,13 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<!-- 2026-09-01 新增：沒有這個標籤時，手機瀏覽器預設會用「桌面寬度（約980px）」
+     去渲染整個頁面、再整頁縮小塞進螢幕，導致所有 @media (max-width:...) 的
+     手機版 CSS 規則永遠判斷不到「這是手機」而不會生效（DevTools 的手機模擬
+     模式因為會強制用實際裝置寬度渲染，所以不受影響，才會出現「模擬器正常、
+     真手機不正常」的落差）。加上這行以後，瀏覽器才會照手機螢幕的實際寬度
+     渲染，前面寫的手機版 RWD 樣式才會真的生效。-->
 <title>陽光管理主控台</title>
 <style>
   :root{
