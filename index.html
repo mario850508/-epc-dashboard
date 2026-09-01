@@ -582,9 +582,15 @@
           <h1 class="page-title">EPC 出貨／進場排程</h1>
           <div class="page-sub">依廠商線檢視所有案件的關鍵日期,新增排程自動查 Google Sheet,儲存後回填 Airtable</div>
         </div>
+        <div style="position:relative;flex-shrink:0;">
+          <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="toggleGlobalVendorDropdown(event)">
+            🏭 廠商<span id="globalVendorFilterLabel"></span> ▾
+          </button>
+          <div class="vendor-dropdown" id="globalVendorDropdown" style="right:0;left:auto;min-width:150px;"></div>
+        </div>
       </div>
 
-      <div class="tabs" style="position:relative;">
+      <div class="tabs">
         <div class="tab active" data-tab="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
         <div class="tab" data-tab="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
         <div class="tab" data-tab="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨&植筋</div>
@@ -592,12 +598,6 @@
         <div class="tab" data-tab="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
         <div class="tab" data-tab="epc-issue" onclick="showEpcTab('epc-issue')">異常案件</div>
         <div class="tab" data-tab="epc-archive" onclick="showEpcTab('epc-archive')">歷史紀錄</div>
-        <div style="margin-left:auto;position:relative;padding-bottom:6px;">
-          <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;" onclick="toggleGlobalVendorDropdown(event)">
-            🏭 廠商<span id="globalVendorFilterLabel"></span> ▾
-          </button>
-          <div class="vendor-dropdown" id="globalVendorDropdown" style="right:0;left:auto;min-width:150px;"></div>
-        </div>
       </div>
 
       <!-- 近一週安排 -->
@@ -1329,14 +1329,31 @@
             </div>
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">使用於案號／案場</label>
             <input type="text" class="quick-mark-input" id="materialUseTargetCase" style="margin-bottom:14px;" placeholder="例如：工程桃園20號">
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">使用內容說明（可修改,例如只用了其中 1 台）</label>
-            <textarea class="quick-mark-input" id="materialUseContent" rows="3" style="margin-bottom:14px;width:100%;font-family:inherit;resize:vertical;"></textarea>
+
+            <!-- 可以辨識出「型號 ×數量」單一品項格式時，走這個模式：輸入用掉幾個，
+                 系統自動算剩餘，用完自動整筆刪除、沒用完自動改成剩餘數量，
+                 不用手動編輯或勾選。 -->
+            <div id="materialUseQtyMode" style="display:none;">
+              <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">目前剩餘數量：<b id="materialUseAvailableQty" style="color:var(--text);">0</b></div>
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">這次使用數量</label>
+              <input type="number" class="quick-mark-input" id="materialUseQtyInput" min="0" step="any" style="margin-bottom:6px;" oninput="updateMaterialUseRemainingPreview()">
+              <div id="materialUseRemainingPreview" style="font-size:11.5px;color:var(--text-muted);margin-bottom:18px;"></div>
+            </div>
+
+            <!-- 原內容不是單一品項的標準格式（例如混合好幾項、或格式不固定），
+                 系統沒辦法安全做加減運算，退回原本的手動編輯／整筆移除做法。 -->
+            <div id="materialUseManualMode" style="display:none;">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">使用內容說明（可修改,例如只用了其中 1 台）</label>
+              <textarea class="quick-mark-input" id="materialUseContent" rows="3" style="margin-bottom:14px;width:100%;font-family:inherit;resize:vertical;"></textarea>
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-bottom:6px;cursor:pointer;">
+                <input type="checkbox" id="materialUseRemoveOriginal">
+                從「未使用料件」清單移除這筆
+              </label>
+              <div style="font-size:11px;color:var(--m-rebar);margin-bottom:18px;">⚠ 勾選後會把上面「原料件內容」整筆刪除，不會只刪掉這次用到的部分。這筆內容系統無法自動判斷剩餘數量（可能混合了好幾項，或格式不固定），如果只用掉一部分，請不要勾選，改成之後自己到「未使用料件」清單裡把內容改成剩餘數量。</div>
+            </div>
+
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">使用日期</label>
-            <input type="date" class="quick-mark-input" id="materialUseDate" style="margin-bottom:14px;">
-            <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-bottom:18px;cursor:pointer;">
-              <input type="checkbox" id="materialUseRemoveOriginal" checked>
-              從「未使用料件」清單移除這筆（全部用完了才勾；只用掉一部分的話取消勾選,自己去清單裡把內容改成剩餘數量）
-            </label>
+            <input type="date" class="quick-mark-input" id="materialUseDate" style="margin-bottom:18px;">
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmMaterialUse()">確認登記使用</button>
           </div>
         </div>
@@ -1369,7 +1386,7 @@
 
       <!-- 撤案後詢問是否加入未使用料件 modal -->
       <div class="modal-overlay" id="withdrawMaterialPromptOverlay" onclick="if(event.target===this) closeWithdrawMaterialPrompt()">
-        <div class="modal-box" style="max-width:440px;">
+        <div class="modal-box" style="max-width:460px;">
           <div class="modal-header">
             <div class="modal-title">📦 加入未使用料件？</div>
             <button class="modal-close" onclick="closeWithdrawMaterialPrompt()">✕</button>
@@ -1379,8 +1396,9 @@
               <div style="font-weight:700;font-size:14px;" id="withdrawMaterialCaseTitle">—</div>
               <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">這筆案件已經出貨,撤案後這些料件可能會用不到,要不要先記到「未使用料件」清單？</div>
             </div>
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">料件內容（可修改後再加入）</label>
-            <textarea class="quick-mark-input" id="withdrawMaterialContent" rows="3" style="margin-bottom:18px;width:100%;font-family:inherit;resize:vertical;"></textarea>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">料件內容（每一項會各自存成一筆,之後「使用」時才能自動扣減數量；可修改型號/數量文字,或刪掉不需要的項目）</label>
+            <div id="withdrawMaterialItems" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;"></div>
+            <button class="btn btn-ghost" style="margin-bottom:18px;" onclick="addWithdrawMaterialItemRow('')">＋ 新增一項</button>
             <div style="display:flex;gap:10px;">
               <button class="btn btn-ghost" style="flex:1;justify-content:center;padding:11px;" onclick="closeWithdrawMaterialPrompt()">不用，謝謝</button>
               <button class="btn btn-primary" style="flex:1;justify-content:center;padding:11px;" onclick="confirmWithdrawMaterial()">加入未使用料件清單</button>
@@ -2133,6 +2151,19 @@ function glueCount(str){
 function salesLineHtml(salesPerson){
   return salesPerson ? `<div class="case-alias" style="color:var(--primary-dark);">業務：${salesPerson}</div>` : '';
 }
+// 2026-09-01 新增：如果這個案件曾經在「料件使用清單」（未使用料件的挪用紀錄）
+// 裡出現過（也就是這個案場用的模組/逆變器不是全新出貨，而是挪用其他撤案案件
+// 剩下的料件），在案號下方額外顯示一行提醒，方便一眼看出這個案場的料件來源
+// 不是原本規劃的出貨，避免誤會/漏看。比對方式是用案號字串完全相符
+// APP_NOTES 裡類型是「料件使用」的「使用於案號/案場」欄位。
+function materialReuseNoteHtml(caseNo){
+  if(!caseNo || !APP_NOTES) return '';
+  const matches = APP_NOTES.filter(n => n.type === '料件使用' && n.case_text === caseNo);
+  if(matches.length === 0) return '';
+  return matches.map(n =>
+    `<div class="case-alias" style="color:var(--m-rebar);">♻️ ${n.content}</div>`
+  ).join('');
+}
 // 2026-08-31 新增：「屋主資訊」小按鈕，點下去開啟既有的屋主資訊視窗
 // （openOwnerInfoModal，跟「案件進場安排」共用同一套資料，寫在 APP資料 表的
 // owner_contact_* 欄位）。已經填過的話直接顯示聯絡人／電話，方便一眼看到，
@@ -2751,7 +2782,7 @@ function renderPendingTable(){
       : `<span class="pm-pill" style="background:var(--success-soft);color:var(--success);">同意備案 ${r.agree}</span>`;
     return `
       <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${hasSpec ? r.module : '尚未填寫規格'}" data-inverter="${hasSpec ? (r.inverter||'') : ''}">
-        <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
+        <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${materialReuseNoteHtml(r.case)}</td>
         <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
         <td>${r.address}
           <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
@@ -2805,7 +2836,7 @@ function renderEntryTable(){
          <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openCompleteMeterModal('${r.record_id}')">✓ 完工</button>`;
     return `
     <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}" data-entrydatefull="${r.entry_date||''}">
-      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
+      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${materialReuseNoteHtml(r.case)}</td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}
         <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
@@ -2867,7 +2898,7 @@ function renderMeterTable(){
             : `<span style="color:var(--m-rebar);">尚未取得</span>`;
           return `
           <tr>
-            <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
+            <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${materialReuseNoteHtml(r.case)}</td>
             <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
             <td>${r.address}
               <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
@@ -2901,7 +2932,7 @@ function renderMeterTable(){
           : `<span style="color:var(--m-rebar);">尚未取得</span>`;
         return `
         <tr>
-          <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
+          <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${materialReuseNoteHtml(r.case)}</td>
           <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
           <td>${r.address}
             <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
@@ -3707,7 +3738,43 @@ async function confirmMaterialEdit(){
 }
 
 // ---- 料件使用：把「未使用料件」清單裡的某一筆，登記成用在別的案場 ----
+// 2026-09-01 新增：判斷一筆「未使用料件」的內容是不是標準的「單一品項」格式
+// （例如「模組：450W_TS54-CMH-450 H6QT ×29」或單純「CPSPV8000ETL1 ×1」），
+// 是的話回傳 {prefix, model, qty}，讓「使用」流程可以直接做數量加減；
+// 不是的話（多行、多品項混在一起、或末端不是「×數字」）回傳 null，
+// 交給呼叫端退回原本的手動編輯模式，避免對看不懂的格式亂做運算。
+function parseUnusedMaterialItem(content){
+  if(!content) return null;
+  if(content.includes('\n')) return null; // 多行，代表混合了不只一項，不處理
+  const m = content.match(/^((?:模組|逆變器)：)?(.*?)\s*×\s*([\d.]+)\s*$/);
+  if(!m) return null;
+  const qty = parseFloat(m[3]);
+  if(isNaN(qty)) return null;
+  return {prefix: m[1] || '', model: m[2].trim(), qty};
+}
+function updateMaterialUseRemainingPreview(){
+  const parsed = materialUseParsedItem;
+  const preview = document.getElementById('materialUseRemainingPreview');
+  if(!parsed || !preview) return;
+  const useQty = parseFloat(document.getElementById('materialUseQtyInput').value);
+  if(isNaN(useQty) || useQty <= 0){
+    preview.textContent = '';
+    return;
+  }
+  const remaining = parsed.qty - useQty;
+  if(remaining > 0){
+    preview.textContent = `使用後剩餘：${remaining}，「未使用料件」清單裡這筆會自動改成剩餘數量。`;
+    preview.style.color = 'var(--text-muted)';
+  } else if(remaining === 0){
+    preview.textContent = '剛好用完，「未使用料件」清單裡這筆會自動整筆刪除。';
+    preview.style.color = 'var(--success)';
+  } else {
+    preview.textContent = `輸入的數量比剩餘的 ${parsed.qty} 還多，請重新輸入。`;
+    preview.style.color = '#D64545';
+  }
+}
 let materialUseSourceId = null;
+let materialUseParsedItem = null;
 function openMaterialUseModal(appRecordId){
   const note = APP_NOTES.find(n => n.app_record_id === appRecordId);
   if(!note){ showToast('找不到這筆料件資料，請重新整理頁面再試一次'); return; }
@@ -3715,9 +3782,24 @@ function openMaterialUseModal(appRecordId){
   document.getElementById('materialUseSourceCase').textContent = note.case_text || '（未指定案場）';
   document.getElementById('materialUseSourceContent').textContent = note.content || '';
   document.getElementById('materialUseTargetCase').value = '';
-  document.getElementById('materialUseContent').value = note.content || '';
   document.getElementById('materialUseDate').value = todayStr();
-  document.getElementById('materialUseRemoveOriginal').checked = true;
+
+  materialUseParsedItem = parseUnusedMaterialItem(note.content || '');
+  const qtyMode = document.getElementById('materialUseQtyMode');
+  const manualMode = document.getElementById('materialUseManualMode');
+  if(materialUseParsedItem){
+    qtyMode.style.display = 'block';
+    manualMode.style.display = 'none';
+    document.getElementById('materialUseAvailableQty').textContent = materialUseParsedItem.qty;
+    document.getElementById('materialUseQtyInput').max = materialUseParsedItem.qty;
+    document.getElementById('materialUseQtyInput').value = materialUseParsedItem.qty;
+    document.getElementById('materialUseRemainingPreview').textContent = '';
+  } else {
+    qtyMode.style.display = 'none';
+    manualMode.style.display = 'block';
+    document.getElementById('materialUseContent').value = note.content || '';
+    document.getElementById('materialUseRemoveOriginal').checked = false;
+  }
   document.getElementById('materialUseModalOverlay').classList.add('show');
 }
 function closeMaterialUseModal(){
@@ -3725,13 +3807,29 @@ function closeMaterialUseModal(){
 }
 async function confirmMaterialUse(){
   const targetCase = document.getElementById('materialUseTargetCase').value.trim();
-  const content = document.getElementById('materialUseContent').value.trim();
   const useDate = document.getElementById('materialUseDate').value;
-  const removeOriginal = document.getElementById('materialUseRemoveOriginal').checked;
   if(!targetCase){ showToast('請填寫使用於哪個案號／案場'); return; }
-  if(!content){ showToast('請填寫使用內容說明'); return; }
   const sourceNote = APP_NOTES.find(n => n.app_record_id === materialUseSourceId);
   const sourceCaseText = (sourceNote && sourceNote.case_text) || '（未指定案場）';
+
+  let usedContent, removeOriginal = false, remainingQty = null;
+  if(materialUseParsedItem){
+    const useQty = parseFloat(document.getElementById('materialUseQtyInput').value);
+    if(isNaN(useQty) || useQty <= 0){ showToast('請輸入這次要使用的數量'); return; }
+    if(useQty > materialUseParsedItem.qty){ showToast('使用數量不能超過剩餘的 ' + materialUseParsedItem.qty); return; }
+    usedContent = `${materialUseParsedItem.prefix}${materialUseParsedItem.model} ×${useQty}`;
+    remainingQty = materialUseParsedItem.qty - useQty;
+    removeOriginal = remainingQty <= 0;
+  } else {
+    usedContent = document.getElementById('materialUseContent').value.trim();
+    if(!usedContent){ showToast('請填寫使用內容說明'); return; }
+    removeOriginal = document.getElementById('materialUseRemoveOriginal').checked;
+    if(removeOriginal){
+      const ok = confirm(`確定要把「${sourceCaseText}」的這筆未使用料件整筆刪除嗎？\n\n原內容：${(sourceNote && sourceNote.content) || ''}\n\n如果這次只用掉其中一部分（不是全部），請按「取消」，改成不勾選那個選項，這筆記錄才不會被整個刪掉。`);
+      if(!ok) return;
+    }
+  }
+
   const btn = document.querySelector('#materialUseModalOverlay .btn-primary');
   const originalText = btn.textContent;
   btn.textContent = '儲存中…';
@@ -3743,22 +3841,43 @@ async function confirmMaterialUse(){
       body: JSON.stringify({
         type: '料件使用',
         case_text: targetCase,
-        content: `從「${sourceCaseText}」挪用：${content}`,
+        content: `從「${sourceCaseText}」挪用：${usedContent}`,
       }),
     });
     if(!res.ok){
       const err = await res.json().catch(()=>({}));
       throw new Error(err.error || ('HTTP ' + res.status));
     }
-    if(removeOriginal && materialUseSourceId){
-      await fetch(API_BASE + '/api/app-data/' + materialUseSourceId, {method: 'DELETE'});
-      APP_NOTES = APP_NOTES.filter(n => n.app_record_id !== materialUseSourceId);
+    if(materialUseSourceId){
+      if(removeOriginal){
+        await fetch(API_BASE + '/api/app-data/' + materialUseSourceId, {method: 'DELETE'});
+        APP_NOTES = APP_NOTES.filter(n => n.app_record_id !== materialUseSourceId);
+      } else if(materialUseParsedItem && remainingQty !== null){
+        // 2026-09-01 新增：能自動解析成「型號 ×數量」的品項，用完不用整筆刪除的
+        // 情況下，直接把剩餘數量寫回這筆記錄，不用使用者自己編輯。
+        const newContent = `${materialUseParsedItem.prefix}${materialUseParsedItem.model} ×${remainingQty}`;
+        await fetch(API_BASE + '/api/app-data/note/' + materialUseSourceId, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({content: newContent}),
+        });
+      }
     }
     closeMaterialUseModal();
     await loadAppData();
     renderMaterialList();
     renderMaterialUseList();
-    showToast('已登記料件使用，記錄到「料件使用清單」');
+    if(materialUseParsedItem){
+      showToast(removeOriginal ? '已登記使用，這筆未使用料件已全部用完並移除' : `已登記使用，剩餘數量已自動更新為 ${remainingQty}`);
+    } else if(removeOriginal){
+      showToast('已登記料件使用，記錄到「料件使用清單」');
+    } else {
+      // 手動模式且沒勾選整筆移除：系統無法自動判斷剩餘數量，跳出編輯視窗
+      // 讓使用者當下順手改掉，避免忘記。
+      showToast('已登記料件使用，接著請把「未使用料件」剩餘數量改掉');
+      const sourceStillExists = APP_NOTES.find(n => n.app_record_id === materialUseSourceId);
+      if(sourceStillExists) openMaterialEditModal(materialUseSourceId);
+    }
   }catch(err){
     showToast('登記失敗：' + err.message);
     console.error(err);
@@ -3809,40 +3928,66 @@ function renderMaterialUseList(){
 // ---- 撤案時，若案件已出貨，詢問是否把料件加入「未使用料件」清單 ----
 let withdrawMaterialCaseText = '';
 let withdrawMaterialShipDate = '';
+// 2026-09-01 新增：「未使用料件」現在盡量讓每一筆記錄只描述「一個品項」
+// （型號 ＋ 數量），這樣「使用」的時候系統才能可靠地做數量加減，不用每次
+// 都要手動編輯剩餘數量。這裡是撤案時自動帶出料件的動態列表，一顆逆變器、
+// 一種模組都是各自獨立一列，使用者可以編輯文字或刪掉不需要的項目，
+// 確認後每一列各自存成 Airtable 裡的一筆記錄。
+function addWithdrawMaterialItemRow(text){
+  const container = document.getElementById('withdrawMaterialItems');
+  if(!container) return;
+  const row = document.createElement('div');
+  row.className = 'withdraw-material-item-row';
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;';
+  const escaped = (text || '').replace(/"/g, '&quot;');
+  row.innerHTML = `
+    <input type="text" class="quick-mark-input withdraw-material-item-input" value="${escaped}" style="flex:1;" placeholder="例如：模組：450W_TS54-CMH-450 H6QT ×29">
+    <button class="btn btn-ghost" style="padding:6px 10px;" onclick="this.closest('.withdraw-material-item-row').remove()">✕</button>
+  `;
+  container.appendChild(row);
+}
 function maybePromptWithdrawMaterial(recordId, found){
   if(!found || !found.ship_date) return; // 還沒出貨，不用問
   withdrawMaterialCaseText = found.case;
   withdrawMaterialShipDate = found.ship_date || '';
   document.getElementById('withdrawMaterialCaseTitle').textContent = found.case + (found.alias ? '　'+found.alias : '');
-  const parts = [];
-  if(found.module) parts.push('模組：' + found.module);
-  if(found.inverter) parts.push('逆變器：' + found.inverter);
-  document.getElementById('withdrawMaterialContent').value = parts.join('\n');
+  const container = document.getElementById('withdrawMaterialItems');
+  container.innerHTML = '';
+  if(found.module) addWithdrawMaterialItemRow('模組：' + found.module);
+  if(found.inverter){
+    found.inverter.split('、').forEach(seg => {
+      if(seg.trim()) addWithdrawMaterialItemRow('逆變器：' + seg.trim());
+    });
+  }
+  if(!found.module && !found.inverter) addWithdrawMaterialItemRow('');
   document.getElementById('withdrawMaterialPromptOverlay').classList.add('show');
 }
 function closeWithdrawMaterialPrompt(){
   document.getElementById('withdrawMaterialPromptOverlay').classList.remove('show');
 }
 async function confirmWithdrawMaterial(){
-  const content = document.getElementById('withdrawMaterialContent').value.trim();
-  if(!content){ showToast('請填寫料件內容'); return; }
+  const rows = document.querySelectorAll('#withdrawMaterialItems .withdraw-material-item-row .withdraw-material-item-input');
+  const items = Array.from(rows).map(input => input.value.trim()).filter(Boolean);
+  if(items.length === 0){ showToast('請至少填寫一項料件內容'); return; }
   const btn = document.querySelector('#withdrawMaterialPromptOverlay .btn-primary');
   const originalText = btn.textContent;
   btn.textContent = '加入中…';
   btn.disabled = true;
   try{
-    const res = await fetch(API_BASE + '/api/app-data/note', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({type: '未使用料件', case_text: withdrawMaterialCaseText, content, ship_date: withdrawMaterialShipDate || undefined}),
-    });
-    if(!res.ok){
-      const err = await res.json().catch(()=>({}));
-      throw new Error(err.error || ('HTTP ' + res.status));
+    for(const content of items){
+      const res = await fetch(API_BASE + '/api/app-data/note', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({type: '未使用料件', case_text: withdrawMaterialCaseText, content, ship_date: withdrawMaterialShipDate || undefined}),
+      });
+      if(!res.ok){
+        const err = await res.json().catch(()=>({}));
+        throw new Error(err.error || ('HTTP ' + res.status));
+      }
     }
     closeWithdrawMaterialPrompt();
     await loadAppData();
-    showToast('已加入「未使用料件」清單');
+    showToast(`已加入「未使用料件」清單（共 ${items.length} 項）`);
   }catch(err){
     showToast('加入失敗：' + err.message);
     console.error(err);
