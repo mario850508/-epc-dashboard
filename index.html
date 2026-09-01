@@ -1275,6 +1275,10 @@
                   <label style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">出貨日期（填案號後自動帶入,可自行修改）</label>
                   <input type="date" class="quick-mark-input" id="materialShipDateInput">
                 </div>
+                <div style="display:flex;flex-direction:column;gap:2px;width:130px;flex:0 0 auto;">
+                  <label style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">廠商（填案號後自動帶入,可自行修改）</label>
+                  <input type="text" class="quick-mark-input" id="materialVendorInput" placeholder="貨在哪個廠商倉庫">
+                </div>
               </div>
 
               <label style="font-size:12px;font-weight:700;display:block;margin-bottom:8px;">模組</label>
@@ -2173,8 +2177,10 @@ function materialReuseNoteHtml(caseNo){
   if(!caseNo || !APP_NOTES) return '';
   const matches = APP_NOTES.filter(n => n.type === '料件使用' && n.case_text === caseNo);
   if(matches.length === 0) return '';
+  // 2026-09-01 調整：改成可以點擊，直接開啟「料件使用清單」，方便編輯或刪除
+  // （例如測試時重複登記造成的重複資料，可以直接在那邊清掉，不用再另外找）。
   return matches.map(n =>
-    `<div class="case-alias" style="color:var(--m-rebar);">♻️ ${n.content}</div>`
+    `<div class="case-alias" style="color:var(--m-rebar);cursor:pointer;" onclick="event.stopPropagation();openMaterialUseListModal();" title="點一下查看/編輯/刪除料件使用清單">♻️ ${n.content}</div>`
   ).join('');
 }
 // 2026-08-31 新增：「屋主資訊」小按鈕，點下去開啟既有的屋主資訊視窗
@@ -3586,6 +3592,7 @@ function openMaterialModal(){
   renderMaterialList();
   materialAutofillFoundCase = null;
   document.getElementById('materialModuleQty').value = '';
+  document.getElementById('materialVendorInput').value = '';
   document.getElementById('materialInverterRows').innerHTML = '';
   addMaterialInverterRow();
   loadModuleOptionsIfNeeded().then(populateMaterialModuleSelect);
@@ -3654,6 +3661,8 @@ function applyMaterialAutofillForCase(){
   if(!found){ return; }
   const modelSelect = document.getElementById('materialModuleSelect');
   const modelText = document.getElementById('materialModuleText');
+  const vendorInput = document.getElementById('materialVendorInput');
+  if(vendorInput && !vendorInput.value.trim() && found.vendor) vendorInput.value = found.vendor;
 
   const parts = [];
   if(found.module){
@@ -3694,8 +3703,10 @@ function applyMaterialAutofillForCase(){
 async function addMaterialNote(){
   const caseInput = document.getElementById('materialCaseInput');
   const shipDateInput = document.getElementById('materialShipDateInput');
+  const vendorInput = document.getElementById('materialVendorInput');
   const caseText = caseInput.value.trim();
   const shipDate = shipDateInput.value;
+  const vendor = vendorInput.value.trim();
 
   const modelSelect = document.getElementById('materialModuleSelect');
   const modelText = document.getElementById('materialModuleText');
@@ -3726,14 +3737,14 @@ async function addMaterialNote(){
       const res = await fetch(API_BASE + '/api/app-data/note', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({type: '未使用料件', case_text: caseText || '（未指定案場）', content, ship_date: shipDate || undefined}),
+        body: JSON.stringify({type: '未使用料件', case_text: caseText || '（未指定案場）', content, ship_date: shipDate || undefined, vendor: vendor || undefined}),
       });
       if(!res.ok){
         const err = await res.json().catch(()=>({}));
         throw new Error(err.error || ('HTTP ' + res.status));
       }
     }
-    // 加入後不清空案號/出貨日期，方便同一個案件還有其他項目要補
+    // 加入後不清空案號/出貨日期/廠商，方便同一個案件還有其他項目要補
     document.getElementById('materialModuleQty').value = '';
     modelSelect.value = '';
     modelText.value = '';
@@ -3772,9 +3783,13 @@ function renderMaterialList(){
     return;
   }
   tbody.innerHTML = list.map(n => {
-    const found = findCaseByCaseNo(n.case_text);
-    const vendorCell = found
-      ? `<span class="vendor-pill ${VENDOR_CLASS[found.vendor] || 'vendor-other'}">${found.vendor}</span>`
+    // 2026-09-01 調整：優先用這筆記錄自己存的廠商（n.vendor，新增時直接存進去的，
+    // 不受案件之後狀態變動影響），沒有的話（舊資料）才退回即時比對現有案件。
+    const storedVendor = n.vendor;
+    const found = storedVendor ? null : findCaseByCaseNo(n.case_text);
+    const vendorName = storedVendor || (found && found.vendor);
+    const vendorCell = vendorName
+      ? `<span class="vendor-pill ${VENDOR_CLASS[vendorName] || 'vendor-other'}">${vendorName}</span>`
       : '<span style="color:var(--text-muted);">—</span>';
     return `
     <tr>
@@ -4029,14 +4044,70 @@ function openMaterialUseListModal(){
 function closeMaterialUseListModal(){
   document.getElementById('materialUseListModalOverlay').classList.remove('show');
 }
+// 2026-09-01 新增：解析「從「XXX」挪用：模組：型號 ×數量」這種標準格式
+// （confirmMaterialUse() 產生的內容都是這個格式），拆出來源案號跟品項，
+// 用來在刪除這筆「料件使用」紀錄時，自動把數量還原回「未使用料件」清單。
+// 解析不出來（例如舊資料、手動輸入的自由格式）就回傳 null，不硬做還原。
+function parseMaterialUseLogContent(content){
+  if(!content) return null;
+  const m = content.match(/^從「(.+?)」挪用：(.*)$/);
+  if(!m) return null;
+  const sourceCaseText = m[1];
+  const item = parseSpecSegment(m[2]);
+  if(!item) return null;
+  // m[2] 本身可能帶「模組：」「逆變器：」前綴，parseSpecSegment 只抓型號跟數量，
+  // 這裡另外把前綴留著，方便還原時組回原本的格式。
+  const prefixMatch = m[2].match(/^(模組|逆變器)：/);
+  const prefix = prefixMatch ? prefixMatch[1] + '：' : '';
+  return {sourceCaseText, prefix, model: item.model, qty: item.qty};
+}
 async function deleteMaterialUseNote(appRecordId){
   try{
+    const useNote = APP_NOTES.find(n => n.app_record_id === appRecordId);
     const res = await fetch(API_BASE + '/api/app-data/' + appRecordId, {method: 'DELETE'});
     if(!res.ok){
       const err = await res.json().catch(()=>({}));
       throw new Error(err.error || ('HTTP ' + res.status));
     }
     APP_NOTES = APP_NOTES.filter(n => n.app_record_id !== appRecordId);
+
+    // 2026-09-01 新增：把這次使用掉的數量還原回「未使用料件」清單——如果來源
+    // 那筆還在（只是被扣減了數量），直接把數量加回去；如果來源那筆已經因為
+    // 用完被整筆刪除了，就重新建立一筆。解析不出標準格式的舊資料/自由輸入，
+    // 不會自動還原，只會單純刪除這筆使用紀錄。
+    const parsed = useNote ? parseMaterialUseLogContent(useNote.content) : null;
+    if(parsed){
+      const existing = APP_NOTES.find(n =>
+        n.type === '未使用料件' && n.case_text === parsed.sourceCaseText &&
+        n.content && n.content.startsWith(parsed.prefix + parsed.model + ' ×')
+      );
+      if(existing){
+        const existingQty = parseFloat((existing.content.match(/×([\d.]+)\s*$/) || [])[1]);
+        const newQty = (isNaN(existingQty) ? 0 : existingQty) + parseFloat(parsed.qty);
+        await fetch(API_BASE + '/api/app-data/note/' + existing.app_record_id, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({content: `${parsed.prefix}${parsed.model} ×${newQty}`}),
+        });
+      } else {
+        const sourceCaseFound = findCaseByCaseNo(parsed.sourceCaseText);
+        await fetch(API_BASE + '/api/app-data/note', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            type: '未使用料件',
+            case_text: parsed.sourceCaseText,
+            content: `${parsed.prefix}${parsed.model} ×${parsed.qty}`,
+            vendor: (sourceCaseFound && sourceCaseFound.vendor) || undefined,
+          }),
+        });
+      }
+      await loadAppData();
+      renderMaterialList();
+      showToast('已刪除使用紀錄，數量已還原回「未使用料件」清單');
+    } else {
+      showToast('已刪除這筆使用紀錄');
+    }
     renderMaterialUseList();
   }catch(err){
     showToast('刪除失敗：' + err.message);
@@ -4064,6 +4135,7 @@ function renderMaterialUseList(){
 // ---- 撤案時，若案件已出貨，詢問是否把料件加入「未使用料件」清單 ----
 let withdrawMaterialCaseText = '';
 let withdrawMaterialShipDate = '';
+let withdrawMaterialVendor = '';
 // 2026-09-01 新增：「未使用料件」現在盡量讓每一筆記錄只描述「一個品項」
 // （型號 ＋ 數量），這樣「使用」的時候系統才能可靠地做數量加減，不用每次
 // 都要手動編輯剩餘數量。這裡是撤案時自動帶出料件的動態列表，一顆逆變器、
@@ -4086,6 +4158,7 @@ function maybePromptWithdrawMaterial(recordId, found){
   if(!found || !found.ship_date) return; // 還沒出貨，不用問
   withdrawMaterialCaseText = found.case;
   withdrawMaterialShipDate = found.ship_date || '';
+  withdrawMaterialVendor = found.vendor || '';
   document.getElementById('withdrawMaterialCaseTitle').textContent = found.case + (found.alias ? '　'+found.alias : '');
   const container = document.getElementById('withdrawMaterialItems');
   container.innerHTML = '';
@@ -4114,7 +4187,7 @@ async function confirmWithdrawMaterial(){
       const res = await fetch(API_BASE + '/api/app-data/note', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({type: '未使用料件', case_text: withdrawMaterialCaseText, content, ship_date: withdrawMaterialShipDate || undefined}),
+        body: JSON.stringify({type: '未使用料件', case_text: withdrawMaterialCaseText, content, ship_date: withdrawMaterialShipDate || undefined, vendor: withdrawMaterialVendor || undefined}),
       });
       if(!res.ok){
         const err = await res.json().catch(()=>({}));
