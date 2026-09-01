@@ -3577,6 +3577,7 @@ function renderParkedNoteList(){
 
 function openMaterialModal(){
   renderMaterialList();
+  materialAutofillFoundCase = null;
   loadModuleOptionsIfNeeded();
   loadInverterOptionsIfNeeded();
   onMaterialCategoryChange();
@@ -3611,6 +3612,76 @@ async function onMaterialCategoryChange(){
     modelSelect.style.display = '';
     modelText.style.display = 'none';
   }
+  // 2026-09-01 新增：切換類別後，如果案號已經比對到現有案件，把該案件對應
+  // 這個類別的型號/數量重新帶入一次（見 applyMaterialAutofillForCase()）。
+  applyMaterialAutofillForCase();
+}
+// 把「型號 ×數量」格式的一段文字拆成 {model, qty}；案件的模組/逆變器欄位
+// 本來就是這種格式（例如「450W_TS54-CMH-450 H6QT ×36」），逆變器如果有
+// 好幾種型號會用「、」分隔成好幾段。
+function parseSpecSegment(text){
+  if(!text) return null;
+  const m = text.match(/^(.*?)\s*×\s*([\d.]+)\s*$/);
+  if(!m) return {model: text.trim(), qty: ''};
+  return {model: m[1].trim(), qty: m[2]};
+}
+// 2026-09-01 新增：案號已經比對到現有案件時，把該案件目前已填的模組／逆變器
+// 型號跟數量直接帶入表單，不用使用者自己重新選一次。逆變器如果案件裡有好幾種
+// 型號，一次只能帶入一種（表單一次只能加一項），會在提示文字裡列出其餘型號，
+// 提醒使用者加入清單後要切換／重複選擇其餘項目。
+let materialAutofillFoundCase = null;
+function applyMaterialAutofillForCase(){
+  const found = materialAutofillFoundCase;
+  const hintEl = document.getElementById('materialCaseHint');
+  if(!found){ return; }
+  const category = document.getElementById('materialCategorySelect').value;
+  const modelSelect = document.getElementById('materialModelSelect');
+  const modelText = document.getElementById('materialModelText');
+  const qtyInput = document.getElementById('materialQtyInput');
+
+  function applyModelValue(model){
+    if(modelSelect.style.display !== 'none'){
+      const hasOption = Array.from(modelSelect.options).some(o => o.value === model);
+      if(!hasOption){
+        const opt = document.createElement('option');
+        opt.value = model;
+        opt.textContent = model + '（不在目前清單中，仍會照這個型號存入）';
+        modelSelect.appendChild(opt);
+      }
+      modelSelect.value = model;
+    } else {
+      modelText.value = model;
+    }
+  }
+
+  if(category === '模組'){
+    if(found.module){
+      const seg = parseSpecSegment(found.module);
+      if(seg){
+        applyModelValue(seg.model);
+        qtyInput.value = seg.qty;
+      }
+      if(hintEl) hintEl.textContent = `已比對到案件（${found.vendor}），模組型號／數量已帶入，可自行修改後再加入`;
+    } else if(hintEl){
+      hintEl.textContent = `已比對到案件（${found.vendor}），但這筆案件目前沒有模組資料`;
+    }
+  } else {
+    if(found.inverter){
+      const items = found.inverter.split('、').map(s => s.trim()).filter(Boolean);
+      const first = parseSpecSegment(items[0]);
+      if(first){
+        applyModelValue(first.model);
+        qtyInput.value = first.qty;
+      }
+      if(items.length > 1 && hintEl){
+        hintEl.textContent = `已帶入第 1 項（共 ${items.length} 項：${items.join('、')}），加入清單後請切換逆變器分類重複選擇其餘型號`;
+      } else if(hintEl){
+        hintEl.textContent = `已比對到案件（${found.vendor}），逆變器型號／數量已帶入，可自行修改後再加入`;
+      }
+    } else if(hintEl){
+      hintEl.textContent = `已比對到案件（${found.vendor}），但這筆案件目前沒有逆變器資料`;
+    }
+  }
 }
 async function addMaterialNote(){
   const caseInput = document.getElementById('materialCaseInput');
@@ -3635,13 +3706,12 @@ async function addMaterialNote(){
       const err = await res.json().catch(()=>({}));
       throw new Error(err.error || ('HTTP ' + res.status));
     }
-    caseInput.value = '';
+    // 2026-09-01 調整：加入後不清空案號欄位——如果這個案件同時有模組跟
+    // 好幾種逆變器，使用者通常會想留著同一個案號，切換分類繼續加下一項
+    // （切換分類會自動重新帶入該分類的型號/數量，見 onMaterialCategoryChange）。
     document.getElementById('materialQtyInput').value = '';
     modelSelect.value = '';
     modelText.value = '';
-    shipDateInput.value = '';
-    const hintEl = document.getElementById('materialCaseHint');
-    if(hintEl) hintEl.textContent = '';
     await loadAppData();
     renderMaterialList();
     showToast('已加入「未使用料件」清單');
@@ -3715,6 +3785,7 @@ function autofillMaterialFromCase(){
   if(!caseInput) return;
   const caseNo = caseInput.value.trim();
   const found = findCaseByCaseNo(caseNo);
+  materialAutofillFoundCase = found || null;
   if(!found){
     if(hintEl) hintEl.textContent = caseNo ? '找不到對應案件,可自行選擇型號' : '';
     return;
@@ -3723,7 +3794,7 @@ function autofillMaterialFromCase(){
     const shipDate = found.ship_date || getInverterDate(found.record_id) || '';
     if(shipDate) shipDateInput.value = shipDate;
   }
-  if(hintEl) hintEl.textContent = found.vendor ? `已比對到案件（${found.vendor}），出貨日期已帶入；型號/數量請自行選擇` : '已比對到案件';
+  applyMaterialAutofillForCase();
 }
 
 // ---- 未使用料件：編輯案號／內容／出貨日期 ----
