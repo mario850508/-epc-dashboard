@@ -1265,12 +1265,18 @@
           </div>
           <div class="modal-body">
             <div class="panel">
-              <div class="note-add-row note-add-row-wide" style="align-items:flex-start;">
-                <div style="display:flex;flex-direction:column;gap:2px;width:190px;flex:0 0 auto;">
+              <div class="note-add-row note-add-row-wide" style="align-items:flex-start;flex-wrap:wrap;">
+                <div style="display:flex;flex-direction:column;gap:2px;width:170px;flex:0 0 auto;">
                   <input type="text" class="quick-mark-input" id="materialCaseInput" style="flex:none;width:100%;" placeholder="案號或案場（可留空）" onblur="autofillMaterialFromCase()">
                   <span id="materialCaseHint" style="font-size:10.5px;color:var(--m-rebar);min-height:14px;"></span>
                 </div>
-                <textarea class="quick-mark-input" id="materialContentInput" rows="3" style="flex:1;font-family:inherit;resize:vertical;" placeholder="料件內容,例如：CPSPV6000ETLA ×2、未使用退回"></textarea>
+                <select class="quick-mark-input" id="materialCategorySelect" style="width:100px;flex:0 0 auto;" onchange="onMaterialCategoryChange()">
+                  <option value="模組">模組</option>
+                  <option value="逆變器">逆變器</option>
+                </select>
+                <select class="quick-mark-input" id="materialModelSelect" style="flex:1;min-width:160px;"></select>
+                <input type="text" class="quick-mark-input" id="materialModelText" style="flex:1;min-width:160px;display:none;" placeholder="型號">
+                <input type="number" class="quick-mark-input" id="materialQtyInput" min="0" step="any" style="width:90px;flex:0 0 auto;" placeholder="數量">
                 <div style="display:flex;flex-direction:column;gap:2px;width:150px;flex:0 0 auto;">
                   <input type="date" class="quick-mark-input" id="materialShipDateInput" style="flex:none;width:100%;">
                   <span style="font-size:10.5px;color:var(--text-muted);">出貨日期（填案號後自動帶入,可自行修改）</span>
@@ -1286,7 +1292,7 @@
                 </tbody>
               </table>
               <div class="login-note">
-                🔗 這裡記錄目前尚未使用、可以留到下次案場使用的料件。此清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。填案號後如果比對到系統裡現有的案件,會自動帶入模組/逆變器內容、出貨日期,並顯示廠商；找不到對應案件的話,案號可以留空或自己輸入,料件內容也自己填寫就好。在「異常案件」按下「撤案」時,如果該案已經出貨,系統會另外跳出提示,問你要不要把料件自動加進這裡。點「編輯」可以修正案號、料件內容,或補填/修改出貨日期。點「使用」可以把這筆料件登記成用在其他案場,會一併記錄到「料件使用清單」。
+                🔗 這裡記錄目前尚未使用、可以留到下次案場使用的料件。此清單會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到。型號從跟「填寫規格」共用的同一份型號清單裡選,不用手動打字,存進去的內容會自動符合「型號 ×數量」的格式,之後「使用」時系統才能自動幫你扣減數量。填案號後如果比對到系統裡現有的案件,會自動帶入出貨日期並顯示廠商；找不到對應案件的話,案號可以留空。在「異常案件」按下「撤案」時,如果該案已經出貨,系統會另外跳出提示,問你要不要把料件自動加進這裡(會依模組/每顆逆變器自動拆成一項一筆)。點「編輯」可以修正案號、料件內容,或補填/修改出貨日期。點「使用」可以把這筆料件登記成用在其他案場,系統辨識得出數量格式的話會自動幫你扣減剩餘數量,會一併記錄到「料件使用清單」。
               </div>
             </div>
           </div>
@@ -3571,19 +3577,54 @@ function renderParkedNoteList(){
 
 function openMaterialModal(){
   renderMaterialList();
+  loadModuleOptionsIfNeeded();
+  loadInverterOptionsIfNeeded();
+  onMaterialCategoryChange();
   document.getElementById('materialModalOverlay').classList.add('show');
 }
 function closeMaterialModal(){
   document.getElementById('materialModalOverlay').classList.remove('show');
 }
+// 2026-09-01 新增：型號改成從「填寫規格」共用的同一份型號清單（MODULE_OPTIONS／
+// INVERTER_OPTIONS）裡選，不用自己手動打字，也讓存進去的內容自動符合
+// 「型號 ×數量」這種可以被「使用」功能自動辨識、自動扣減數量的標準格式。
+async function onMaterialCategoryChange(){
+  const category = document.getElementById('materialCategorySelect').value;
+  const modelSelect = document.getElementById('materialModelSelect');
+  const modelText = document.getElementById('materialModelText');
+  if(category === '模組'){
+    await loadModuleOptionsIfNeeded();
+    if(moduleOptionsAvailable){
+      modelSelect.innerHTML = '<option value="">— 選擇模組型號 —</option>' +
+        (MODULE_OPTIONS || []).map(o => `<option value="${o}">${o}</option>`).join('');
+      modelSelect.style.display = '';
+      modelText.style.display = 'none';
+    } else {
+      modelSelect.style.display = 'none';
+      modelText.style.display = '';
+      modelText.placeholder = '模組型號';
+    }
+  } else {
+    await loadInverterOptionsIfNeeded();
+    modelSelect.innerHTML = '<option value="">— 選擇逆變器型號 —</option>' +
+      (INVERTER_OPTIONS || []).map(o => `<option value="${o.name}">${o.name}</option>`).join('');
+    modelSelect.style.display = '';
+    modelText.style.display = 'none';
+  }
+}
 async function addMaterialNote(){
   const caseInput = document.getElementById('materialCaseInput');
-  const contentInput = document.getElementById('materialContentInput');
   const shipDateInput = document.getElementById('materialShipDateInput');
+  const category = document.getElementById('materialCategorySelect').value;
+  const modelSelect = document.getElementById('materialModelSelect');
+  const modelText = document.getElementById('materialModelText');
+  const model = (modelSelect.style.display !== 'none' ? modelSelect.value : modelText.value).trim();
+  const qty = document.getElementById('materialQtyInput').value;
   const caseText = caseInput.value.trim();
-  const content = contentInput.value.trim();
   const shipDate = shipDateInput.value;
-  if(!content){ showToast('請填寫料件內容'); return; }
+  if(!model){ showToast('請選擇或填寫型號'); return; }
+  if(!qty || Number(qty) <= 0){ showToast('請填寫數量'); return; }
+  const content = `${category}：${model} ×${qty}`;
   try{
     const res = await fetch(API_BASE + '/api/app-data/note', {
       method: 'POST',
@@ -3595,7 +3636,9 @@ async function addMaterialNote(){
       throw new Error(err.error || ('HTTP ' + res.status));
     }
     caseInput.value = '';
-    contentInput.value = '';
+    document.getElementById('materialQtyInput').value = '';
+    modelSelect.value = '';
+    modelText.value = '';
     shipDateInput.value = '';
     const hintEl = document.getElementById('materialCaseHint');
     if(hintEl) hintEl.textContent = '';
@@ -3667,27 +3710,20 @@ function findCaseByCaseNo(caseNo){
 // 不會被覆蓋。找不到對應案件時清空提示文字，讓使用者自己輸入。
 function autofillMaterialFromCase(){
   const caseInput = document.getElementById('materialCaseInput');
-  const contentInput = document.getElementById('materialContentInput');
   const shipDateInput = document.getElementById('materialShipDateInput');
   const hintEl = document.getElementById('materialCaseHint');
   if(!caseInput) return;
   const caseNo = caseInput.value.trim();
   const found = findCaseByCaseNo(caseNo);
   if(!found){
-    if(hintEl) hintEl.textContent = caseNo ? '找不到對應案件,可自行輸入料件內容' : '';
+    if(hintEl) hintEl.textContent = caseNo ? '找不到對應案件,可自行選擇型號' : '';
     return;
   }
   if(shipDateInput && !shipDateInput.value){
     const shipDate = found.ship_date || getInverterDate(found.record_id) || '';
     if(shipDate) shipDateInput.value = shipDate;
   }
-  if(contentInput && !contentInput.value.trim()){
-    const parts = [];
-    if(found.module) parts.push('模組：' + found.module);
-    if(found.inverter) parts.push('逆變器：' + found.inverter);
-    if(parts.length) contentInput.value = parts.join('\n');
-  }
-  if(hintEl) hintEl.textContent = found.vendor ? `已比對到案件（${found.vendor}）` : '已比對到案件';
+  if(hintEl) hintEl.textContent = found.vendor ? `已比對到案件（${found.vendor}），出貨日期已帶入；型號/數量請自行選擇` : '已比對到案件';
 }
 
 // ---- 未使用料件：編輯案號／內容／出貨日期 ----
