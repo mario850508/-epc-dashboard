@@ -611,7 +611,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            🔗 案件在「待安排出貨&植筋」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排」,案件仍會留在這裡,直到你按下「完工&掛表」填好完工日期,案件就會移入「掛表安排」,依「細部協商」「台電購售契約」是否都已取得,自動分類到「待安排掛表」或「待函文取得」（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
+            🔗 案件在「待安排出貨&植筋」完成排定出貨時間後,會自動移入這裡等待安排進場日期;進場日期排定後,狀態會變成「已安排」,案件仍會留在這裡,直到你按下「完工」填好完工日期,案件就會移入「掛表安排」,依「細部協商」「台電購售契約」是否都已取得,自動分類到「待安排掛表」或「待函文取得」（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到）。點「案號」「模組／逆變器」欄位標題可排序,點「廠商」可篩選特定廠商,輸入框可用案號、地址、模組、逆變器內容搜尋。
           </div>
         </div>
       </div>
@@ -1736,8 +1736,7 @@ function findCaseAnywhere(recordId){
 function deriveStageLabel(recordId){
   const cs = getCaseStatus(recordId);
   if(cs && cs.meter_confirmed) return '歷史紀錄（掛表已完成）';
-  if(cs && cs.meter_planned_date) return '掛表安排';
-  if(cs && cs.completed_date) return '已完工';
+  if(cs && cs.completed_date) return '掛表安排';
   if(COMPLETED_CASES.find(c => c.record_id === recordId)) return '案件進場安排（已安排）';
   if(ENTRY_CASES.find(c => c.record_id === recordId)) return '案件進場安排（待進場）';
   if(PENDING_CASES.find(c => c.record_id === recordId)) return '待安排出貨&植筋';
@@ -2707,7 +2706,7 @@ function renderEntryTable(){
   const doneRows = COMPLETED_CASES
     .filter(r => {
       const cs = getCaseStatus(r.record_id);
-      return !(cs && cs.meter_planned_date) && !(cs && cs.issue_note);
+      return !(cs && cs.completed_date) && !(cs && cs.issue_note);
     })
     .map(r => ({...r, _status: 'scheduled'}));
   const allRows = [...waitingRows, ...doneRows];
@@ -2737,7 +2736,7 @@ function renderEntryTable(){
       ? `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openScheduleModal(this,'reschedule')">重新安排出貨日期</button>
          <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openEntryModal(this)">排定進場日期</button>${renderRebarBadge(r.record_id)}`
       : `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openEntryModal(this,'reschedule')">重新安排進場日期</button>
-         <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openCompleteMeterModal('${r.record_id}')">✓ 完工&掛表</button>`;
+         <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openCompleteMeterModal('${r.record_id}')">✓ 完工</button>`;
     return `
     <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}" data-entrydatefull="${r.entry_date||''}">
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
