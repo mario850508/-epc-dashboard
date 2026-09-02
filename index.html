@@ -1277,7 +1277,21 @@
                 </div>
                 <div style="display:flex;flex-direction:column;gap:2px;width:130px;flex:0 0 auto;">
                   <label style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">廠商（填案號後自動帶入,可自行修改）</label>
-                  <input type="text" class="quick-mark-input" id="materialVendorInput" placeholder="貨在哪個廠商倉庫">
+                  <select class="quick-mark-input" id="materialVendorInput">
+                    <option value="">— 選擇廠商 —</option>
+                    <option value="三創">三創</option>
+                    <option value="尚展">尚展</option>
+                    <option value="曙光">曙光</option>
+                    <option value="光鼎">光鼎</option>
+                    <option value="宇陽達">宇陽達</option>
+                    <option value="聚曜">聚曜</option>
+                    <option value="澄品">澄品</option>
+                    <option value="大昇">大昇</option>
+                    <option value="展亦">展亦</option>
+                    <option value="凰太竹">凰太竹</option>
+                    <option value="國欽">國欽</option>
+                    <option value="振庭">振庭</option>
+                  </select>
                 </div>
               </div>
 
@@ -1326,7 +1340,21 @@
             <input type="date" class="quick-mark-input" id="materialEditShipDate" style="margin-bottom:6px;">
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:18px;">如果原本沒有紀錄,這裡會是空白,可以自行補填；清空後儲存會變回「無出貨日期」。</div>
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">廠商</label>
-            <input type="text" class="quick-mark-input" id="materialEditVendor" style="margin-bottom:6px;" placeholder="貨在哪個廠商倉庫">
+            <select class="quick-mark-input" id="materialEditVendor" style="margin-bottom:6px;">
+              <option value="">— 選擇廠商 —</option>
+              <option value="三創">三創</option>
+              <option value="尚展">尚展</option>
+              <option value="曙光">曙光</option>
+              <option value="光鼎">光鼎</option>
+              <option value="宇陽達">宇陽達</option>
+              <option value="聚曜">聚曜</option>
+              <option value="澄品">澄品</option>
+              <option value="大昇">大昇</option>
+              <option value="展亦">展亦</option>
+              <option value="凰太竹">凰太竹</option>
+              <option value="國欽">國欽</option>
+              <option value="振庭">振庭</option>
+            </select>
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:18px;">如果原本沒有紀錄,這裡會是空白,可以自行補填；清空後儲存會變回沒有廠商資料。</div>
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmMaterialEdit()">儲存</button>
           </div>
