@@ -1325,6 +1325,9 @@
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">出貨日期</label>
             <input type="date" class="quick-mark-input" id="materialEditShipDate" style="margin-bottom:6px;">
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:18px;">如果原本沒有紀錄,這裡會是空白,可以自行補填；清空後儲存會變回「無出貨日期」。</div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">廠商</label>
+            <input type="text" class="quick-mark-input" id="materialEditVendor" style="margin-bottom:6px;" placeholder="貨在哪個廠商倉庫">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:18px;">如果原本沒有紀錄,這裡會是空白,可以自行補填；清空後儲存會變回沒有廠商資料。</div>
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmMaterialEdit()">儲存</button>
           </div>
         </div>
@@ -3850,6 +3853,7 @@ function openMaterialEditModal(appRecordId){
   document.getElementById('materialEditCase').value = note.case_text || '';
   document.getElementById('materialEditContent').value = note.content || '';
   document.getElementById('materialEditShipDate').value = note.ship_date || '';
+  document.getElementById('materialEditVendor').value = note.vendor || '';
   document.getElementById('materialEditModalOverlay').classList.add('show');
 }
 function closeMaterialEditModal(){
@@ -3859,6 +3863,7 @@ async function confirmMaterialEdit(){
   const caseText = document.getElementById('materialEditCase').value.trim();
   const content = document.getElementById('materialEditContent').value.trim();
   const shipDate = document.getElementById('materialEditShipDate').value;
+  const vendor = document.getElementById('materialEditVendor').value.trim();
   if(!caseText){ showToast('請填寫案號或案場'); return; }
   if(!content){ showToast('請填寫料件內容'); return; }
   const btn = document.querySelector('#materialEditModalOverlay .btn-primary');
@@ -3869,7 +3874,7 @@ async function confirmMaterialEdit(){
     const res = await fetch(API_BASE + '/api/app-data/note/' + materialEditTargetId, {
       method: 'PATCH',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({case_text: caseText, content, ship_date: shipDate}),
+      body: JSON.stringify({case_text: caseText, content, ship_date: shipDate, vendor}),
     });
     if(!res.ok){
       const err = await res.json().catch(()=>({}));
