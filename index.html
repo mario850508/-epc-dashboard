@@ -829,6 +829,27 @@
         </div>
       </div>
 
+      <!-- 排定日期前：偵測到未使用料件庫存 提示 modal -->
+      <!-- 2026-09-03 新增：點「排定日期」時，如果這個案件的模組／逆變器型號跟「未使用料件」
+           清單裡現有的庫存型號相符，先跳出這個提示，問要不要先挪用庫存，而不是直接跳去
+           填出貨日期，避免忘記手上其實已經有現貨可以用、又重新叫貨。 -->
+      <div class="modal-overlay" id="materialStockAlertModalOverlay" onclick="if(event.target===this) closeMaterialStockAlertModal()">
+        <div class="modal-box" style="max-width:480px;">
+          <div class="modal-header">
+            <div class="modal-title">📦 偵測到未使用料件庫存</div>
+            <button class="modal-close" onclick="closeMaterialStockAlertModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="materialStockAlertCaseTitle">—</div>
+              <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px;">這個案件用到的型號,在「未使用料件」清單裡還有庫存,是否要先挪用,不用重新叫貨？</div>
+            </div>
+            <div id="materialStockAlertRows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px;"></div>
+            <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:11px;" onclick="proceedScheduleWithoutStock()">略過,直接排定出貨時間</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 產出通知訊息 modal -->
       <div class="modal-overlay" id="notifyModalOverlay" onclick="if(event.target===this) closeNotifyModal()">
         <div class="modal-box" style="max-width:560px;">
@@ -1308,8 +1329,38 @@
 
               <button class="btn btn-primary" id="materialAddBtn" style="width:100%;justify-content:center;padding:11px;margin-bottom:18px;" onclick="addMaterialNote()">＋ 加入清單</button>
 
+              <!-- 2026-09-03 新增：篩選列。案號/案場、料件內容用文字模糊搜尋，
+                   廠商用下拉選單；欄位標題可點擊排序（見下方 <thead>）。 -->
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+                <input type="text" class="quick-mark-input" id="materialFilterCase" style="width:160px;" placeholder="搜尋案號／案場" oninput="renderMaterialList()">
+                <select class="quick-mark-input" id="materialFilterVendor" style="width:130px;" onchange="renderMaterialList()">
+                  <option value="">全部廠商</option>
+                  <option value="三創">三創</option>
+                  <option value="尚展">尚展</option>
+                  <option value="曙光">曙光</option>
+                  <option value="光鼎">光鼎</option>
+                  <option value="宇陽達">宇陽達</option>
+                  <option value="聚曜">聚曜</option>
+                  <option value="澄品">澄品</option>
+                  <option value="大昇">大昇</option>
+                  <option value="展亦">展亦</option>
+                  <option value="凰太竹">凰太竹</option>
+                  <option value="國欽">國欽</option>
+                  <option value="振庭">振庭</option>
+                  <option value="__none__">— 無廠商 —</option>
+                </select>
+                <input type="text" class="quick-mark-input" id="materialFilterContent" style="width:160px;" placeholder="搜尋料件內容" oninput="renderMaterialList()">
+                <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="clearMaterialFilters()">清除篩選</button>
+              </div>
+
               <table>
-                <thead><tr><th>案號／案場</th><th>廠商</th><th>料件內容</th><th>出貨日期</th><th>記錄日期</th><th>操作</th></tr></thead>
+                <thead><tr>
+                  <th style="cursor:pointer;user-select:none;" onclick="setMaterialSort('case')">案號／案場<span id="materialSortArrow-case"></span></th>
+                  <th style="cursor:pointer;user-select:none;" onclick="setMaterialSort('vendor')">廠商<span id="materialSortArrow-vendor"></span></th>
+                  <th style="cursor:pointer;user-select:none;" onclick="setMaterialSort('content')">料件內容<span id="materialSortArrow-content"></span></th>
+                  <th style="cursor:pointer;user-select:none;" onclick="setMaterialSort('ship_date')">出貨日期<span id="materialSortArrow-ship_date"></span></th>
+                  <th>記錄日期</th><th>操作</th>
+                </tr></thead>
                 <tbody id="materialRows">
                   <tr>
                     <td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有未使用料件</td>
@@ -3374,6 +3425,28 @@ function showToast(msg){
 }
 let scheduleTargetRow = null;
 let scheduleMode = 'new';
+// 2026-09-03 新增：點「排定日期」前，先比對這個案件用到的模組／逆變器型號，
+// 是不是跟「未使用料件」清單裡現有的庫存型號相符（用型號名稱做字串比對，
+// 不比對數量/廠商，因為未使用料件常常是從別的撤案案件挪過來，廠商不一定
+// 跟這個案件本身的廠商相同）。有相符的話先跳出提示，問要不要先挪用庫存。
+function extractModelNamesFromCell(str){
+  if(!str) return [];
+  return str.split('、').map(s => s.trim()).filter(Boolean).map(s => {
+    const m = s.match(/^(.*?)\s*×\s*[\d.]+\s*$/);
+    return (m ? m[1] : s).trim();
+  }).filter(Boolean);
+}
+function findMatchingUnusedMaterials(row){
+  if(!APP_NOTES) return [];
+  const models = [
+    ...extractModelNamesFromCell(row.dataset.module),
+    ...extractModelNamesFromCell(row.dataset.inverter),
+  ].filter(m => m && m !== '尚未填寫規格');
+  if(models.length === 0) return [];
+  return APP_NOTES.filter(n => n.type === '未使用料件' && n.content &&
+    models.some(model => n.content.includes(model)));
+}
+let scheduleStockCheckPending = null; // {btn, mode}
 function openScheduleModal(btn, mode){
   mode = mode || 'new';
   const row = btn.closest('tr');
@@ -3381,6 +3454,17 @@ function openScheduleModal(btn, mode){
     showToast('這筆案件尚未填寫模組／變流器資訊，請先至 Airtable 輸入模組／變流器資訊後再排定出貨時間。');
     return;
   }
+  const matches = findMatchingUnusedMaterials(row);
+  if(matches.length > 0){
+    scheduleStockCheckPending = {btn, mode};
+    openMaterialStockAlertModal(row, matches);
+    return;
+  }
+  openScheduleModalActual(btn, mode);
+}
+function openScheduleModalActual(btn, mode){
+  mode = mode || 'new';
+  const row = btn.closest('tr');
   scheduleTargetRow = row;
   scheduleMode = mode;
   document.getElementById('scheduleCaseTitle').textContent = row.dataset.case;
@@ -3391,6 +3475,43 @@ function openScheduleModal(btn, mode){
 }
 function closeScheduleModal(){
   document.getElementById('scheduleModalOverlay').classList.remove('show');
+}
+// ---- 排定日期前的「未使用料件庫存」提示 modal ----
+function openMaterialStockAlertModal(row, matches){
+  document.getElementById('materialStockAlertCaseTitle').textContent = row.dataset.case + '　' + row.dataset.vendor;
+  const container = document.getElementById('materialStockAlertRows');
+  container.innerHTML = matches.map(n => `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <div style="min-width:0;">
+        <div style="font-size:12px;color:var(--text-muted);">${n.case_text || '（未指定案場）'}</div>
+        <div style="font-size:13px;white-space:pre-wrap;">${n.content}</div>
+      </div>
+      <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;flex:0 0 auto;" onclick="useStockForPendingSchedule('${n.app_record_id}')">使用這筆</button>
+    </div>
+  `).join('');
+  document.getElementById('materialStockAlertModalOverlay').classList.add('show');
+}
+function closeMaterialStockAlertModal(){
+  document.getElementById('materialStockAlertModalOverlay').classList.remove('show');
+}
+// 按「略過,直接排定出貨時間」：不使用庫存，照原本流程繼續排定日期。
+function proceedScheduleWithoutStock(){
+  const pending = scheduleStockCheckPending;
+  scheduleStockCheckPending = null;
+  closeMaterialStockAlertModal();
+  if(pending) openScheduleModalActual(pending.btn, pending.mode);
+}
+// 按提示裡某一筆的「使用這筆」：關掉提示，直接開「未使用料件」的使用視窗，
+// 並把「使用於案號／案場」預先帶入這個案件的案號，不用自己再打一次。
+// 用完之後回到清單，自己再點一次「排定日期」即可（這時系統會重新比對，
+// 如果這筆庫存已經用完/沒有其他相符庫存，就會直接進入排定畫面，不會再提示）。
+function useStockForPendingSchedule(appRecordId){
+  const pending = scheduleStockCheckPending;
+  const caseNo = pending && pending.btn ? pending.btn.closest('tr').dataset.case : '';
+  scheduleStockCheckPending = null;
+  closeMaterialStockAlertModal();
+  openMaterialUseModal(appRecordId);
+  if(caseNo) document.getElementById('materialUseTargetCase').value = caseNo;
 }
 async function confirmSchedule(){
   const shipDate = document.getElementById('scheduleShipDate').value;
@@ -3805,20 +3926,77 @@ async function deleteMaterialNote(appRecordId){
     console.error(err);
   }
 }
+// 2026-09-03 新增：「未使用料件」清單的篩選／排序狀態。
+// materialSortKey 為 null 時維持原本（記錄日期新到舊，即 APP_NOTES 原始順序）。
+let materialSortKey = null;
+let materialSortAsc = true;
+function clearMaterialFilters(){
+  document.getElementById('materialFilterCase').value = '';
+  document.getElementById('materialFilterVendor').value = '';
+  document.getElementById('materialFilterContent').value = '';
+  renderMaterialList();
+}
+function setMaterialSort(key){
+  if(materialSortKey === key){
+    materialSortAsc = !materialSortAsc;
+  } else {
+    materialSortKey = key;
+    materialSortAsc = true;
+  }
+  renderMaterialList();
+}
+function materialVendorForNote(n){
+  // 跟 renderMaterialList 裡原本的邏輯一致：優先用這筆記錄自己存的廠商，
+  // 沒有的話（舊資料）才退回即時比對現有案件。
+  const storedVendor = n.vendor;
+  const found = storedVendor ? null : findCaseByCaseNo(n.case_text);
+  return storedVendor || (found && found.vendor) || '';
+}
+function updateMaterialSortArrows(){
+  ['case', 'vendor', 'content', 'ship_date'].forEach(key => {
+    const el = document.getElementById('materialSortArrow-' + key);
+    if(!el) return;
+    el.textContent = materialSortKey === key ? (materialSortAsc ? ' ▲' : ' ▼') : '';
+  });
+}
 function renderMaterialList(){
   const tbody = document.getElementById('materialRows');
   if(!tbody) return;
-  const list = APP_NOTES.filter(n => n.type === '未使用料件');
+  updateMaterialSortArrows();
+  const caseFilterEl = document.getElementById('materialFilterCase');
+  const vendorFilterEl = document.getElementById('materialFilterVendor');
+  const contentFilterEl = document.getElementById('materialFilterContent');
+  const caseFilter = caseFilterEl ? caseFilterEl.value.trim() : '';
+  const vendorFilter = vendorFilterEl ? vendorFilterEl.value : '';
+  const contentFilter = contentFilterEl ? contentFilterEl.value.trim() : '';
+
+  let list = APP_NOTES.filter(n => n.type === '未使用料件');
+  if(caseFilter) list = list.filter(n => (n.case_text || '').includes(caseFilter));
+  if(contentFilter) list = list.filter(n => (n.content || '').includes(contentFilter));
+  if(vendorFilter === '__none__') list = list.filter(n => !materialVendorForNote(n));
+  else if(vendorFilter) list = list.filter(n => materialVendorForNote(n) === vendorFilter);
+
+  if(materialSortKey){
+    list = [...list].sort((a, b) => {
+      let av, bv;
+      if(materialSortKey === 'case') { av = a.case_text || ''; bv = b.case_text || ''; }
+      else if(materialSortKey === 'vendor') { av = materialVendorForNote(a); bv = materialVendorForNote(b); }
+      else if(materialSortKey === 'content') { av = a.content || ''; bv = b.content || ''; }
+      else if(materialSortKey === 'ship_date') { av = a.ship_date || ''; bv = b.ship_date || ''; }
+      const cmp = ('' + av).localeCompare('' + bv, 'zh-Hant');
+      return materialSortAsc ? cmp : -cmp;
+    });
+  }
+
   if(list.length === 0){
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px 0;">目前沒有未使用料件</td></tr>';
+    const msg = (caseFilter || vendorFilter || contentFilter) ? '沒有符合篩選條件的未使用料件' : '目前沒有未使用料件';
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px 0;">${msg}</td></tr>`;
     return;
   }
   tbody.innerHTML = list.map(n => {
     // 2026-09-01 調整：優先用這筆記錄自己存的廠商（n.vendor，新增時直接存進去的，
     // 不受案件之後狀態變動影響），沒有的話（舊資料）才退回即時比對現有案件。
-    const storedVendor = n.vendor;
-    const found = storedVendor ? null : findCaseByCaseNo(n.case_text);
-    const vendorName = storedVendor || (found && found.vendor);
+    const vendorName = materialVendorForNote(n);
     const vendorCell = vendorName
       ? `<span class="vendor-pill ${VENDOR_CLASS[vendorName] || 'vendor-other'}">${vendorName}</span>`
       : '<span style="color:var(--text-muted);">—</span>';
