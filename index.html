@@ -1606,6 +1606,7 @@
           <h1 class="page-title">維運團隊</h1>
           <div class="page-sub">已確定掛表時間的案場會自動出現在這裡,現場人員可用手機填寫驗收單、雙方簽名、產生 PDF</div>
         </div>
+        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="openOpsManualAddModal()">➕ 手動新增</button>
         <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="loadOpsCases()">🔄 重新整理</button>
       </div>
 
@@ -1637,6 +1638,45 @@
         </div>
       </div>
     </section>
+
+    <!-- 手動新增驗收案場 modal -->
+    <div class="modal-overlay" id="opsManualAddModalOverlay" onclick="if(event.target===this) closeOpsManualAddModal()">
+      <div class="modal-box" style="max-width:480px;">
+        <div class="modal-header">
+          <div class="modal-title">➕ 手動新增驗收案場</div>
+          <button class="modal-close" onclick="closeOpsManualAddModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案號（輸入後自動查詢案件資料）</label>
+          <div class="quick-mark" style="margin-bottom:4px;">
+            <div class="quick-mark-input-wrap">
+              <input type="text" class="quick-mark-input" id="opsManualSearchInput" placeholder="輸入案號、別名或地址關鍵字…" oninput="onOpsManualSearchInput()" autocomplete="off">
+              <div class="quick-mark-results" id="opsManualSearchResults"></div>
+            </div>
+          </div>
+          <div class="qm-confirmed" id="opsManualSelectedTag">
+            <span>✓ 已帶入案件資料：</span><span id="opsManualSelectedText"></span>
+          </div>
+          <div class="login-note" style="margin-top:10px;">
+            🔗 從上面清單點選一筆，會自動帶入案場名稱／廠商／模組／逆變器資料。如果查無此案號（例如案子還沒建進「專案細節」表），可以不用選，直接往下手動填寫案場名稱／廠商即可。
+          </div>
+
+          <label style="font-size:12px;font-weight:600;display:block;margin:16px 0 6px;">案場名稱</label>
+          <input type="text" class="quick-mark-input" id="opsManualCaseName" style="margin-bottom:14px;" placeholder="例如：工程宜蘭2號">
+
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案號</label>
+          <input type="text" class="quick-mark-input" id="opsManualCaseNo" style="margin-bottom:14px;">
+
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">廠商</label>
+          <input type="text" class="quick-mark-input" id="opsManualVendor" style="margin-bottom:14px;" placeholder="例如：曙光">
+
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計掛表日期（選填）</label>
+          <input type="date" class="quick-mark-input" id="opsManualDate" style="margin-bottom:18px;">
+
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="submitOpsManualAdd()">新增到維運團隊清單</button>
+        </div>
+      </div>
+    </div>
 
     <!-- 維運驗收單 modal -->
     <div class="modal-overlay" id="opsModalOverlay" onclick="if(event.target===this) closeOpsAcceptanceModal()">
@@ -5277,9 +5317,104 @@ function renderOpsTable(){
         <td style="display:flex;gap:6px;flex-wrap:wrap;">
           <button class="btn btn-primary" style="padding:6px 10px;font-size:11.5px;" onclick="openOpsAcceptanceModal('${r.id}')">📝 填寫驗收單</button>
           ${pdfBtn}
+          <button class="btn btn-ghost" style="padding:6px 10px;font-size:11.5px;color:#D64545;" onclick="deleteOpsCase('${r.id}','${(r.case_no||r.case_name||'').replace(/'/g,"\\'")}')">🗑 刪除</button>
         </td>
       </tr>`;
   }).join('');
+}
+
+// ---- 手動新增驗收案場 ----
+let opsManualSearchTimer = null;
+let opsManualSelectedCaseRecordId = null;
+
+function openOpsManualAddModal(){
+  document.getElementById('opsManualSearchInput').value = '';
+  document.getElementById('opsManualSearchResults').classList.remove('show');
+  document.getElementById('opsManualSelectedTag').classList.remove('show');
+  document.getElementById('opsManualCaseName').value = '';
+  document.getElementById('opsManualCaseNo').value = '';
+  document.getElementById('opsManualVendor').value = '';
+  document.getElementById('opsManualDate').value = '';
+  opsManualSelectedCaseRecordId = null;
+  document.getElementById('opsManualAddModalOverlay').classList.add('show');
+}
+function closeOpsManualAddModal(){
+  document.getElementById('opsManualAddModalOverlay').classList.remove('show');
+}
+function onOpsManualSearchInput(){
+  clearTimeout(opsManualSearchTimer);
+  const kw = document.getElementById('opsManualSearchInput').value.trim();
+  const resultsBox = document.getElementById('opsManualSearchResults');
+  if(!kw){ resultsBox.classList.remove('show'); return; }
+  opsManualSearchTimer = setTimeout(async () => {
+    try{
+      const res = await fetch(API_BASE + '/api/case-search?q=' + encodeURIComponent(kw));
+      const data = await res.json();
+      const results = data.results || [];
+      if(results.length === 0){
+        resultsBox.innerHTML = '<div class="qm-empty">查無符合的案件，可以直接往下手動填寫</div>';
+      } else {
+        resultsBox.innerHTML = results.map(r => `
+          <div class="qm-result" onclick='selectOpsManualCandidate(${JSON.stringify(r).replace(/'/g, "&apos;")})'>
+            <div>
+              <div class="qm-result-name">${r.case || ''}${r.alias ? '　'+r.alias : ''}</div>
+              <div class="qm-result-addr">${r.vendor || ''}　${r.address || ''}</div>
+            </div>
+          </div>`).join('');
+      }
+      resultsBox.classList.add('show');
+    }catch(e){ /* 查詢失敗就當作查無資料，不阻擋手動填寫 */ }
+  }, 300);
+}
+function selectOpsManualCandidate(r){
+  opsManualSelectedCaseRecordId = r.record_id;
+  document.getElementById('opsManualCaseName').value = r.alias || r.case || '';
+  document.getElementById('opsManualCaseNo').value = r.case || '';
+  document.getElementById('opsManualVendor').value = r.vendor || '';
+  document.getElementById('opsManualSelectedText').textContent = `${r.case || ''}　${r.vendor || ''}　${r.address || ''}`;
+  document.getElementById('opsManualSelectedTag').classList.add('show');
+  document.getElementById('opsManualSearchResults').classList.remove('show');
+}
+async function submitOpsManualAdd(){
+  const caseName = document.getElementById('opsManualCaseName').value.trim();
+  const caseNo = document.getElementById('opsManualCaseNo').value.trim();
+  if(!caseName && !caseNo){
+    showToast('請至少填寫案號或案場名稱');
+    return;
+  }
+  const payload = {
+    case_record_id: opsManualSelectedCaseRecordId,
+    case_no: caseNo,
+    case_name: caseName,
+    vendor: document.getElementById('opsManualVendor').value.trim(),
+    planned_meter_date: document.getElementById('opsManualDate').value || null,
+  };
+  try{
+    const res = await fetch(API_BASE + '/api/ops-cases/manual', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.error || 'failed');
+    showToast(data.already_existed ? '這個案件已經在清單裡了' : '已新增到維運團隊清單');
+    closeOpsManualAddModal();
+    loadOpsCases();
+  }catch(e){
+    showToast('新增失敗，請檢查網路連線後再試一次');
+  }
+}
+
+async function deleteOpsCase(id, label){
+  if(!confirm(`確定要刪除「${label || '這筆'}」的維運驗收記錄嗎？此動作無法復原。`)) return;
+  try{
+    const res = await fetch(API_BASE + '/api/ops-acceptance/' + id, {method:'DELETE'});
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.error || 'failed');
+    showToast('已刪除');
+    loadOpsCases();
+  }catch(e){
+    showToast('刪除失敗，請稍後再試');
+  }
 }
 
 async function openOpsAcceptanceModal(id){
