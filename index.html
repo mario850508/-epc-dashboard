@@ -396,6 +396,46 @@
     .module-card{padding:16px 18px;flex-direction:column;align-items:flex-start;gap:10px;}
     .module-desc{max-width:100%;}
   }
+
+  /* ---------- 維運團隊模組（2026-09-08 新增）---------- */
+  .ops-status-pill{font-size:10.5px;padding:3px 9px;border-radius:20px;font-weight:700;white-space:nowrap;}
+  .ops-status-pending{background:#FFF0D6;color:#B8720A;}
+  .ops-status-done{background:var(--success-soft);color:var(--success);}
+  .ops-status-pdf{background:#E9F3FF;color:#1E70C8;}
+
+  .ops-cat{margin-bottom:18px;}
+  .ops-cat-title{font-weight:700;font-size:13px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--primary-soft);color:var(--primary-dark);}
+  .ops-item{padding:10px 0;border-bottom:1px solid var(--border);}
+  .ops-item:last-child{border-bottom:none;}
+  .ops-item-text{font-size:12.5px;margin-bottom:8px;line-height:1.5;}
+  .ops-item-no{color:var(--text-muted);font-weight:700;margin-right:4px;}
+  .ops-toggle-group{display:flex;gap:8px;margin-bottom:8px;}
+  .ops-toggle{flex:1;text-align:center;padding:9px;border-radius:8px;border:1px solid var(--border);
+    background:var(--surface);font-size:12.5px;font-weight:700;cursor:pointer;color:var(--text-muted);}
+  .ops-toggle.active-normal{background:var(--success-soft);color:var(--success);border-color:var(--success);}
+  .ops-toggle.active-abnormal{background:#FDECEC;color:#D64545;border-color:#D64545;}
+  .ops-item-extra{display:none;flex-direction:column;gap:6px;margin-top:2px;}
+  .ops-item-extra.show{display:flex;}
+  .ops-item-fix-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);}
+
+  .ops-result-group{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;}
+  .ops-result-chip{padding:8px 16px;border-radius:20px;border:1px solid var(--border);
+    background:var(--surface);font-size:12.5px;font-weight:600;cursor:pointer;color:var(--text-muted);}
+  .ops-result-chip.active{background:var(--text);color:#fff;border-color:var(--text);}
+
+  .ops-eq-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .ops-eq-table th{font-size:11px;}
+  .ops-eq-table td{padding:6px 4px;}
+  .ops-eq-table input{width:100%;border:1px solid var(--border);border-radius:6px;padding:6px 7px;font-size:12px;font-family:inherit;}
+
+  .ops-sign-wrap{border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:14px;}
+  .ops-sign-canvas{width:100%;height:150px;border:1px dashed var(--border);border-radius:8px;
+    background:#fff;touch-action:none;display:block;}
+  .ops-sign-row{display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px;}
+  .ops-sign-status{font-size:11.5px;color:var(--text-muted);}
+
+  .ops-section-title{font-weight:700;font-size:13px;margin:18px 0 8px;padding-top:14px;border-top:1px solid var(--border);}
+  .ops-section-title:first-child{margin-top:0;padding-top:0;border-top:none;}
 </style>
 </head>
 <body>
@@ -444,6 +484,9 @@
           <div class="nav-sub-item" data-sub="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
           <div class="nav-sub-item" data-sub="epc-issue" onclick="showEpcTab('epc-issue')">異常案件</div>
           <div class="nav-sub-item" data-sub="epc-archive" onclick="showEpcTab('epc-archive')">歷史紀錄</div>
+        </div>
+        <div class="nav-item" data-view="ops" onclick="showView('ops'); loadOpsCases();">
+          <span class="nav-icon">🔧</span> 維運團隊
         </div>
       </div>
     </div>
@@ -522,6 +565,17 @@
           <div>
             <div class="module-title">EPC 出貨／進場排程 <span class="module-tag tag-cloud">雲端・手機可看</span></div>
             <div class="module-desc">日曆檢視出貨、植筋、進場、掛表四種日期安排;EPC 廠商可用手機登入查看自己的案件。</div>
+          </div>
+        </div>
+        <div class="chevron">›</div>
+      </div>
+
+      <div class="module-card" onclick="showView('ops'); loadOpsCases();">
+        <div class="module-left">
+          <div class="module-icon epc">🔧</div>
+          <div>
+            <div class="module-title">維運團隊 <span class="module-tag tag-cloud">雲端・手機可看</span></div>
+            <div class="module-desc">已確定掛表時間的案場會自動同步過來,現場人員可用手機填寫驗收單、雙方簽名、產生 PDF。</div>
           </div>
         </div>
         <div class="chevron">›</div>
@@ -830,11 +884,9 @@
       </div>
 
       <!-- 排定日期前：偵測到未使用料件庫存 提示 modal -->
-      <!-- 2026-09-03 新增，2026-09-04 調整（加上「同一個廠商」條件）：點「排定日期」時，
-           如果這個案件的模組／逆變器型號跟「未使用料件」清單裡『同一個廠商』的現有庫存
-           型號相符，先跳出這個提示，問要不要先挪用庫存，而不是直接跳去填出貨日期，
-           避免忘記手上其實已經有現貨可以用、又重新叫貨。不同廠商的庫存不會跳提示，
-           避免誤把別間廠商的料件挪來用。 -->
+      <!-- 2026-09-03 新增：點「排定日期」時，如果這個案件的模組／逆變器型號跟「未使用料件」
+           清單裡現有的庫存型號相符，先跳出這個提示，問要不要先挪用庫存，而不是直接跳去
+           填出貨日期，避免忘記手上其實已經有現貨可以用、又重新叫貨。 -->
       <div class="modal-overlay" id="materialStockAlertModalOverlay" onclick="if(event.target===this) closeMaterialStockAlertModal()">
         <div class="modal-box" style="max-width:480px;">
           <div class="modal-header">
@@ -844,7 +896,7 @@
           <div class="modal-body">
             <div style="margin-bottom:14px;">
               <div style="font-weight:700;font-size:14px;" id="materialStockAlertCaseTitle">—</div>
-              <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px;">同一個廠商在「未使用料件」清單裡還有相符型號的庫存,是否要先挪用,不用重新叫貨？</div>
+              <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px;">這個案件用到的型號,在「未使用料件」清單裡還有庫存,是否要先挪用,不用重新叫貨？</div>
             </div>
             <div id="materialStockAlertRows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px;"></div>
             <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:11px;" onclick="proceedScheduleWithoutStock()">略過,直接排定出貨時間</button>
@@ -1546,6 +1598,114 @@
       </div>
       </div>
     </section>
+
+    <!-- ============ 維運團隊（維運驗收，2026-09-08 新增） ============ -->
+    <section class="view" id="view-ops">
+      <div class="topbar">
+        <div>
+          <div class="crumb">功能模組 / 維運團隊</div>
+          <h1 class="page-title">維運團隊</h1>
+          <div class="page-sub">已確定掛表時間的案場會自動出現在這裡,現場人員可用手機填寫驗收單、雙方簽名、產生 PDF</div>
+        </div>
+        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="loadOpsCases()">🔄 重新整理</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          維運驗收清單
+          <span class="module-tag tag-cloud" style="margin-left:6px;" id="opsCountTag">共 0 筆</span>
+        </div>
+        <div class="pending-toolbar">
+          <input type="text" class="quick-mark-input" id="opsSearchInput" placeholder="搜尋案號、案場…" oninput="renderOpsTable()" style="max-width:260px;">
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>案號／案場</th>
+              <th>廠商</th>
+              <th>預計掛表日期</th>
+              <th>驗收結果</th>
+              <th>狀態</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="opsRows">
+            <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>
+          </tbody>
+        </table>
+        <div class="login-note">
+          🔗 案件在「EPC 出貨／進場排程 → 掛表安排」頁設定「預計掛表日期」時,會自動同步一筆記錄到這裡,不需要另外手動新增。點「填寫驗收單」進入現場驗收表單,可以隨時按「儲存進度」,不用一次填完;雙方簽名完成、按下「完成驗收」後,才能在清單按「產生 PDF」。
+        </div>
+      </div>
+    </section>
+
+    <!-- 維運驗收單 modal -->
+    <div class="modal-overlay" id="opsModalOverlay" onclick="if(event.target===this) closeOpsAcceptanceModal()">
+      <div class="modal-box" style="max-width:720px;">
+        <div class="modal-header">
+          <div class="modal-title">🔧 維運驗收單 — <span id="opsModalCaseTitle">—</span></div>
+          <button class="modal-close" onclick="closeOpsAcceptanceModal()">✕</button>
+        </div>
+        <div class="modal-body" id="opsModalBody">
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;">
+            <div style="flex:1;min-width:200px;">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">業主單位</label>
+              <input type="text" class="quick-mark-input" id="opsOwnerCompany">
+            </div>
+            <div style="flex:1;min-width:200px;">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">系統商單位</label>
+              <input type="text" class="quick-mark-input" id="opsVendorFullname">
+            </div>
+          </div>
+
+          <div class="ops-section-title">太陽光電系統完工驗收細項表</div>
+          <div id="opsChecklistContainer"></div>
+
+          <div class="ops-section-title">其他缺失</div>
+          <textarea class="quick-mark-input" id="opsOtherIssues" rows="2" placeholder="如有其他缺失,請填寫說明…"></textarea>
+
+          <div class="ops-section-title">驗收結果（可複選）</div>
+          <div class="ops-result-group" id="opsResultGroup">
+            <div class="ops-result-chip" data-value="合格" onclick="toggleOpsResult(this)">合格</div>
+            <div class="ops-result-chip" data-value="照片複驗" onclick="toggleOpsResult(this)">照片複驗</div>
+            <div class="ops-result-chip" data-value="現場複驗" onclick="toggleOpsResult(this)">現場複驗</div>
+          </div>
+
+          <div class="ops-section-title">設備清單</div>
+          <table class="ops-eq-table">
+            <thead><tr><th>設備名稱</th><th>品牌</th><th>型號</th><th>數量</th><th>單位</th><th>備註</th></tr></thead>
+            <tbody id="opsEquipmentRows"></tbody>
+          </table>
+
+          <div style="margin-top:16px;">
+            <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:11px;" onclick="saveOpsDraft()">💾 儲存進度</button>
+          </div>
+
+          <div class="ops-section-title">雙方簽名</div>
+          <div class="ops-sign-wrap">
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">業主代表姓名</label>
+            <input type="text" class="quick-mark-input" id="opsOwnerSignerName" style="margin-bottom:10px;">
+            <canvas class="ops-sign-canvas" id="opsOwnerSignCanvas"></canvas>
+            <div class="ops-sign-row">
+              <span class="ops-sign-status" id="opsOwnerSignStatus">尚未簽名</span>
+              <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="clearOpsSignature('owner')">清除簽名</button>
+            </div>
+          </div>
+          <div class="ops-sign-wrap">
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">系統商代表姓名</label>
+            <input type="text" class="quick-mark-input" id="opsVendorSignerName" style="margin-bottom:10px;">
+            <canvas class="ops-sign-canvas" id="opsVendorSignCanvas"></canvas>
+            <div class="ops-sign-row">
+              <span class="ops-sign-status" id="opsVendorSignStatus">尚未簽名</span>
+              <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="clearOpsSignature('vendor')">清除簽名</button>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;margin-bottom:10px;" onclick="completeOpsAcceptance()">✅ 完成驗收（雙方簽名送出）</button>
+          <div id="opsPdfArea"></div>
+        </div>
+      </div>
+    </div>
 
   </main>
 
@@ -3438,20 +3598,14 @@ function extractModelNamesFromCell(str){
     return (m ? m[1] : s).trim();
   }).filter(Boolean);
 }
-// 2026-09-04 調整：加上「同一個廠商」的條件——只有這個案件的廠商跟未使用料件
-// 記錄自己存的廠商完全相符時才算相符庫存，避免跳出别的廠商的庫存造成誤會
-// （沒有填廠商的舊資料，因為無法確認是不是同一間廠商，一律不算相符，不跳提示）。
 function findMatchingUnusedMaterials(row){
   if(!APP_NOTES) return [];
-  const caseVendor = row.dataset.vendor || '';
-  if(!caseVendor) return [];
   const models = [
     ...extractModelNamesFromCell(row.dataset.module),
     ...extractModelNamesFromCell(row.dataset.inverter),
   ].filter(m => m && m !== '尚未填寫規格');
   if(models.length === 0) return [];
   return APP_NOTES.filter(n => n.type === '未使用料件' && n.content &&
-    materialVendorForNote(n) === caseVendor &&
     models.some(model => n.content.includes(model)));
 }
 let scheduleStockCheckPending = null; // {btn, mode}
@@ -5062,6 +5216,339 @@ function showPdfTab(tab){
   saveNavState({view: 'pdf', pdfTab: tab});
 }
 
+// ===================================================================
+// 維運團隊（維運驗收，2026-09-08 新增）
+// ===================================================================
+let OPS_CASES = [];
+let OPS_CURRENT = null;       // 目前在 modal 裡編輯的完整驗收單資料
+let OPS_RESULT_SELECTED = []; // 目前勾選的「驗收結果」
+let OPS_SIGN_PADS = {};       // { owner: {canvas, ctx, drawing, empty}, vendor: {...} }
+
+async function loadOpsCases(){
+  try{
+    const res = await fetch(API_BASE + '/api/ops-cases');
+    const data = await res.json();
+    OPS_CASES = data.cases || [];
+    renderOpsTable();
+  }catch(e){
+    document.getElementById('opsRows').innerHTML =
+      '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入失敗,請按「重新整理」再試一次</td></tr>';
+  }
+}
+
+function opsStatusPillHtml(status){
+  const map = {
+    '待填寫': ['ops-status-pending', '待填寫'],
+    '已完成驗收': ['ops-status-done', '已完成驗收'],
+    '已產生PDF': ['ops-status-pdf', '已產生PDF'],
+  };
+  const [cls, label] = map[status] || ['ops-status-pending', status || '待填寫'];
+  return `<span class="ops-status-pill ${cls}">${label}</span>`;
+}
+
+function renderOpsTable(){
+  const kw = (document.getElementById('opsSearchInput').value || '').trim();
+  let rows = OPS_CASES;
+  if(kw){
+    rows = rows.filter(r => (r.case_no||'').includes(kw) || (r.case_name||'').includes(kw));
+  }
+  document.getElementById('opsCountTag').textContent = `共 ${rows.length} 筆`;
+
+  if(rows.length === 0){
+    document.getElementById('opsRows').innerHTML =
+      '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有符合條件的案件</td></tr>';
+    return;
+  }
+  document.getElementById('opsRows').innerHTML = rows.map(r => {
+    const vendorCls = VENDOR_CLASS[r.vendor] || 'vendor-other';
+    const resultText = (r.result && r.result.length) ? r.result.join('、') : '—';
+    const pdfBtn = (r.status === '已完成驗收' || r.status === '已產生PDF')
+      ? `<button class="btn btn-ghost" style="padding:6px 10px;font-size:11.5px;" onclick="generateOpsPdf('${r.id}')">📄 產生PDF</button>`
+      : '';
+    return `
+      <tr>
+        <td>
+          <div class="case-id">${r.case_no || ''}</div>
+          <div class="case-alias">${r.case_name || ''}</div>
+        </td>
+        <td><span class="vendor-pill ${vendorCls}">${r.vendor || '—'}</span></td>
+        <td>${fmtDate(r.planned_meter_date) || '—'}</td>
+        <td>${resultText}</td>
+        <td>${opsStatusPillHtml(r.status)}</td>
+        <td style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-primary" style="padding:6px 10px;font-size:11.5px;" onclick="openOpsAcceptanceModal('${r.id}')">📝 填寫驗收單</button>
+          ${pdfBtn}
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+async function openOpsAcceptanceModal(id){
+  document.getElementById('opsModalCaseTitle').textContent = '載入中…';
+  document.getElementById('opsModalOverlay').classList.add('show');
+  try{
+    const res = await fetch(API_BASE + '/api/ops-acceptance/' + id);
+    const data = await res.json();
+    OPS_CURRENT = data;
+    document.getElementById('opsModalCaseTitle').textContent = `${data.case_no || ''} ${data.case_name || ''}`;
+    document.getElementById('opsOwnerCompany').value = data.owner_company || '';
+    document.getElementById('opsVendorFullname').value = data.vendor_fullname || '';
+    document.getElementById('opsOtherIssues').value = data.other_issues || '';
+    document.getElementById('opsOwnerSignerName').value = data.owner_signer_name || '';
+    document.getElementById('opsVendorSignerName').value = data.vendor_signer_name || '';
+
+    OPS_RESULT_SELECTED = (data.result || []).slice();
+    document.querySelectorAll('#opsResultGroup .ops-result-chip').forEach(chip => {
+      chip.classList.toggle('active', OPS_RESULT_SELECTED.includes(chip.dataset.value));
+    });
+
+    renderOpsChecklist(data.checklist || []);
+    renderOpsEquipmentRows(data.equipment || []);
+    initOpsSignaturePads();
+    updateOpsSignStatus('owner', !!data.owner_signature_url, data.owner_sign_date);
+    updateOpsSignStatus('vendor', !!data.vendor_signature_url, data.vendor_sign_date);
+    renderOpsPdfArea(data);
+  }catch(e){
+    document.getElementById('opsModalCaseTitle').textContent = '載入失敗';
+    showToast('驗收單載入失敗，請關閉後重試');
+  }
+}
+function closeOpsAcceptanceModal(){
+  document.getElementById('opsModalOverlay').classList.remove('show');
+  OPS_CURRENT = null;
+}
+
+function renderOpsChecklist(checklist){
+  const byCategory = {};
+  const order = [];
+  checklist.forEach(item => {
+    if(!byCategory[item.category]){ byCategory[item.category] = []; order.push(item.category); }
+    byCategory[item.category].push(item);
+  });
+  const html = order.map(cat => {
+    const itemsHtml = byCategory[cat].map(item => {
+      const isAbnormal = item.result === '異常';
+      return `
+        <div class="ops-item" data-no="${item.no}">
+          <div class="ops-item-text"><span class="ops-item-no">${item.no}</span>${item.item}</div>
+          <div class="ops-toggle-group">
+            <div class="ops-toggle ${item.result==='正常'?'active-normal':''}" onclick="setOpsItemResult(this,'正常')">正常</div>
+            <div class="ops-toggle ${item.result==='異常'?'active-abnormal':''}" onclick="setOpsItemResult(this,'異常')">異常</div>
+          </div>
+          <div class="ops-item-extra ${isAbnormal?'show':''}">
+            <input type="text" class="quick-mark-input" placeholder="備註說明…" value="${(item.note||'').replace(/"/g,'&quot;')}" oninput="syncOpsItemNote(this)">
+            <label class="ops-item-fix-row">
+              <input type="checkbox" ${item.onsite_fix?'checked':''} onchange="syncOpsItemFix(this)"> 已現場修復
+            </label>
+          </div>
+        </div>`;
+    }).join('');
+    return `<div class="ops-cat"><div class="ops-cat-title">${cat}</div>${itemsHtml}</div>`;
+  }).join('');
+  document.getElementById('opsChecklistContainer').innerHTML = html;
+}
+function setOpsItemResult(toggleEl, value){
+  const itemEl = toggleEl.closest('.ops-item');
+  const no = itemEl.dataset.no;
+  const item = OPS_CURRENT.checklist.find(i => i.no === no);
+  item.result = (item.result === value) ? null : value; // 再點一次可以取消
+  itemEl.querySelectorAll('.ops-toggle').forEach(t => t.classList.remove('active-normal','active-abnormal'));
+  if(item.result === '正常') itemEl.querySelector('.ops-toggle:nth-child(1)').classList.add('active-normal');
+  if(item.result === '異常') itemEl.querySelector('.ops-toggle:nth-child(2)').classList.add('active-abnormal');
+  itemEl.querySelector('.ops-item-extra').classList.toggle('show', item.result === '異常');
+}
+function syncOpsItemNote(inputEl){
+  const itemEl = inputEl.closest('.ops-item');
+  const item = OPS_CURRENT.checklist.find(i => i.no === itemEl.dataset.no);
+  item.note = inputEl.value;
+}
+function syncOpsItemFix(checkboxEl){
+  const itemEl = checkboxEl.closest('.ops-item');
+  const item = OPS_CURRENT.checklist.find(i => i.no === itemEl.dataset.no);
+  item.onsite_fix = checkboxEl.checked;
+}
+
+function toggleOpsResult(chipEl){
+  const value = chipEl.dataset.value;
+  chipEl.classList.toggle('active');
+  if(OPS_RESULT_SELECTED.includes(value)){
+    OPS_RESULT_SELECTED = OPS_RESULT_SELECTED.filter(v => v !== value);
+  } else {
+    OPS_RESULT_SELECTED.push(value);
+  }
+}
+
+function renderOpsEquipmentRows(equipment){
+  document.getElementById('opsEquipmentRows').innerHTML = equipment.map((eq, i) => `
+    <tr data-idx="${i}">
+      <td>${eq.name || ''}</td>
+      <td><input type="text" value="${(eq.brand||'').replace(/"/g,'&quot;')}" oninput="syncOpsEquipment(${i},'brand',this.value)"></td>
+      <td><input type="text" value="${(eq.model||'').replace(/"/g,'&quot;')}" oninput="syncOpsEquipment(${i},'model',this.value)"></td>
+      <td><input type="text" value="${(eq.qty||'').toString().replace(/"/g,'&quot;')}" oninput="syncOpsEquipment(${i},'qty',this.value)"></td>
+      <td><input type="text" value="${(eq.unit||'').replace(/"/g,'&quot;')}" oninput="syncOpsEquipment(${i},'unit',this.value)"></td>
+      <td><input type="text" value="${(eq.note||'').replace(/"/g,'&quot;')}" oninput="syncOpsEquipment(${i},'note',this.value)"></td>
+    </tr>`).join('');
+}
+function syncOpsEquipment(idx, key, value){
+  OPS_CURRENT.equipment[idx][key] = value;
+}
+
+function opsCollectPayload(){
+  return {
+    owner_company: document.getElementById('opsOwnerCompany').value,
+    vendor_fullname: document.getElementById('opsVendorFullname').value,
+    other_issues: document.getElementById('opsOtherIssues').value,
+    result: OPS_RESULT_SELECTED,
+    checklist: OPS_CURRENT.checklist,
+    equipment: OPS_CURRENT.equipment,
+    owner_signer_name: document.getElementById('opsOwnerSignerName').value,
+    vendor_signer_name: document.getElementById('opsVendorSignerName').value,
+  };
+}
+
+async function saveOpsDraft(){
+  if(!OPS_CURRENT) return;
+  try{
+    const res = await fetch(API_BASE + '/api/ops-acceptance/' + OPS_CURRENT.id, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(opsCollectPayload()),
+    });
+    if(!res.ok) throw new Error('save failed');
+    showToast('已儲存驗收單進度');
+    loadOpsCases();
+  }catch(e){
+    showToast('儲存失敗，請檢查網路連線後再試一次');
+  }
+}
+
+// ---- 簽名畫布（Pointer Events，同時支援滑鼠／觸控／觸控筆）----
+function initOpsSignaturePads(){
+  ['owner','vendor'].forEach(who => {
+    const canvas = document.getElementById('ops' + (who==='owner'?'Owner':'Vendor') + 'SignCanvas');
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * (window.devicePixelRatio||1);
+    canvas.height = rect.height * (window.devicePixelRatio||1);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(window.devicePixelRatio||1, window.devicePixelRatio||1);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0,0,rect.width,rect.height);
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#1a1a1a';
+    const pad = {canvas, ctx, drawing:false, empty:true, lastX:0, lastY:0};
+    OPS_SIGN_PADS[who] = pad;
+
+    const getPos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      return {x: e.clientX - r.left, y: e.clientY - r.top};
+    };
+    canvas.onpointerdown = (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      const p = getPos(e);
+      pad.drawing = true; pad.lastX = p.x; pad.lastY = p.y;
+    };
+    canvas.onpointermove = (e) => {
+      if(!pad.drawing) return;
+      const p = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(pad.lastX, pad.lastY);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      pad.lastX = p.x; pad.lastY = p.y;
+      pad.empty = false;
+      updateOpsSignStatus(who, true, null, true);
+    };
+    canvas.onpointerup = () => { pad.drawing = false; };
+    canvas.onpointerleave = () => { pad.drawing = false; };
+  });
+}
+function clearOpsSignature(who){
+  const pad = OPS_SIGN_PADS[who];
+  if(!pad) return;
+  const rect = pad.canvas.getBoundingClientRect();
+  pad.ctx.fillStyle = '#fff';
+  pad.ctx.fillRect(0,0,rect.width,rect.height);
+  pad.empty = true;
+  updateOpsSignStatus(who, false, null, true);
+}
+function updateOpsSignStatus(who, hasSignature, signDate, isDrawing){
+  const el = document.getElementById('ops' + (who==='owner'?'Owner':'Vendor') + 'SignStatus');
+  if(isDrawing){
+    el.textContent = hasSignature ? '已簽名（尚未送出）' : '尚未簽名';
+  } else {
+    el.textContent = hasSignature ? `已簽名（${signDate||''}）` : '尚未簽名';
+  }
+}
+
+async function completeOpsAcceptance(){
+  if(!OPS_CURRENT) return;
+  const ownerName = document.getElementById('opsOwnerSignerName').value.trim();
+  const vendorName = document.getElementById('opsVendorSignerName').value.trim();
+  const ownerPad = OPS_SIGN_PADS.owner, vendorPad = OPS_SIGN_PADS.vendor;
+  if(!ownerName || !vendorName){
+    showToast('請填寫業主與系統商代表姓名');
+    return;
+  }
+  if((!ownerPad || ownerPad.empty) || (!vendorPad || vendorPad.empty)){
+    showToast('請雙方都完成簽名後再送出');
+    return;
+  }
+  const today = new Date().toISOString().slice(0,10);
+  const payload = opsCollectPayload();
+  payload.status = '已完成驗收';
+  payload.owner_sign_date = today;
+  payload.vendor_sign_date = today;
+  payload.owner_signature_base64 = ownerPad.canvas.toDataURL('image/png').split(',')[1];
+  payload.owner_signature_filename = 'owner_signature.png';
+  payload.vendor_signature_base64 = vendorPad.canvas.toDataURL('image/png').split(',')[1];
+  payload.vendor_signature_filename = 'vendor_signature.png';
+
+  try{
+    const res = await fetch(API_BASE + '/api/ops-acceptance/' + OPS_CURRENT.id, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if(!res.ok) throw new Error('failed');
+    showToast('驗收完成！可以到清單頁按「產生 PDF」');
+    closeOpsAcceptanceModal();
+    loadOpsCases();
+  }catch(e){
+    showToast('送出失敗，請檢查網路連線後再試一次');
+  }
+}
+
+function renderOpsPdfArea(data){
+  const area = document.getElementById('opsPdfArea');
+  if(data.status !== '已完成驗收' && data.status !== '已產生PDF'){
+    area.innerHTML = '<div class="login-note">🔗 雙方簽名、按「完成驗收」之後，才能產生 PDF。</div>';
+    return;
+  }
+  const linkHtml = data.pdf_url
+    ? `<a href="${data.pdf_url}" target="_blank" style="font-size:12.5px;">📥 下載目前的 PDF</a>`
+    : '';
+  area.innerHTML = `
+    <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:11px;margin-bottom:8px;" onclick="generateOpsPdf('${data.id}', true)">📄 產生／更新 PDF</button>
+    <div style="text-align:center;">${linkHtml}</div>`;
+}
+
+async function generateOpsPdf(id, keepModalOpen){
+  showToast('PDF 產生中，請稍候…');
+  try{
+    const res = await fetch(API_BASE + '/api/ops-acceptance/' + id + '/generate-pdf', {method:'POST'});
+    const data = await res.json();
+    if(!res.ok || !data.ok) throw new Error(data.error || 'failed');
+    showToast('PDF 產生完成！');
+    loadOpsCases();
+    if(keepModalOpen && OPS_CURRENT && OPS_CURRENT.id === id){
+      openOpsAcceptanceModal(id);
+    } else if(data.pdf_url){
+      window.open(data.pdf_url, '_blank');
+    }
+  }catch(e){
+    showToast('PDF 產生失敗，請稍後再試');
+  }
+}
+
 // 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
 // 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
 (function restoreNavState(){
@@ -5070,6 +5557,9 @@ function showPdfTab(tab){
     showEpcTab(state.epcTab);
   } else if(state && state.view === 'pdf' && state.pdfTab && document.getElementById('tab-' + state.pdfTab)){
     showPdfTab(state.pdfTab);
+  } else if(state && state.view === 'ops'){
+    showView('ops');
+    loadOpsCases();
   } else {
     showView('home');
   }
