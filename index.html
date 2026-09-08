@@ -830,9 +830,11 @@
       </div>
 
       <!-- 排定日期前：偵測到未使用料件庫存 提示 modal -->
-      <!-- 2026-09-03 新增：點「排定日期」時，如果這個案件的模組／逆變器型號跟「未使用料件」
-           清單裡現有的庫存型號相符，先跳出這個提示，問要不要先挪用庫存，而不是直接跳去
-           填出貨日期，避免忘記手上其實已經有現貨可以用、又重新叫貨。 -->
+      <!-- 2026-09-03 新增，2026-09-04 調整（加上「同一個廠商」條件）：點「排定日期」時，
+           如果這個案件的模組／逆變器型號跟「未使用料件」清單裡『同一個廠商』的現有庫存
+           型號相符，先跳出這個提示，問要不要先挪用庫存，而不是直接跳去填出貨日期，
+           避免忘記手上其實已經有現貨可以用、又重新叫貨。不同廠商的庫存不會跳提示，
+           避免誤把別間廠商的料件挪來用。 -->
       <div class="modal-overlay" id="materialStockAlertModalOverlay" onclick="if(event.target===this) closeMaterialStockAlertModal()">
         <div class="modal-box" style="max-width:480px;">
           <div class="modal-header">
@@ -842,7 +844,7 @@
           <div class="modal-body">
             <div style="margin-bottom:14px;">
               <div style="font-weight:700;font-size:14px;" id="materialStockAlertCaseTitle">—</div>
-              <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px;">這個案件用到的型號,在「未使用料件」清單裡還有庫存,是否要先挪用,不用重新叫貨？</div>
+              <div style="font-size:12.5px;color:var(--text-muted);margin-top:4px;">同一個廠商在「未使用料件」清單裡還有相符型號的庫存,是否要先挪用,不用重新叫貨？</div>
             </div>
             <div id="materialStockAlertRows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px;"></div>
             <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:11px;" onclick="proceedScheduleWithoutStock()">略過,直接排定出貨時間</button>
@@ -3436,14 +3438,20 @@ function extractModelNamesFromCell(str){
     return (m ? m[1] : s).trim();
   }).filter(Boolean);
 }
+// 2026-09-04 調整：加上「同一個廠商」的條件——只有這個案件的廠商跟未使用料件
+// 記錄自己存的廠商完全相符時才算相符庫存，避免跳出别的廠商的庫存造成誤會
+// （沒有填廠商的舊資料，因為無法確認是不是同一間廠商，一律不算相符，不跳提示）。
 function findMatchingUnusedMaterials(row){
   if(!APP_NOTES) return [];
+  const caseVendor = row.dataset.vendor || '';
+  if(!caseVendor) return [];
   const models = [
     ...extractModelNamesFromCell(row.dataset.module),
     ...extractModelNamesFromCell(row.dataset.inverter),
   ].filter(m => m && m !== '尚未填寫規格');
   if(models.length === 0) return [];
   return APP_NOTES.filter(n => n.type === '未使用料件' && n.content &&
+    materialVendorForNote(n) === caseVendor &&
     models.some(model => n.content.includes(model)));
 }
 let scheduleStockCheckPending = null; // {btn, mode}
