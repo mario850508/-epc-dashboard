@@ -414,8 +414,7 @@
     background:var(--surface);font-size:12.5px;font-weight:700;cursor:pointer;color:var(--text-muted);}
   .ops-toggle.active-normal{background:var(--success-soft);color:var(--success);border-color:var(--success);}
   .ops-toggle.active-abnormal{background:#FDECEC;color:#D64545;border-color:#D64545;}
-  .ops-item-extra{display:none;flex-direction:column;gap:6px;margin-top:2px;}
-  .ops-item-extra.show{display:flex;}
+  .ops-item-extra{display:flex;flex-direction:column;gap:6px;margin-top:2px;}
   .ops-item-fix-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);}
 
   .ops-result-group{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;}
@@ -5327,7 +5326,6 @@ function renderOpsChecklist(checklist){
   });
   const html = order.map(cat => {
     const itemsHtml = byCategory[cat].map(item => {
-      const isAbnormal = item.result === '異常';
       return `
         <div class="ops-item" data-no="${item.no}">
           <div class="ops-item-text"><span class="ops-item-no">${item.no}</span>${item.item}</div>
@@ -5335,7 +5333,7 @@ function renderOpsChecklist(checklist){
             <div class="ops-toggle ${item.result==='正常'?'active-normal':''}" onclick="setOpsItemResult(this,'正常')">正常</div>
             <div class="ops-toggle ${item.result==='異常'?'active-abnormal':''}" onclick="setOpsItemResult(this,'異常')">異常</div>
           </div>
-          <div class="ops-item-extra ${isAbnormal?'show':''}">
+          <div class="ops-item-extra">
             <input type="text" class="quick-mark-input" placeholder="備註說明…" value="${(item.note||'').replace(/"/g,'&quot;')}" oninput="syncOpsItemNote(this)">
             <label class="ops-item-fix-row">
               <input type="checkbox" ${item.onsite_fix?'checked':''} onchange="syncOpsItemFix(this)"> 已現場修復
@@ -5355,7 +5353,6 @@ function setOpsItemResult(toggleEl, value){
   itemEl.querySelectorAll('.ops-toggle').forEach(t => t.classList.remove('active-normal','active-abnormal'));
   if(item.result === '正常') itemEl.querySelector('.ops-toggle:nth-child(1)').classList.add('active-normal');
   if(item.result === '異常') itemEl.querySelector('.ops-toggle:nth-child(2)').classList.add('active-abnormal');
-  itemEl.querySelector('.ops-item-extra').classList.toggle('show', item.result === '異常');
 }
 function syncOpsItemNote(inputEl){
   const itemEl = inputEl.closest('.ops-item');
