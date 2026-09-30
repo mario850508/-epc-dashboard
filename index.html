@@ -215,7 +215,14 @@
   .btn-danger{background:#E5484D;color:#fff;}
   .btn-danger:hover{background:#C9383D;}
 
-  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+  /* 2026-09-30 改版：.panel 是幾乎每個頁面的主要容器（排程日曆/掛表安排/
+     異常案件/歷史紀錄/PDF公文更名…共 17 處），使用者反饋這些卡片還是死白，
+     改成極淺的暖白色 + 暖色邊框 + 一點陰影，跟頁面暖色背景銜接起來，
+     同時保留跟純白幾乎一樣的亮度，不影響表格內文字辨識度。 */
+  .panel{
+    background:#FFFCF5;border:1px solid #F0E4CC;border-radius:var(--radius);padding:20px;
+    box-shadow:var(--shadow-card);
+  }
   .panel-title{font-size:14px;font-weight:700;margin:0 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:8px;}
 
   /* ---- 頁籤（公文更名/LINE收件紀錄、EPC 模組 7 個子頁籤共用）----
