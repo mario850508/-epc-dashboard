@@ -12,7 +12,7 @@
 <title>陽光管理主控台</title>
 <style>
   :root{
-    --bg:#F3F5FA;
+    --bg:#F7F3EC;
     --surface:#FFFFFF;
     --surface-2:#F8F9FD;
     --primary:#2B5FF6;
@@ -44,7 +44,11 @@
   body{
     margin:0;
     font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,-apple-system,sans-serif;
-    background:var(--bg);
+    background:
+      radial-gradient(ellipse 900px 500px at 100% 0%, rgba(255,182,72,.16), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 0% 100%, rgba(242,121,12,.07), transparent 55%),
+      var(--bg);
+    background-attachment:fixed;
     color:var(--text);
     display:flex;
     min-height:100vh;
@@ -52,16 +56,25 @@
 
   /* ---------- Sidebar ---------- */
   .sidebar{
-    width:236px;flex-shrink:0;background:var(--surface);
-    border-right:1px solid var(--border);padding:24px 16px;
+    width:236px;flex-shrink:0;
+    background:linear-gradient(180deg,#FFFDFA,var(--surface) 140px);
+    border-right:1px solid var(--border);border-top:3px solid var(--sun-2);
+    padding:24px 16px;
     display:flex;flex-direction:column;gap:22px;
   }
   .brand{display:flex;align-items:center;gap:10px;padding:0 8px;}
   .brand-mark{
-    width:34px;height:34px;border-radius:10px;
-    background:linear-gradient(135deg,var(--sun-1),var(--sun-2));
-    box-shadow:0 4px 10px rgba(230,140,20,.35);
-    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;
+    position:relative;
+    width:40px;height:40px;border-radius:50%;flex-shrink:0;
+    background:linear-gradient(150deg,var(--sun-1),var(--sun-2) 65%,var(--sun-3));
+    box-shadow:0 5px 14px rgba(196,83,10,.38), 0 0 0 4px rgba(255,182,72,.16);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px;
+    text-shadow:0 1px 2px rgba(120,50,0,.35);
+  }
+  .brand-mark::before{
+    /* 左上角一小塊亮面高光，讓圓形徽章看起來有光澤／立體感，不是純平塗色塊 */
+    content:"";position:absolute;left:5px;top:4px;width:15px;height:9px;border-radius:50%;
+    background:rgba(255,255,255,.55);filter:blur(2px);transform:rotate(-18deg);pointer-events:none;
   }
   .brand-name{font-weight:700;font-size:15px;letter-spacing:.02em;}
   .brand-sub{font-size:11px;color:var(--text-muted);margin-top:1px;}
@@ -138,10 +151,14 @@
 
   .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:26px;}
   .stat-card{
-    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;
+    background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--sun-2);
+    border-radius:var(--radius);padding:18px 20px;
     box-shadow:var(--shadow-card);display:flex;gap:14px;align-items:flex-start;
     transition:transform .15s ease, box-shadow .15s ease;
   }
+  /* 左側色條跟圖示徽章顏色對應，用 :has() 直接依內部圖示上色，不用另外幫卡片加 class */
+  .stat-card:has(.stat-icon.icon-blue){border-left-color:var(--primary);}
+  .stat-card:has(.stat-icon.icon-green){border-left-color:var(--success);}
   .stat-card:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(30,40,70,.10);}
   .stat-icon{
     width:38px;height:38px;border-radius:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
@@ -154,11 +171,15 @@
   .stat-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px;}
 
   .module-card{
-    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--border);
+    border-radius:var(--radius);
     padding:22px 24px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;
     cursor:pointer;transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease;
     box-shadow:var(--shadow-card);
   }
+  .module-card:has(.module-icon.pdf){border-left-color:var(--primary);}
+  .module-card:has(.module-icon.epc){border-left-color:var(--epc);}
+  .module-card:has(.module-icon.ops){border-left-color:var(--success);}
   .module-card:hover{border-color:#C9D5FB;box-shadow:var(--shadow-lift);transform:translateY(-2px);}
   .module-left{display:flex;gap:16px;align-items:flex-start;}
   .module-icon{
