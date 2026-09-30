@@ -216,7 +216,7 @@
   .btn-danger:hover{background:#C9383D;}
 
   .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
-  .panel-title{font-size:14px;font-weight:700;margin:0 0 14px;display:flex;align-items:center;gap:8px;}
+  .panel-title{font-size:14px;font-weight:700;margin:0 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:8px;}
 
   /* ---- 頁籤（公文更名/LINE收件紀錄、EPC 模組 7 個子頁籤共用）----
      2026-09-30 改版：原本是底線式文字頁籤，使用者反饋想要「按鈕感覺」，
@@ -354,8 +354,25 @@
   .note-add-row-wide input:first-child{flex:0 0 200px;}
   .note-add-row-wide input:nth-child(2){flex:1;}
 
-  .notes-trigger-btn{margin-left:auto;padding:7px 14px;font-size:12.5px;}
-  .notes-trigger-btn + .notes-trigger-btn{margin-left:8px;}
+  /* 2026-09-30 改版：這排工具列按鈕（手動更新/註記清單/未使用料件/產出通知訊息/
+     筆記本/重新檢查函文進度/撤案清單）原本跟一般 .btn-ghost 一樣是白底灰框，
+     使用者反饋想要更有「按鈕感」、配合網站暖色調，改成暖色膠囊按鈕。
+     只動 .notes-trigger-btn 這個 class（目前只有這排工具列在用），
+     不影響其他 55 處也用 .btn-ghost 的表格列內操作按鈕。 */
+  /* 按鈕群組外面包一層 wrapper，靠 wrapper 自己 margin-left:auto 整組推到右邊、
+     整組 flex-wrap，畫面窄的時候是「一整排」換到下一行，不會每顆按鈕各自被
+     擠到文字換行（2026-09-30，前一版直接在每顆按鈕上做 margin-left:auto
+     在按鈕數量一多、螢幕變窄時會擠壓文字換行，所以改成這樣）。 */
+  .panel-title-actions{margin-left:auto;display:flex;flex-wrap:wrap;gap:8px;}
+  .notes-trigger-btn{
+    padding:8px 15px;font-size:12.5px;font-weight:700;white-space:nowrap;
+    border-radius:20px;background:#FBF3E2;border:1px solid #EFDCB4;color:var(--sun-3);
+    transition:transform .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease;
+  }
+  .notes-trigger-btn:hover{
+    background:linear-gradient(135deg,var(--sun-1),var(--sun-2));color:#fff;border-color:transparent;
+    box-shadow:0 4px 10px rgba(230,140,20,.32);transform:translateY(-1px);
+  }
 
   .pending-toolbar{display:flex;justify-content:flex-start;align-items:center;gap:12px;margin:14px 0;flex-wrap:wrap;}
   .sortable-th{cursor:pointer;user-select:none;}
@@ -775,11 +792,13 @@
             待安排出貨&植筋
             <span class="module-tag tag-cloud" style="margin-left:6px;" id="pendingCountTag">共 0 筆</span>
             <span id="pendingUpdatedAt" style="margin-left:8px;font-size:11px;color:var(--text-muted);font-weight:400;"></span>
-            <button class="btn btn-ghost notes-trigger-btn" id="manualRefreshBtn" onclick="triggerManualRefresh()">🔄 手動更新</button>
-            <button class="btn btn-ghost notes-trigger-btn" onclick="openNotesModal()">📝 註記清單</button>
-            <button class="btn btn-ghost notes-trigger-btn" onclick="openMaterialModal()">📦 未使用料件</button>
-            <button class="btn btn-ghost notes-trigger-btn" onclick="openNotifyModal()">📋 產出通知訊息</button>
-            <button class="btn btn-ghost notes-trigger-btn" onclick="openNotebookModal()">📓 筆記本</button>
+            <div class="panel-title-actions">
+              <button class="btn btn-ghost notes-trigger-btn" id="manualRefreshBtn" onclick="triggerManualRefresh()">🔄 手動更新</button>
+              <button class="btn btn-ghost notes-trigger-btn" onclick="openNotesModal()">📝 註記清單</button>
+              <button class="btn btn-ghost notes-trigger-btn" onclick="openMaterialModal()">📦 未使用料件</button>
+              <button class="btn btn-ghost notes-trigger-btn" onclick="openNotifyModal()">📋 產出通知訊息</button>
+              <button class="btn btn-ghost notes-trigger-btn" onclick="openNotebookModal()">📓 筆記本</button>
+            </div>
           </div>
 
           <div class="pending-toolbar">
@@ -899,8 +918,10 @@
         <div class="panel">
           <div class="panel-title">
             異常案件
-            <button class="btn btn-ghost notes-trigger-btn" onclick="recheckAllDocStatus()">🔄 重新檢查函文進度</button>
-            <button class="btn btn-ghost notes-trigger-btn" onclick="openWithdrawnModal()">🚫 撤案清單 <span class="module-tag tag-cloud" style="margin-left:4px;" id="withdrawnCountTag">共 0 筆</span></button>
+            <div class="panel-title-actions">
+              <button class="btn btn-ghost notes-trigger-btn" onclick="recheckAllDocStatus()">🔄 重新檢查函文進度</button>
+              <button class="btn btn-ghost notes-trigger-btn" onclick="openWithdrawnModal()">🚫 撤案清單 <span class="module-tag tag-cloud" style="margin-left:4px;" id="withdrawnCountTag">共 0 筆</span></button>
+            </div>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:16px;">
             <input type="text" class="quick-mark-input" id="issueSearchInput" placeholder="輸入案號,例如：工程新竹6號" style="flex:1;" onkeydown="if(event.key==='Enter') addIssueByCaseNumber()">
