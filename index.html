@@ -32,6 +32,13 @@
     --m-rebar:#8B5CF6;   --m-rebar-soft:#F1ECFE;
     --m-enter:#2B5FF6;   --m-enter-soft:#E8EEFF;
     --m-meter:#16A34A;   --m-meter-soft:#E7F7EE;
+
+    /* 2026-09-30 新增：總覽頁「陽光」主題視覺強化用的暖色 token，跟原本
+       功能頁的藍/橘資料色系分開，只用在首頁 hero／stat-card／module-card
+       這些品牌/導覽層級的元件，避免動到表格類頁面既有的辨識度。 */
+    --sun-1:#FFB648; --sun-2:#F2790C; --sun-3:#C4530A;
+    --shadow-card:0 2px 10px rgba(30,40,70,.06);
+    --shadow-lift:0 14px 30px rgba(230,140,20,.16);
   }
   *{box-sizing:border-box;}
   body{
@@ -52,7 +59,8 @@
   .brand{display:flex;align-items:center;gap:10px;padding:0 8px;}
   .brand-mark{
     width:34px;height:34px;border-radius:10px;
-    background:linear-gradient(135deg,var(--primary),#6FA1FF);
+    background:linear-gradient(135deg,var(--sun-1),var(--sun-2));
+    box-shadow:0 4px 10px rgba(230,140,20,.35);
     display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;
   }
   .brand-name{font-weight:700;font-size:15px;letter-spacing:.02em;}
@@ -82,23 +90,65 @@
   .page-title{font-size:22px;font-weight:700;margin:0;}
   .page-sub{font-size:13px;color:var(--text-muted);margin-top:4px;}
 
+  /* ---------- 首頁 Hero（2026-09-30 新增，「陽光」品牌感的入口橫幅）---------- */
+  .hero-banner{
+    position:relative;overflow:hidden;border-radius:20px;padding:30px 32px;margin-bottom:24px;
+    background:
+      radial-gradient(circle at 88% -10%, rgba(255,255,255,.28), transparent 45%),
+      radial-gradient(circle at 100% 120%, rgba(255,255,255,.14), transparent 40%),
+      linear-gradient(120deg,var(--sun-2),var(--sun-1) 55%,#FFD27A);
+    box-shadow:var(--shadow-lift);
+    color:#fff;
+  }
+  .hero-banner::before{
+    /* 用一圈圈同心圓弱化模擬等高線地圖的紋理感，不用額外圖檔 */
+    content:"";position:absolute;right:-60px;top:-60px;width:260px;height:260px;border-radius:50%;
+    border:1px solid rgba(255,255,255,.22);pointer-events:none;
+  }
+  .hero-banner::after{
+    content:"";position:absolute;right:-10px;top:-10px;width:150px;height:150px;border-radius:50%;
+    border:1px solid rgba(255,255,255,.22);pointer-events:none;
+  }
+  .hero-banner .crumb{color:rgba(255,255,255,.85);}
+  .hero-banner .page-title{color:#fff;font-size:25px;}
+  .hero-banner .page-sub{color:rgba(255,255,255,.92);}
+
   .pipeline{
     display:flex;align-items:stretch;background:var(--surface);border:1px solid var(--border);
     border-radius:var(--radius);padding:16px 20px;margin-bottom:24px;overflow-x:auto;
+    box-shadow:var(--shadow-card);
   }
   .pipe-step{display:flex;align-items:center;gap:12px;flex:1;min-width:150px;}
   .pipe-num{
-    width:26px;height:26px;border-radius:50%;background:var(--surface-2);border:1px solid var(--border);
+    width:28px;height:28px;border-radius:50%;background:var(--surface-2);border:1.5px solid var(--border);
     display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--text-muted);flex-shrink:0;
   }
   .pipe-step.done .pipe-num{background:var(--success);border-color:var(--success);color:#fff;}
-  .pipe-step.active .pipe-num{background:var(--primary);border-color:var(--primary);color:#fff;}
+  .pipe-step.active .pipe-num{background:var(--sun-2);border-color:var(--sun-2);color:#fff;box-shadow:0 0 0 4px var(--m-ship-soft);}
   .pipe-label{font-size:12.5px;font-weight:600;}
   .pipe-desc{font-size:11px;color:var(--text-muted);margin-top:1px;}
-  .pipe-arrow{width:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#C7CCDA;font-size:14px;}
+  .pipe-arrow{
+    width:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#C7CCDA;font-size:14px;
+    position:relative;
+  }
+  .pipe-arrow::before{
+    content:"";position:absolute;left:2px;right:2px;top:50%;border-top:1.5px dashed #D9DEEA;z-index:0;
+  }
+  .pipe-arrow span{position:relative;z-index:1;background:var(--surface);}
 
   .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:26px;}
-  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;}
+  .stat-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;
+    box-shadow:var(--shadow-card);display:flex;gap:14px;align-items:flex-start;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .stat-card:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(30,40,70,.10);}
+  .stat-icon{
+    width:38px;height:38px;border-radius:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    font-size:17px;background:var(--m-ship-soft);color:var(--m-ship);
+  }
+  .stat-icon.icon-blue{background:var(--primary-soft);color:var(--primary-dark);}
+  .stat-icon.icon-green{background:var(--success-soft);color:var(--success);}
   .stat-label{font-size:12px;color:var(--text-muted);}
   .stat-value{font-size:26px;font-weight:700;margin-top:6px;}
   .stat-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px;}
@@ -106,13 +156,18 @@
   .module-card{
     background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
     padding:22px 24px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;
-    cursor:pointer;transition:border-color .15s ease, box-shadow .15s ease;
+    cursor:pointer;transition:transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+    box-shadow:var(--shadow-card);
   }
-  .module-card:hover{border-color:#C9D5FB;box-shadow:0 2px 10px rgba(43,95,246,.08);}
+  .module-card:hover{border-color:#C9D5FB;box-shadow:var(--shadow-lift);transform:translateY(-2px);}
   .module-left{display:flex;gap:16px;align-items:flex-start;}
-  .module-icon{width:44px;height:44px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;}
-  .module-icon.pdf{background:var(--primary-soft);color:var(--primary-dark);}
-  .module-icon.epc{background:var(--epc-soft);color:var(--epc);}
+  .module-icon{
+    width:48px;height:48px;border-radius:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    font-size:21px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.03);
+  }
+  .module-icon.pdf{background:linear-gradient(150deg,var(--primary-soft),#DCE6FF);color:var(--primary-dark);}
+  .module-icon.epc{background:linear-gradient(150deg,var(--epc-soft),#FFE3B8);color:var(--epc);}
+  .module-icon.ops{background:linear-gradient(150deg,var(--success-soft),#CDEFDC);color:var(--success);}
   .module-title{font-size:15.5px;font-weight:700;}
   .module-desc{font-size:12.5px;color:var(--text-muted);margin-top:3px;max-width:440px;line-height:1.5;}
   .module-tag{font-size:10.5px;padding:2px 8px;border-radius:20px;margin-left:8px;font-weight:600;}
@@ -499,12 +554,10 @@
 
     <!-- ============ HOME ============ -->
     <section class="view" id="view-home">
-      <div class="topbar">
-        <div>
-          <div class="crumb">總覽</div>
-          <h1 class="page-title">今日狀態</h1>
-          <div class="page-sub">整合本機工具與雲端 EPC 排程,一個入口管理所有案件流程</div>
-        </div>
+      <div class="hero-banner">
+        <div class="crumb">總覽</div>
+        <h1 class="page-title">☀️ 今日狀態</h1>
+        <div class="page-sub">整合本機工具與雲端 EPC 排程,一個入口管理所有案件流程</div>
       </div>
 
       <div class="pipeline">
@@ -531,19 +584,28 @@
 
       <div class="grid">
         <div class="stat-card">
-          <div class="stat-label">待處理 PDF</div>
-          <div class="stat-value">1 份</div>
-          <div class="stat-sub">來自本機資料夾</div>
+          <div class="stat-icon icon-blue">📄</div>
+          <div>
+            <div class="stat-label">待處理 PDF</div>
+            <div class="stat-value">1 份</div>
+            <div class="stat-sub">來自本機資料夾</div>
+          </div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">本週排程項目</div>
-          <div class="stat-value">7 件</div>
-          <div class="stat-sub">出貨/植筋/進場/掛表 合計</div>
+          <div class="stat-icon">🗓️</div>
+          <div>
+            <div class="stat-label">本週排程項目</div>
+            <div class="stat-value">7 件</div>
+            <div class="stat-sub">出貨/植筋/進場/掛表 合計</div>
+          </div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">今日待辦</div>
-          <div class="stat-value">2 件</div>
-          <div class="stat-sub">EPC 排程模組</div>
+          <div class="stat-icon icon-green">✅</div>
+          <div>
+            <div class="stat-label">今日待辦</div>
+            <div class="stat-value">2 件</div>
+            <div class="stat-sub">EPC 排程模組</div>
+          </div>
         </div>
       </div>
 
@@ -571,7 +633,7 @@
 
       <div class="module-card" onclick="showView('ops'); loadOpsCases();">
         <div class="module-left">
-          <div class="module-icon epc">🔧</div>
+          <div class="module-icon ops">🔧</div>
           <div>
             <div class="module-title">維運團隊 <span class="module-tag tag-cloud">雲端・手機可看</span></div>
             <div class="module-desc">已確定掛表時間的案場會自動同步過來,現場人員可用手機填寫驗收單、雙方簽名、產生 PDF。</div>
