@@ -57,7 +57,12 @@
   /* ---------- Sidebar ---------- */
   .sidebar{
     width:236px;flex-shrink:0;
-    background:linear-gradient(180deg,#FFFDFA,var(--surface) 140px);
+    /* 2026-09-30 修正：原本只有頂部 140px 有暖色、下面就退回純白 var(--surface)，
+       子頁籤一多（例如 EPC 模組展開）整條選單列大半還是死白。改成整條暖色
+       維持到底，另外疊一層由上往下淡出的暖橘光暈加強品牌感。 */
+    background:
+      radial-gradient(ellipse 260px 200px at 0% 0%, rgba(242,121,12,.10), transparent 70%),
+      linear-gradient(180deg,#FFF8EC,#FDF4E4);
     border-right:1px solid var(--border);border-top:3px solid var(--sun-2);
     padding:24px 16px;
     display:flex;flex-direction:column;gap:22px;
@@ -85,16 +90,17 @@
     font-size:13.5px;color:var(--text);cursor:pointer;border:1px solid transparent;
     transition:background .15s ease;
   }
-  .nav-item:hover{background:var(--surface-2);}
+  /* hover 底色改用半透明白，疊在暖色 sidebar 背景上才不會出現一塊冷灰色 */
+  .nav-item:hover{background:rgba(255,255,255,.65);}
   .nav-item.active{background:var(--primary-soft);color:var(--primary-dark);font-weight:600;}
   .nav-icon{width:20px;height:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
   .nav-sub{padding-left:30px;display:flex;flex-direction:column;gap:2px;margin-top:2px;}
   .nav-sub-item{
     font-size:12px;color:var(--text-muted);padding:6px 8px;border-radius:8px;cursor:pointer;
   }
-  .nav-sub-item:hover{background:var(--surface-2);}
+  .nav-sub-item:hover{background:rgba(255,255,255,.65);}
   .nav-sub-item.active{background:var(--primary-soft);color:var(--primary-dark);font-weight:600;}
-  .sidebar-footer{margin-top:auto;padding:12px 10px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);}
+  .sidebar-footer{margin-top:auto;padding:12px 10px;border-top:1px solid rgba(0,0,0,.06);font-size:11px;color:var(--text-muted);}
 
   /* ---------- Main ---------- */
   .main{flex:1;min-width:0;padding:28px 34px 40px;}
