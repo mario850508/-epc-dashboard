@@ -3299,19 +3299,22 @@ function renderMeterTable(){
   // 進「待安排掛表」，還缺其中一份（或兩份都缺）的進「待函文取得」。
   // 預計掛表日期不再是進入這個頁籤的門檻，改成進到「待安排掛表」之後才安排。
   const readyRows = baseRows.filter(r => r.detail_nego_date && r.contract_date);
-  const waitingRows = baseRows.filter(r => !(r.detail_nego_date && r.contract_date));
-
-  const readyCountTag = document.getElementById('meterReadyCountTag');
-  if(readyCountTag) readyCountTag.textContent = '共 ' + readyRows.length + ' 筆';
-  const waitingCountTag = document.getElementById('meterWaitingCountTag');
-  if(waitingCountTag) waitingCountTag.textContent = '共 ' + waitingRows.length + ' 筆';
+  // 2026-09-30 修正：這裡漏掉套用右上角「🏭 廠商」全站篩選（matchesGlobalVendorScope），
+  // 導致篩到特定廠商時，上面「待安排掛表」表格有正確篩選，下面「待函文取得」卻還是
+  // 顯示全部廠商的案件（使用者截圖回報：篩三創時，下面出現尚展的案件）。
+  const waitingRows = baseRows.filter(r => !(r.detail_nego_date && r.contract_date) && matchesGlobalVendorScope(r.vendor));
 
   // ---- 待安排掛表（沿用既有的搜尋／排序）----
   if(tbody){
+    let rows = applyTableFilterSort('meter', readyRows);
+    // 2026-09-30 修正：計數原本直接用篩選前的 readyRows.length，跟畫面上其他頁面
+    // （例如「待安排出貨&植筋」的 pendingCountTag）不一致——那些都是篩選後才算數。
+    // 改成用套過廠商篩選／搜尋框之後的 rows.length，數字才會跟畫面上實際看到的筆數一樣。
+    const readyCountTag = document.getElementById('meterReadyCountTag');
+    if(readyCountTag) readyCountTag.textContent = '共 ' + rows.length + ' 筆';
     if(readyRows.length === 0){
       tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有可以安排掛表的案件——細部協商跟台電購售契約都取得後，案件會自動從下方「待函文取得」移過來</td></tr>';
     } else {
-      let rows = applyTableFilterSort('meter', readyRows);
       if(!TABLE_STATE.meter.sortKey){
         rows.sort((a,b) => {
           const ca = getCaseStatus(a.record_id), cb = getCaseStatus(b.record_id);
@@ -3353,6 +3356,8 @@ function renderMeterTable(){
 
   // ---- 待函文取得（顯示細部協商／台電購售契約目前的狀態）----
   if(waitingTbody){
+    const waitingCountTag = document.getElementById('meterWaitingCountTag');
+    if(waitingCountTag) waitingCountTag.textContent = '共 ' + waitingRows.length + ' 筆';
     if(waitingRows.length === 0){
       waitingTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有等待函文的案件</td></tr>';
     } else {
