@@ -218,13 +218,26 @@
   .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
   .panel-title{font-size:14px;font-weight:700;margin:0 0 14px;display:flex;align-items:center;gap:8px;}
 
-  /* ---- PDF module tabs (公文更名 / LINE收件紀錄) ---- */
-  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:18px;}
-  .tab{
-    padding:10px 16px;font-size:13px;font-weight:600;color:var(--text-muted);
-    cursor:pointer;border-bottom:2px solid transparent;
+  /* ---- 頁籤（公文更名/LINE收件紀錄、EPC 模組 7 個子頁籤共用）----
+     2026-09-30 改版：原本是底線式文字頁籤，使用者反饋想要「按鈕感覺」，
+     改成分段式膠囊按鈕（segmented control），選中狀態套用跟首頁一致的
+     暖橘漸層，未選中則是淺色描邊按鈕，hover 會浮起。 */
+  .tabs{
+    display:flex;gap:5px;margin-bottom:18px;padding:5px;
+    background:#F7F1E6;border:1px solid var(--border);border-radius:14px;
+    overflow-x:auto;-webkit-overflow-scrolling:touch;
   }
-  .tab.active{color:var(--primary-dark);border-bottom-color:var(--primary);}
+  .tab{
+    padding:9px 16px;font-size:13px;font-weight:600;color:var(--text-muted);
+    cursor:pointer;border-radius:10px;white-space:nowrap;flex-shrink:0;
+    transition:background .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
+  }
+  .tab:hover{background:rgba(255,255,255,.75);color:var(--text);}
+  .tab.active{
+    background:linear-gradient(135deg,var(--sun-1),var(--sun-2));
+    color:#fff;box-shadow:0 4px 10px rgba(230,140,20,.32);
+  }
+  .tab.active:hover{background:linear-gradient(135deg,var(--sun-1),var(--sun-2));transform:translateY(-1px);}
   .subview{display:none;}
   .subview.active{display:block;}
   table{width:100%;border-collapse:collapse;font-size:12.5px;}
