@@ -1055,7 +1055,7 @@
               <div style="font-weight:700;font-size:14px;" id="planMeterCaseTitle">—</div>
               <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="planMeterCaseAddr">—</div>
             </div>
-            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計掛表日期（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到)</label>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計掛表日期（會寫回 Airtable「APP資料」表,不同電腦/同事都能同步看到；清空後按確認,可以改回「尚未安排」)</label>
             <input type="date" class="quick-mark-input" id="planMeterDate" style="margin-bottom:18px;">
             <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmPlanMeter()">確認</button>
           </div>
@@ -2023,8 +2023,10 @@ function closePlanMeterModal(){
   document.getElementById('planMeterModalOverlay').classList.remove('show');
 }
 async function confirmPlanMeter(){
-  const dateVal = document.getElementById('planMeterDate').value;
-  if(!dateVal){ showToast('請選擇預計掛表日期'); return; }
+  // 日期欄位留空代表要清空「預計掛表日期」（例如已排定但後續有狀況要重新安排），
+  // 不再強制要求一定要選日期；saveCaseStatusField 會把 meter_planned_date 存成
+  // null，後端 upsert_case_status 看到 None 就會把 Airtable「預計掛表日期」清空。
+  const dateVal = document.getElementById('planMeterDate').value || null;
   const recordId = planMeterTargetRecordId;
   const cs = getCaseStatus(recordId);
   const found = COMPLETED_CASES.find(c => c.record_id === recordId);
@@ -2037,7 +2039,7 @@ async function confirmPlanMeter(){
     await saveCaseStatusField(recordId, caseNo, {meter_planned_date: dateVal});
     closePlanMeterModal();
     renderMeterTable();
-    showToast('已排定掛表日期，移入「掛表安排」');
+    showToast(dateVal ? '已排定掛表日期，移入「掛表安排」' : '已清除掛表日期，改回「尚未安排」');
     showEpcTab('epc-meter');
     loadAppData();
   }catch(err){
