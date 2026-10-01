@@ -6389,7 +6389,7 @@ async function confirmSlotTask(){
 // 業務姓名這些有存在任務紀錄裡，所以還是會有）。
 function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, estStart, estEnd){
   const link = window.location.origin + path;
-  const estLine = (estStart && estEnd) ? `\n預估時間：${estStart}-${estEnd}（僅供參考，實際時間請跟屋主協調）` : '';
+  const estLine = (estStart && estEnd) ? `\n預估時間：${estStart}-${estEnd}（僅供參考，實際時間依現場工班作業時間為主）` : '';
   const text = `【${vendor} ${type}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}${estLine}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
   document.getElementById('slotSummaryTitle').textContent = '📨 傳給業務的訊息';
   document.getElementById('slotSummaryTextarea').value = text;
