@@ -2024,7 +2024,7 @@
           <div style="display:flex;gap:10px;margin-bottom:14px;">
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">開始時間</label>
-              <select class="quick-mark-input" id="slotBookingStart"></select>
+              <select class="quick-mark-input" id="slotBookingStart" onchange="applySlotBookingTimeDefault()"></select>
             </div>
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">結束時間</label>
@@ -2034,7 +2034,7 @@
           <div style="display:flex;gap:10px;margin-bottom:14px;">
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">項目類型</label>
-              <select class="quick-mark-input" id="slotBookingType">
+              <select class="quick-mark-input" id="slotBookingType" onchange="applySlotBookingTimeDefault()">
                 <option value="掛表">掛表</option>
                 <option value="植筋">植筋</option>
                 <option value="放樣">放樣</option>
@@ -6512,6 +6512,59 @@ function slotTimeOptionsHtml(){
   return '<option value="">請選擇</option>' + SLOT_TIME_OPTIONS.map(t => `<option value="${t}">${t}</option>`).join('');
 }
 
+// 2026-10-01 新增：各項目類型預設需要的時間長度（分鐘），掛表另外固定
+// 09:00 開始（使用者指定早上9點到中午12點）。開始時間空白時先補 09:00，
+// 再依類型長度算出結束時間；使用者改開始時間或項目類型都會重算一次，
+// 但算完之後還是可以手動改選單，不會卡死。
+const SLOT_TYPE_DURATION_MIN = {'掛表':180,'植筋':180,'放樣':60,'場勘':60};
+function applySlotBookingTimeDefault(){
+  const typeSel = document.getElementById('slotBookingType');
+  const startSel = document.getElementById('slotBookingStart');
+  const endSel = document.getElementById('slotBookingEnd');
+  if(!typeSel || !startSel || !endSel) return;
+  const duration = SLOT_TYPE_DURATION_MIN[typeSel.value];
+  if(!duration) return;
+  if(!startSel.value) startSel.value = '09:00';
+  const [h, m] = startSel.value.split(':').map(Number);
+  const totalMin = h * 60 + m + duration;
+  const endVal = String(Math.floor(totalMin / 60)).padStart(2,'0') + ':' + String(totalMin % 60).padStart(2,'0');
+  if([...endSel.options].some(o => o.value === endVal)) endSel.value = endVal;
+}
+
+// 2026-10-01 新增：案號打完之後自動帶出別名／負責業務，資料來源跟「電話
+// 紀錄」筆記本功能共用同一個後端查詢（/api/case-lookup?case_no=，需要
+// 完全符合案號），避免兩個廠商時段 modal 的案號/別名/業務要再手動對一次。
+// 只在查到資料時才覆蓋欄位，查無資料（案號還沒打完/打錯）就不動使用者
+// 已經填的內容。debounce 500ms，不然每打一個字就送一次查詢。
+function wireSlotCaseAutofill(caseId, aliasId, assigneeId){
+  const caseInput = document.getElementById(caseId);
+  if(!caseInput) return;
+  let timer = null;
+  caseInput.addEventListener('input', () => {
+    clearTimeout(timer);
+    const caseNo = caseInput.value.trim();
+    if(!caseNo) return;
+    timer = setTimeout(async () => {
+      try{
+        const res = await fetch(API_BASE + '/api/case-lookup?case_no=' + encodeURIComponent(caseNo), {cache: 'no-store'});
+        const data = await res.json().catch(() => ({}));
+        if(!res.ok || !data.found) return;
+        if(caseInput.value.trim() !== caseNo) return; // 查詢回來前使用者又改了案號，這筆結果已經過時
+        if(data.alias){
+          const aliasEl = document.getElementById(aliasId);
+          if(aliasEl) aliasEl.value = data.alias;
+        }
+        if(data.sales_person){
+          const assigneeEl = document.getElementById(assigneeId);
+          if(assigneeEl) assigneeEl.value = data.sales_person;
+        }
+      }catch(err){ /* 查詢失敗就安靜放棄，不影響手動輸入 */ }
+    }, 500);
+  });
+}
+wireSlotCaseAutofill('slotTaskCase', 'slotTaskAlias', 'slotTaskAssignee');
+wireSlotCaseAutofill('slotBookingCase', 'slotBookingAlias', 'slotBookingRegistrant');
+
 // ---- 預約時段 modal ----
 function openSlotBookingModal(){
   const sel = document.getElementById('slotBookingVendor');
@@ -6527,6 +6580,7 @@ function openSlotBookingModal(){
   document.getElementById('slotBookingAlias').value = '';
   document.getElementById('slotBookingRegistrant').value = '';
   document.getElementById('slotBookingNote').value = '';
+  applySlotBookingTimeDefault();
   document.getElementById('slotBookingError').style.display = 'none';
   renderSlotBookingDayPreview();
   document.getElementById('slotBookingModalOverlay').classList.add('show');

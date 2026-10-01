@@ -171,7 +171,7 @@ function render(){
       <div class="row2">
         <div>
           <label>開始時間</label>
-          <select id="startTime">${timeOptionsHtml()}</select>
+          <select id="startTime" onchange="applyTimeDurationDefault()">${timeOptionsHtml()}</select>
         </div>
         <div>
           <label>結束時間</label>
@@ -189,6 +189,25 @@ function render(){
       <button class="btn-submit" id="submitBtn" onclick="submitBooking()">完成預約</button>
     </div>
     <div class="hint">🔗 這個連結只能用一次，完成預約後就會失效，不用擔心被重複填寫。</div>`;
+  applyTimeDurationDefault();
+}
+
+// 2026-10-01 新增：各項目類型預設時間長度（分鐘），跟主控台「預約時段」
+// modal 用同一套規則（掛表固定早上9點開始，其他類型只給時長，開始時間
+// 預設也是9點，業務可以自己改）。開始時間空白時先補 09:00，再依時長算出
+// 結束時間；業務改開始時間也會重算一次，但還是可以手動改掉。
+const TYPE_DURATION_MIN = {'掛表':180,'植筋':180,'放樣':60,'場勘':60};
+function applyTimeDurationDefault(){
+  const duration = TYPE_DURATION_MIN[TASK.type];
+  if(!duration) return;
+  const startSel = document.getElementById('startTime');
+  const endSel = document.getElementById('endTime');
+  if(!startSel || !endSel) return;
+  if(!startSel.value) startSel.value = '09:00';
+  const [h, m] = startSel.value.split(':').map(Number);
+  const totalMin = h * 60 + m + duration;
+  const endVal = String(Math.floor(totalMin / 60)).padStart(2,'0') + ':' + String(totalMin % 60).padStart(2,'0');
+  if([...endSel.options].some(o => o.value === endVal)) endSel.value = endVal;
 }
 
 function selectDate(d){
