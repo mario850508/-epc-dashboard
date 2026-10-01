@@ -466,6 +466,22 @@
     border-radius:10px;padding:12px 14px;margin-top:14px;font-size:11.5px;color:var(--text-muted);line-height:1.6;
   }
 
+  /* ---------- 通用「不確定進度」載入條（2026-10-01 新增，場勘安排手動重新整理用）---------- */
+  .progress-bar-track{
+    height:3px;border-radius:3px;background:var(--border);overflow:hidden;
+    margin:2px 0 14px;display:none;
+  }
+  .progress-bar-track.show{display:block;}
+  .progress-bar-fill{
+    height:100%;width:40%;border-radius:3px;
+    background:linear-gradient(90deg,var(--sun-1),var(--sun-2));
+    animation:progressBarSlide 1.1s ease-in-out infinite;
+  }
+  @keyframes progressBarSlide{
+    0%{transform:translateX(-100%);}
+    100%{transform:translateX(350%);}
+  }
+
   /* ---------- 手機版響應式（2026-09-01 新增）---------- */
   .mobile-topbar{
     display:none;align-items:center;gap:12px;padding:12px 16px;
@@ -800,10 +816,12 @@
         <div class="panel">
           <div class="panel-title">
             場勘安排 <span class="module-tag tag-cloud" style="margin-left:6px;" id="surveyCountTag">共 0 筆</span>
+            <span id="surveyUpdatedAt" style="margin-left:8px;font-size:11px;color:var(--text-muted);font-weight:400;"></span>
             <div class="panel-title-actions">
-              <button class="btn btn-ghost notes-trigger-btn" id="surveyRefreshBtn" onclick="loadSurveyPendingCases()">🔄 重新整理</button>
+              <button class="btn btn-ghost notes-trigger-btn" id="surveyRefreshBtn" onclick="triggerSurveyManualRefresh()">🔄 重新整理</button>
             </div>
           </div>
+          <div class="progress-bar-track" id="surveyProgressBar"><div class="progress-bar-fill"></div></div>
           <div class="pending-toolbar">
             <input type="text" class="quick-mark-input" id="surveyFilterInput" placeholder="搜尋案號、地址…" oninput="tableSearchInput('survey')" style="max-width:260px;">
           </div>
@@ -2041,6 +2059,7 @@ function refreshAllVendorFilteredViews(){
   if(typeof renderWithdrawnTable === 'function') renderWithdrawnTable();
   if(typeof renderCalendar === 'function') renderCalendar();
   if(typeof renderWeekList === 'function') renderWeekList();
+  if(typeof renderSurveyTable === 'function') renderSurveyTable();
 }
 
 // ===================================================================
@@ -2820,17 +2839,20 @@ async function loadCompletedCases(){
   }
 }
 
-// ---- 場勘安排（2026-10-01 新增）----
+// ---- 場勘安排（2026-10-01 新增，2026-10-01 改成讀後端背景快取）----
 // 資料來自另一個獨立的 Airtable base（工務組），後端 /api/site-survey-pending
-// 已經做好篩選跟排除邏輯，前端只需要顯示、套用廠商篩選／搜尋／排序。不走
-// 6 秒一次的背景自動同步（避免兩個 base 一起查太頻繁），只在切到這個頁籤、
-// 或按「🔄 重新整理」時才重新抓一次。
+// 已經做好篩選跟排除邏輯、而且只讀記憶體快取（真正查 Airtable 的工作由後端
+// 排程每 20 分鐘做一次），這支 fetch 本身應該是瞬間回應。前端只需要顯示、
+// 套用廠商篩選／搜尋／排序。不走 6 秒一次的背景自動同步（資料來源是另一個
+// base，避免兩邊一起查太頻繁），只在切到這個頁籤、或按「🔄 重新整理」時
+// 才重新抓一次（抓的也只是快取，不是現查）。
 let SURVEY_CASES = [];
+let surveyLastKnownUpdatedAt = null;
 async function loadSurveyPendingCases(){
   const tbody = document.getElementById('surveyRows');
-  const btn = document.getElementById('surveyRefreshBtn');
-  if(tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>';
-  if(btn) btn.disabled = true;
+  if(tbody && SURVEY_CASES.length === 0){
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>';
+  }
   try{
     const res = await fetch(API_BASE + '/api/site-survey-pending', {cache: 'no-store'});
     if(!res.ok){
@@ -2842,13 +2864,63 @@ async function loadSurveyPendingCases(){
       ...c,
       vendorClass: VENDOR_CLASS[c.vendor] || 'vendor-other',
     }));
+    surveyLastKnownUpdatedAt = data.updated_at || surveyLastKnownUpdatedAt;
     renderSurveyTable();
+    const updatedEl = document.getElementById('surveyUpdatedAt');
+    if(updatedEl){
+      if(data.last_error){
+        updatedEl.textContent = '⚠ 上次背景更新失敗：' + data.last_error;
+        updatedEl.style.color = '#D64545';
+      } else if(data.updated_at){
+        updatedEl.textContent = (data.refreshing ? '更新中… 顯示的是 ' : '資料更新於 ') + fmtUpdatedAt(data.updated_at);
+        updatedEl.style.color = '';
+      } else {
+        updatedEl.textContent = data.refreshing ? '第一次整理資料中，請稍候…' : '';
+        updatedEl.style.color = '';
+      }
+    }
+    const bar = document.getElementById('surveyProgressBar');
+    if(bar) bar.classList.toggle('show', !!data.refreshing);
+    return data;
   }catch(err){
-    if(tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入失敗：' + err.message + '</td></tr>';
+    if(tbody && SURVEY_CASES.length === 0){
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入失敗：' + err.message + '</td></tr>';
+    }
     console.error(err);
-  }finally{
-    if(btn) btn.disabled = false;
+    return null;
   }
+}
+async function triggerSurveyManualRefresh(){
+  const btn = document.getElementById('surveyRefreshBtn');
+  const bar = document.getElementById('surveyProgressBar');
+  const beforeUpdatedAt = surveyLastKnownUpdatedAt;  // 要先存起來，loadSurveyPendingCases() 每次都會覆寫這個全域變數
+  btn.disabled = true;
+  btn.textContent = '🔄 更新中…';
+  if(bar) bar.classList.add('show');
+  try{
+    await fetch(API_BASE + '/api/site-survey-pending/refresh', {method: 'POST'});
+  }catch(err){
+    showToast('觸發更新失敗：' + err.message);
+    btn.disabled = false;
+    btn.textContent = '🔄 重新整理';
+    if(bar) bar.classList.remove('show');
+    return;
+  }
+  // 輪詢等後端背景整理完（跟「待安排出貨&植筋」的手動更新同一種模式）：
+  // updated_at 變成跟觸發之前不一樣，才算真的抓到新的一輪結果。
+  let ok = false;
+  for(let tries = 0; tries < 20; tries++){
+    await new Promise(r => setTimeout(r, 2000));
+    const data = await loadSurveyPendingCases();
+    if(data && !data.refreshing && data.updated_at && data.updated_at !== beforeUpdatedAt){
+      ok = true;
+      break;
+    }
+  }
+  if(bar) bar.classList.remove('show');
+  showToast(ok ? '已更新完成' : '更新時間較長，請稍後再檢查一次');
+  btn.disabled = false;
+  btn.textContent = '🔄 重新整理';
 }
 function renderSurveyTable(){
   const tbody = document.getElementById('surveyRows');
