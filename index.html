@@ -1976,17 +1976,20 @@
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-ghost" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" onclick="openSlotWindowModal()">➕ 開放時段</button>
+          <button class="btn btn-ghost" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" onclick="openSlotTaskModal()">📨 指派給業務</button>
           <button class="btn btn-primary" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" onclick="openSlotBookingModal()">➕ 預約時段</button>
           <button class="btn btn-ghost" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" id="slotsRefreshBtn" onclick="loadVendorSlots()">🔄 重新整理</button>
         </div>
       </div>
+
+      <div id="slotTasksContainer"></div>
 
       <div id="slotsContainer">
         <div class="login-note">載入中…</div>
       </div>
 
       <div class="login-note">
-        🔗 先幫廠商開「開放時段」(哪幾天可以安排)，業務再針對自己的案子去「預約時段」卡確切的時間；同一個廠商同一天如果時間重疊，系統會擋下來、顯示衝突到的是哪一筆。每個廠商卡片右上角「📋 複製清單」可以把確定下來的時段整理成文字，方便貼給廠商窗口做最終確認。這份資料直接寫回 Airtable「廠商時段協調」表，不同電腦/同事都能同步看到。
+        🔗 先幫廠商開「開放時段」(哪幾天可以安排)，再選其中一種方式卡確切時間：PM 自己直接「➕ 預約時段」，或是「📨 指派給業務」——輸入案號/項目/候選日期後，系統會產生一個免登入的連結，複製訊息傳給業務的 LINE，業務跟屋主喬好時間後自己點連結完成預約。不管哪種方式，同一個廠商同一天時間重疊，系統都會擋下來、顯示衝突到的是哪一筆。每個廠商卡片右上角「📋 複製清單」可以把確定下來的時段整理成文字，方便貼給廠商窗口做最終確認。這份資料直接寫回 Airtable,不同電腦/同事都能同步看到。
       </div>
     </section>
 
@@ -2072,6 +2075,56 @@
           <textarea class="quick-mark-input" id="slotBookingNote" rows="2" style="margin-bottom:12px;resize:vertical;"></textarea>
           <div id="slotBookingError" style="display:none;background:#FDECEC;color:#D64545;border-radius:10px;padding:10px 12px;font-size:12px;margin-bottom:14px;line-height:1.6;"></div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmSlotBooking()">確認預約</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 指派給業務 modal（建立一個待業務安排的任務，產生免登入連結） -->
+    <div class="modal-overlay" id="slotTaskModalOverlay" onclick="if(event.target===this) closeSlotTaskModal()">
+      <div class="modal-box" style="max-width:460px;">
+        <div class="modal-header">
+          <div class="modal-title">📨 指派給業務</div>
+          <button class="modal-close" onclick="closeSlotTaskModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="login-note" style="margin-top:0;margin-bottom:14px;">
+            填好以下資訊會產生一個免登入連結，業務點進去自己選候選日期裡的一天、填時間就能完成預約，不用你一筆筆手動登記。
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:14px;">
+            <div style="flex:1;">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">廠商</label>
+              <select class="quick-mark-input" id="slotTaskVendor"></select>
+            </div>
+            <div style="flex:1;">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">項目類型</label>
+              <select class="quick-mark-input" id="slotTaskType">
+                <option value="掛表">掛表</option>
+                <option value="植筋">植筋</option>
+                <option value="放樣">放樣</option>
+                <option value="場勘">場勘</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:14px;">
+            <div style="flex:1;">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案號</label>
+              <input type="text" class="quick-mark-input" id="slotTaskCase" placeholder="例如：潤特桃園45號">
+            </div>
+            <div style="flex:1;">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案場別名（選填）</label>
+              <input type="text" class="quick-mark-input" id="slotTaskAlias">
+            </div>
+          </div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">候選日期（廠商提供的可安排日期，業務只能從這幾天選）</label>
+          <div id="slotTaskDateRows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;">
+            </div>
+          </div>
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-bottom:14px;" onclick="addSlotTaskDateRow()">➕ 再加一天</button>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">指派給（業務姓名，選填，純提示不影響連結本身）</label>
+          <input type="text" class="quick-mark-input" id="slotTaskAssignee" placeholder="例如：小夫" style="margin-bottom:18px;">
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmSlotTask()">建立任務並產生連結</button>
         </div>
       </div>
     </div>
@@ -6209,6 +6262,7 @@ async function generateOpsPdf(id, keepModalOpen){
 // ===================================================================
 let SLOT_WINDOWS = [];
 let SLOT_BOOKINGS = [];
+let SLOT_TASKS = [];
 
 async function loadVendorSlots(){
   const container = document.getElementById('slotsContainer');
@@ -6218,17 +6272,126 @@ async function loadVendorSlots(){
   }
   if(btn) btn.disabled = true;
   try{
-    const res = await fetch(API_BASE + '/api/vendor-slots', {cache: 'no-store'});
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    const [slotsRes, tasksRes] = await Promise.all([
+      fetch(API_BASE + '/api/vendor-slots', {cache: 'no-store'}),
+      fetch(API_BASE + '/api/vendor-slots/tasks', {cache: 'no-store'}),
+    ]);
+    if(!slotsRes.ok) throw new Error('HTTP ' + slotsRes.status);
+    const data = await slotsRes.json();
     SLOT_WINDOWS = data.windows || [];
     SLOT_BOOKINGS = data.bookings || [];
     renderVendorSlots();
+    if(tasksRes.ok){
+      const taskData = await tasksRes.json();
+      SLOT_TASKS = taskData.tasks || [];
+      renderSlotTasks();
+    }
   }catch(err){
     if(container) container.innerHTML = '<div class="login-note">載入失敗：' + err.message + '</div>';
     console.error(err);
   }finally{
     if(btn) btn.disabled = false;
+  }
+}
+
+function renderSlotTasks(){
+  const container = document.getElementById('slotTasksContainer');
+  if(!container) return;
+  const pending = SLOT_TASKS.filter(t => t.status !== '已完成');
+  const done = SLOT_TASKS.filter(t => t.status === '已完成');
+  if(pending.length === 0 && done.length === 0){ container.innerHTML = ''; return; }
+  const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship'};
+  const rowHtml = (t, isDone) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+      <span class="vendor-pill ${VENDOR_CLASS[t.vendor]||'vendor-other'}" style="flex-shrink:0;">${t.vendor}</span>
+      <span class="chip ${typeChipClass[t.type]||''}" style="flex-shrink:0;">${t.type||''}</span>
+      <span style="font-size:12.5px;flex:1;min-width:140px;">${t.case||''}${t.alias?('　'+t.alias):''}</span>
+      <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">候選：${t.candidate_dates.map(d=>fmtDate(d)).join('、')}</span>
+      ${t.assignee ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">指派：${t.assignee}</span>` : ''}
+      ${isDone
+        ? '<span class="warn-pill" style="background:var(--success-soft);color:var(--success);flex-shrink:0;">✓ 已完成預約</span>'
+        : `<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="copySlotTaskMessage('${t.record_id}')">📎 複製訊息</button>`}
+      <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotTask('${t.record_id}')">刪除</button>
+    </div>`;
+  container.innerHTML = `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">📨 指派給業務的任務</div>
+      ${pending.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">目前沒有待業務安排的任務</div>' : pending.map(t=>rowHtml(t,false)).join('')}
+      ${done.length > 0 ? `<div style="margin-top:10px;font-size:11.5px;color:var(--text-muted);font-weight:600;">已完成</div>${done.map(t=>rowHtml(t,true)).join('')}` : ''}
+    </div>`;
+}
+
+function openSlotTaskModal(){
+  document.getElementById('slotTaskVendor').innerHTML = ALL_VENDOR_NAMES.map(v => `<option value="${v}">${v}</option>`).join('');
+  document.getElementById('slotTaskCase').value = '';
+  document.getElementById('slotTaskAlias').value = '';
+  document.getElementById('slotTaskAssignee').value = '';
+  document.getElementById('slotTaskDateRows').innerHTML = '<div style="display:flex;gap:8px;align-items:center;"><input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;"></div>';
+  document.getElementById('slotTaskModalOverlay').classList.add('show');
+}
+function closeSlotTaskModal(){
+  document.getElementById('slotTaskModalOverlay').classList.remove('show');
+}
+function addSlotTaskDateRow(){
+  const wrap = document.getElementById('slotTaskDateRows');
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;';
+  row.innerHTML = '<input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;"><button class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="this.parentElement.remove()">✕</button>';
+  wrap.appendChild(row);
+}
+async function confirmSlotTask(){
+  const vendor = document.getElementById('slotTaskVendor').value;
+  const type = document.getElementById('slotTaskType').value;
+  const caseNo = document.getElementById('slotTaskCase').value.trim();
+  const alias = document.getElementById('slotTaskAlias').value.trim();
+  const assignee = document.getElementById('slotTaskAssignee').value.trim();
+  const candidateDates = [...document.querySelectorAll('.slot-task-date-input')].map(i=>i.value).filter(Boolean);
+  if(!vendor || !type || !caseNo || candidateDates.length === 0){
+    showToast('請把廠商/項目類型/案號填好，候選日期至少填一天');
+    return;
+  }
+  const btn = document.querySelector('#slotTaskModalOverlay .btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = '建立中…'; btn.disabled = true;
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/tasks', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, candidate_dates: candidateDates}),
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
+    closeSlotTaskModal();
+    loadVendorSlots();
+    showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path);
+  }catch(err){
+    showToast('建立失敗：' + err.message);
+  }finally{
+    btn.textContent = originalText; btn.disabled = false;
+  }
+}
+function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path){
+  const link = window.location.origin + path;
+  const text = `【${vendor} ${type}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
+  document.getElementById('slotSummaryTitle').textContent = '📨 傳給業務的訊息';
+  document.getElementById('slotSummaryTextarea').value = text;
+  document.getElementById('slotSummaryModalOverlay').classList.add('show');
+}
+function copySlotTaskMessage(recordId){
+  const t = SLOT_TASKS.find(x => x.record_id === recordId);
+  if(!t) return;
+  const path = '/book.html?token=' + t.token;
+  showSlotTaskMessage(t.vendor, t.case, t.alias, t.type, t.candidate_dates, path);
+}
+async function deleteSlotTask(recordId){
+  if(!confirm('確定要刪除這個任務嗎？（連結會立刻失效，如果業務已經在填的話會失敗）')) return;
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(recordId), {method:'DELETE'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    SLOT_TASKS = SLOT_TASKS.filter(t => t.record_id !== recordId);
+    renderSlotTasks();
+    showToast('已刪除任務');
+  }catch(err){
+    showToast('刪除失敗：' + err.message);
   }
 }
 
