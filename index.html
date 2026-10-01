@@ -6697,7 +6697,10 @@ function wireSlotCaseSearch(caseId, resultsId, aliasId, assigneeId, vendorId){
     if(!q){ resultsBox.classList.remove('show'); resultsBox.innerHTML = ''; return; }
     timer = setTimeout(async () => {
       try{
-        const res = await fetch(API_BASE + '/api/case-search?q=' + encodeURIComponent(q), {cache: 'no-store'});
+        // include_certified=1：額外把業務自治區「已公證」但還沒建進 Airtable
+        // 的案件也混進來（只有這裡帶，電話紀錄筆記本／案件進場安排手動新增
+        // 都不帶，維持原本只查 Airtable 的行為）。
+        const res = await fetch(API_BASE + '/api/case-search?include_certified=1&q=' + encodeURIComponent(q), {cache: 'no-store'});
         const data = await res.json().catch(() => ({}));
         if(caseInput.value.trim() !== q) return; // 使用者又改了關鍵字，這批結果已經過時
         const results = data.results || [];
@@ -6706,7 +6709,7 @@ function wireSlotCaseSearch(caseId, resultsId, aliasId, assigneeId, vendorId){
           : results.map(r => `
               <div class="qm-result" onclick='selectSlotCaseCandidate(${JSON.stringify(r).replace(/'/g, "&apos;")}, "${caseId}", "${resultsId}", "${aliasId}", "${assigneeId}", "${vendorId}")'>
                 <div>
-                  <div class="qm-result-name">${r.case || ''}${r.alias ? '　' + r.alias : ''}</div>
+                  <div class="qm-result-name">${r.case || ''}${r.alias ? '　' + r.alias : ''}${r.not_in_airtable ? '　<span style="color:var(--text-muted);font-weight:400;">（尚未建檔）</span>' : ''}</div>
                   <div class="qm-result-addr">${r.vendor || ''}　${r.address || ''}</div>
                 </div>
               </div>`).join('');
