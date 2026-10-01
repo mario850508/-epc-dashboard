@@ -2047,8 +2047,11 @@
           </div>
           <div style="display:flex;gap:10px;margin-bottom:14px;">
             <div style="flex:1;">
-              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案號</label>
-              <input type="text" class="quick-mark-input" id="slotBookingCase" placeholder="例如：工程桃園45號">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案號（可輸入部分關鍵字模糊搜尋）</label>
+              <div class="quick-mark-input-wrap">
+                <input type="text" class="quick-mark-input" id="slotBookingCase" placeholder="例如：桃園45、潤特…" autocomplete="off">
+                <div class="quick-mark-results" id="slotBookingCaseResults"></div>
+              </div>
             </div>
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案場別名（選填）</label>
@@ -2076,8 +2079,11 @@
           </div>
           <div style="display:flex;gap:10px;margin-bottom:14px;">
             <div style="flex:1;">
-              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案號</label>
-              <input type="text" class="quick-mark-input" id="slotTaskCase" placeholder="例如：潤特桃園45號">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案號（可輸入部分關鍵字模糊搜尋）</label>
+              <div class="quick-mark-input-wrap">
+                <input type="text" class="quick-mark-input" id="slotTaskCase" placeholder="例如：桃園45、潤特…" autocomplete="off">
+                <div class="quick-mark-results" id="slotTaskCaseResults"></div>
+              </div>
             </div>
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案場別名（選填）</label>
@@ -6330,6 +6336,7 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskCase').value = '';
   document.getElementById('slotTaskAlias').value = '';
   document.getElementById('slotTaskAssignee').value = '';
+  document.getElementById('slotTaskCaseResults').classList.remove('show');
   document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = (c.value === '掛表'); });
   document.getElementById('slotTaskDateRows').innerHTML = '<div style="display:flex;gap:8px;align-items:center;"><input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;"></div>';
   document.getElementById('slotTaskEstStart').innerHTML = slotTimeOptionsHtml();
@@ -6613,6 +6620,74 @@ function wireSlotCaseAutofill(caseId, aliasId, assigneeId, vendorId){
 wireSlotCaseAutofill('slotTaskCase', 'slotTaskAlias', 'slotTaskAssignee', 'slotTaskVendor');
 wireSlotCaseAutofill('slotBookingCase', 'slotBookingAlias', 'slotBookingRegistrant', 'slotBookingVendor');
 
+// 2026-10-01 新增：案號改成可以打部分關鍵字模糊搜尋（跟「電話紀錄」筆記本
+// 的案場模糊搜尋共用同一個 /api/case-search 後端），不用把完整案號一字
+// 不差打完才能觸發上面 wireSlotCaseAutofill 的完全符合查詢。輸入框下方
+// 跳出候選清單，點一個之後把案號/別名/廠商直接帶過去；case-search 本身
+// 沒有業務資料，選定後再用 record_id 精準查一次 /api/case-lookup 補業務
+// 姓名（record_id 比案號文字查詢快也準，跟「電話紀錄」選候選案件後的查法
+// 一樣）。
+function wireSlotCaseSearch(caseId, resultsId, aliasId, assigneeId, vendorId){
+  const caseInput = document.getElementById(caseId);
+  const resultsBox = document.getElementById(resultsId);
+  if(!caseInput || !resultsBox) return;
+  let timer = null;
+  caseInput.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = caseInput.value.trim();
+    if(!q){ resultsBox.classList.remove('show'); resultsBox.innerHTML = ''; return; }
+    timer = setTimeout(async () => {
+      try{
+        const res = await fetch(API_BASE + '/api/case-search?q=' + encodeURIComponent(q), {cache: 'no-store'});
+        const data = await res.json().catch(() => ({}));
+        if(caseInput.value.trim() !== q) return; // 使用者又改了關鍵字，這批結果已經過時
+        const results = data.results || [];
+        resultsBox.innerHTML = results.length === 0
+          ? '<div class="qm-empty">查無符合的案件，可以直接手動填寫</div>'
+          : results.map(r => `
+              <div class="qm-result" onclick='selectSlotCaseCandidate(${JSON.stringify(r).replace(/'/g, "&apos;")}, "${caseId}", "${resultsId}", "${aliasId}", "${assigneeId}", "${vendorId}")'>
+                <div>
+                  <div class="qm-result-name">${r.case || ''}${r.alias ? '　' + r.alias : ''}</div>
+                  <div class="qm-result-addr">${r.vendor || ''}　${r.address || ''}</div>
+                </div>
+              </div>`).join('');
+        resultsBox.classList.add('show');
+      }catch(err){ /* 查詢失敗就安靜放棄，不影響手動輸入 */ }
+    }, 300);
+  });
+  document.addEventListener('click', (e) => {
+    if(e.target !== caseInput && !resultsBox.contains(e.target)) resultsBox.classList.remove('show');
+  });
+}
+async function selectSlotCaseCandidate(r, caseId, resultsId, aliasId, assigneeId, vendorId){
+  document.getElementById(caseId).value = r.case || '';
+  const resultsBox = document.getElementById(resultsId);
+  if(resultsBox){ resultsBox.classList.remove('show'); resultsBox.innerHTML = ''; }
+  if(r.alias){
+    const aliasEl = document.getElementById(aliasId);
+    if(aliasEl) aliasEl.value = r.alias;
+  }
+  if(r.vendor){
+    const vendorEl = document.getElementById(vendorId);
+    if(vendorEl && [...vendorEl.options].some(o => o.value === r.vendor)){
+      vendorEl.value = r.vendor;
+      vendorEl.dispatchEvent(new Event('change'));
+    }
+  }
+  if(r.record_id){
+    try{
+      const res = await fetch(API_BASE + '/api/case-lookup?case_record_id=' + encodeURIComponent(r.record_id), {cache: 'no-store'});
+      const data = await res.json().catch(() => ({}));
+      if(data.found && data.sales_person){
+        const assigneeEl = document.getElementById(assigneeId);
+        if(assigneeEl) assigneeEl.value = data.sales_person;
+      }
+    }catch(err){ /* 查詢失敗就放棄，不影響已經帶好的案號/別名/廠商 */ }
+  }
+}
+wireSlotCaseSearch('slotTaskCase', 'slotTaskCaseResults', 'slotTaskAlias', 'slotTaskAssignee', 'slotTaskVendor');
+wireSlotCaseSearch('slotBookingCase', 'slotBookingCaseResults', 'slotBookingAlias', 'slotBookingRegistrant', 'slotBookingVendor');
+
 // ---- 預約時段 modal ----
 function openSlotBookingModal(){
   const sel = document.getElementById('slotBookingVendor');
@@ -6628,6 +6703,7 @@ function openSlotBookingModal(){
   document.getElementById('slotBookingAlias').value = '';
   document.getElementById('slotBookingRegistrant').value = '';
   document.getElementById('slotBookingNote').value = '';
+  document.getElementById('slotBookingCaseResults').classList.remove('show');
   document.querySelectorAll('.slot-booking-type-check').forEach(c => { c.checked = (c.value === '掛表'); });
   applySlotBookingTimeDefault();
   document.getElementById('slotBookingError').style.display = 'none';
