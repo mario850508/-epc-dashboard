@@ -180,6 +180,21 @@ function render(){
       </div>
       <div class="sub" style="margin-top:6px;margin-bottom:16px;">⏱️ 選好開始時間後，結束時間會依預估作業時長自動帶入，仍可自行調整</div>
 
+      <label>屋主聯絡資訊</label>
+      ${(TASK.owner_name || TASK.owner_phone) ? `
+      <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:12.5px;margin:-4px 0 8px;">
+        <input type="checkbox" id="sameAsContract" onchange="onSameAsContractChange()">
+        同公證書資訊
+      </label>` : ''}
+      <div class="row2" style="margin-bottom:16px;">
+        <div>
+          <input type="text" id="ownerName" placeholder="屋主姓名">
+        </div>
+        <div>
+          <input type="text" id="ownerPhone" placeholder="屋主電話">
+        </div>
+      </div>
+
       <label>您的姓名</label>
       <input type="text" id="registrant" value="${TASK.assignee || ''}" placeholder="例如：小夫">
 
@@ -222,12 +237,23 @@ function selectDate(d){
   document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('active', b.dataset.date === d));
 }
 
+// 2026-10-01 新增：「同公證書資訊」勾選後，把 PM 建立任務時已經查到的屋主
+// 姓名/電話（來自租賃合約書，見 TASK.owner_name/owner_phone）直接帶進
+// 輸入框，業務還是可以手動改（例如屋主換人、電話錯誤）。
+function onSameAsContractChange(){
+  if(!document.getElementById('sameAsContract').checked) return;
+  document.getElementById('ownerName').value = TASK.owner_name || '';
+  document.getElementById('ownerPhone').value = TASK.owner_phone || '';
+}
+
 async function submitBooking(){
   const errorBox = document.getElementById('errorBox');
   errorBox.style.display = 'none';
   const start_time = document.getElementById('startTime').value;
   const end_time = document.getElementById('endTime').value;
   const registrant = document.getElementById('registrant').value.trim();
+  const owner_name = document.getElementById('ownerName').value.trim();
+  const owner_phone = document.getElementById('ownerPhone').value.trim();
   const note = document.getElementById('note').value.trim();
   if(!selectedDate){ alert('請先選一個候選日期'); return; }
   if(!start_time || !end_time){ alert('請選開始/結束時間'); return; }
@@ -239,7 +265,7 @@ async function submitBooking(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/public-task/' + encodeURIComponent(TOKEN) + '/book', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({date: selectedDate, start_time, end_time, registrant, note}),
+      body: JSON.stringify({date: selectedDate, start_time, end_time, registrant, note, owner_name, owner_phone}),
     });
     const data = await res.json().catch(()=>({}));
     if(res.status === 409 && data.conflict){

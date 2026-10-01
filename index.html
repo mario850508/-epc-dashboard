@@ -2102,6 +2102,9 @@
               <input type="text" class="quick-mark-input" id="slotTaskAlias">
             </div>
           </div>
+          <div id="slotTaskOwnerInfo" style="display:none;font-size:11.5px;color:var(--text-muted);margin:-8px 0 14px;">🏠 屋主聯絡資訊（來自租賃合約，業務預約頁可直接帶入）：<span id="slotTaskOwnerInfoText"></span></div>
+          <input type="hidden" id="slotTaskOwnerName">
+          <input type="hidden" id="slotTaskOwnerPhone">
           <div style="display:flex;gap:10px;margin-bottom:14px;">
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">廠商</label>
@@ -6368,6 +6371,9 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskCase').value = '';
   document.getElementById('slotTaskAlias').value = '';
   document.getElementById('slotTaskAssignee').value = '';
+  document.getElementById('slotTaskOwnerName').value = '';
+  document.getElementById('slotTaskOwnerPhone').value = '';
+  document.getElementById('slotTaskOwnerInfo').style.display = 'none';
   document.getElementById('slotTaskCaseResults').classList.remove('show');
   document.getElementById('slotTaskTypeDropdown').classList.remove('show');
   document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = false; });
@@ -6431,6 +6437,8 @@ async function confirmSlotTask(){
   const caseNo = document.getElementById('slotTaskCase').value.trim();
   const alias = document.getElementById('slotTaskAlias').value.trim();
   const assignee = document.getElementById('slotTaskAssignee').value.trim();
+  const ownerName = document.getElementById('slotTaskOwnerName').value.trim();
+  const ownerPhone = document.getElementById('slotTaskOwnerPhone').value.trim();
   const candidateDates = [...document.querySelectorAll('.slot-task-date-input')].map(i=>i.value).filter(Boolean);
   const estDelegate = document.getElementById('slotTaskEstDelegate').checked;
   let estStart = '', estEnd = '', durationMin = null;
@@ -6451,7 +6459,7 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, candidate_dates: candidateDates, duration_min: durationMin}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, candidate_dates: candidateDates, duration_min: durationMin, owner_name: ownerName, owner_phone: ownerPhone}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
@@ -6766,7 +6774,7 @@ wireSlotCaseAutofill('slotBookingCase', 'slotBookingAlias', 'slotBookingRegistra
 // 沒有業務資料，選定後再用 record_id 精準查一次 /api/case-lookup 補業務
 // 姓名（record_id 比案號文字查詢快也準，跟「電話紀錄」選候選案件後的查法
 // 一樣）。
-function wireSlotCaseSearch(caseId, resultsId, aliasId, assigneeId, vendorId){
+function wireSlotCaseSearch(caseId, resultsId, aliasId, assigneeId, vendorId, ownerNameId, ownerPhoneId){
   const caseInput = document.getElementById(caseId);
   const resultsBox = document.getElementById(resultsId);
   if(!caseInput || !resultsBox) return;
@@ -6787,7 +6795,7 @@ function wireSlotCaseSearch(caseId, resultsId, aliasId, assigneeId, vendorId){
         resultsBox.innerHTML = results.length === 0
           ? '<div class="qm-empty">查無符合的案件，可以直接手動填寫</div>'
           : results.map(r => `
-              <div class="qm-result" onclick='selectSlotCaseCandidate(${JSON.stringify(r).replace(/'/g, "&apos;")}, "${caseId}", "${resultsId}", "${aliasId}", "${assigneeId}", "${vendorId}")'>
+              <div class="qm-result" onclick='selectSlotCaseCandidate(${JSON.stringify(r).replace(/'/g, "&apos;")}, "${caseId}", "${resultsId}", "${aliasId}", "${assigneeId}", "${vendorId}", "${ownerNameId||''}", "${ownerPhoneId||''}")'>
                 <div>
                   <div class="qm-result-name">${r.case || ''}${r.alias ? '　' + r.alias : ''}${r.not_in_airtable ? '　<span style="color:var(--text-muted);font-weight:400;">（尚未建檔）</span>' : ''}</div>
                   <div class="qm-result-addr">${r.vendor || ''}　${r.address || ''}</div>
@@ -6801,7 +6809,7 @@ function wireSlotCaseSearch(caseId, resultsId, aliasId, assigneeId, vendorId){
     if(e.target !== caseInput && !resultsBox.contains(e.target)) resultsBox.classList.remove('show');
   });
 }
-async function selectSlotCaseCandidate(r, caseId, resultsId, aliasId, assigneeId, vendorId){
+async function selectSlotCaseCandidate(r, caseId, resultsId, aliasId, assigneeId, vendorId, ownerNameId, ownerPhoneId){
   document.getElementById(caseId).value = r.case || '';
   const resultsBox = document.getElementById(resultsId);
   if(resultsBox){ resultsBox.classList.remove('show'); resultsBox.innerHTML = ''; }
@@ -6831,8 +6839,29 @@ async function selectSlotCaseCandidate(r, caseId, resultsId, aliasId, assigneeId
     const assigneeEl = document.getElementById(assigneeId);
     if(assigneeEl) assigneeEl.value = r.sales_person;
   }
+  // 2026-10-01 新增：屋主聯絡資訊（姓名/電話，來源是業務自治區 K 欄連結的
+  // 租賃合約書，見 OWNER_CONTACT_CACHE）只有「指派給業務」modal 會傳
+  // ownerNameId/ownerPhoneId（「預約時段」modal 沒有這兩個欄位，不會傳，
+  // 這裡就直接跳過）。查到的值先存進這兩個隱藏欄位，建立任務時會一起送出
+  // 當作 book.html「同公證書資訊」勾選後的預設值。
+  if(ownerNameId && r.case){
+    try{
+      const res = await fetch(API_BASE + '/api/owner-contact?case=' + encodeURIComponent(r.case), {cache: 'no-store'});
+      const data = await res.json().catch(() => ({}));
+      const nameEl = document.getElementById(ownerNameId);
+      const phoneEl = document.getElementById(ownerPhoneId);
+      if(nameEl) nameEl.value = data.found ? (data.name || '') : '';
+      if(phoneEl) phoneEl.value = data.found ? (data.phone || '') : '';
+      const infoBox = document.getElementById('slotTaskOwnerInfo');
+      if(infoBox){
+        const hasInfo = data.found && (data.name || data.phone);
+        infoBox.style.display = hasInfo ? 'block' : 'none';
+        if(hasInfo) document.getElementById('slotTaskOwnerInfoText').textContent = [data.name, data.phone].filter(Boolean).join('　');
+      }
+    }catch(err){ /* 查詢失敗就放棄，屋主聯絡資訊留空，業務在 book.html 手動填 */ }
+  }
 }
-wireSlotCaseSearch('slotTaskCase', 'slotTaskCaseResults', 'slotTaskAlias', 'slotTaskAssignee', 'slotTaskVendor');
+wireSlotCaseSearch('slotTaskCase', 'slotTaskCaseResults', 'slotTaskAlias', 'slotTaskAssignee', 'slotTaskVendor', 'slotTaskOwnerName', 'slotTaskOwnerPhone');
 wireSlotCaseSearch('slotBookingCase', 'slotBookingCaseResults', 'slotBookingAlias', 'slotBookingRegistrant', 'slotBookingVendor');
 
 // ---- 預約時段 modal ----
