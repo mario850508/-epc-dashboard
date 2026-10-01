@@ -1972,10 +1972,9 @@
         <div>
           <div class="crumb">功能模組 / 廠商時段協調</div>
           <h1 class="page-title">廠商時段協調</h1>
-          <div class="page-sub">廠商開放的現場時段（掛表/植筋/放樣/場勘），業務各自登記，系統自動擋同廠商同時段重複預約</div>
+          <div class="page-sub">現場時段（掛表/植筋/放樣/場勘）預約，業務各自登記，系統自動擋同廠商同時段重複預約</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-ghost" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" onclick="openSlotWindowModal()">➕ 開放時段</button>
           <button class="btn btn-ghost" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" onclick="openSlotTaskModal()">📨 指派給業務</button>
           <button class="btn btn-primary" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" onclick="openSlotBookingModal()">➕ 預約時段</button>
           <button class="btn btn-ghost" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" id="slotsRefreshBtn" onclick="loadVendorSlots()">🔄 重新整理</button>
@@ -1989,33 +1988,9 @@
       </div>
 
       <div class="login-note">
-        🔗 先幫廠商開「開放時段」(哪幾天可以安排)，再選其中一種方式卡確切時間：PM 自己直接「➕ 預約時段」，或是「📨 指派給業務」——輸入案號/項目/候選日期後，系統會產生一個免登入的連結，複製訊息傳給業務的 LINE，業務跟屋主喬好時間後自己點連結完成預約。不管哪種方式，同一個廠商同一天時間重疊，系統都會擋下來、顯示衝突到的是哪一筆。每個廠商卡片右上角「📋 複製清單」可以把確定下來的時段整理成文字，方便貼給廠商窗口做最終確認。這份資料直接寫回 Airtable,不同電腦/同事都能同步看到。
+        🔗 兩種方式卡時段：PM 自己直接「➕ 預約時段」，或是「📨 指派給業務」——輸入案號/項目/候選日期後，系統會產生一個免登入的連結，複製訊息傳給業務的 LINE，業務跟屋主喬好時間後自己點連結完成預約。不管哪種方式，同一個廠商同一天時間重疊，系統都會擋下來、顯示衝突到的是哪一筆。每個廠商卡片右上角「📋 複製清單」可以把確定下來的時段整理成文字，方便貼給廠商窗口做最終確認。這份資料直接寫回 Airtable,不同電腦/同事都能同步看到。
       </div>
     </section>
-
-    <!-- 新增開放時段 modal -->
-    <div class="modal-overlay" id="slotWindowModalOverlay" onclick="if(event.target===this) closeSlotWindowModal()">
-      <div class="modal-box" style="max-width:440px;">
-        <div class="modal-header">
-          <div class="modal-title">🗓️ 開放時段（廠商可安排的日期）</div>
-          <button class="modal-close" onclick="closeSlotWindowModal()">✕</button>
-        </div>
-        <div class="modal-body">
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">廠商</label>
-          <select class="quick-mark-input" id="slotWindowVendor" style="margin-bottom:14px;"></select>
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">開放日期（可以加好幾天，例如禮拜一二四）</label>
-          <div id="slotWindowDateRows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input type="date" class="quick-mark-input slot-window-date-input" style="flex:1;">
-            </div>
-          </div>
-          <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-bottom:14px;" onclick="addSlotWindowDateRow()">➕ 再加一天</button>
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">備註（選填）</label>
-          <textarea class="quick-mark-input" id="slotWindowNote" rows="2" style="margin-bottom:18px;resize:vertical;"></textarea>
-          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmSlotWindow()">確認開放</button>
-        </div>
-      </div>
-    </div>
 
     <!-- 新增預約時段 modal -->
     <div class="modal-overlay" id="slotBookingModalOverlay" onclick="if(event.target===this) closeSlotBookingModal()">
@@ -2028,11 +2003,11 @@
           <div style="display:flex;gap:10px;margin-bottom:14px;">
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">廠商</label>
-              <select class="quick-mark-input" id="slotBookingVendor" onchange="refreshSlotBookingDateOptions()"></select>
+              <select class="quick-mark-input" id="slotBookingVendor" onchange="renderSlotBookingDayPreview()"></select>
             </div>
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">日期</label>
-              <select class="quick-mark-input" id="slotBookingDate" onchange="renderSlotBookingDayPreview()"></select>
+              <input type="date" class="quick-mark-input" id="slotBookingDate" onchange="renderSlotBookingDayPreview()">
             </div>
           </div>
           <div id="slotBookingDayPreview" style="font-size:12px;color:var(--text-muted);margin-bottom:14px;"></div>
@@ -6255,19 +6230,19 @@ async function generateOpsPdf(id, keepModalOpen){
 // 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
 // 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
 // ===================================================================
-// 廠商時段協調（2026-10-01 新增）：廠商開放時段 + 業務預約時段，同一廠商
-// 同一天時間重疊由後端擋（見 /api/vendor-slots/bookings 409），前端這裡
-// 主要負責畫面分組顯示、modal 表單、跟衝突錯誤訊息的呈現。資料量小，
+// 廠商時段協調（2026-10-01 新增，同日拿掉「開放時段」概念，改成直接預約）：
+// 業務預約時段（PM 直接預約，或透過「指派給業務」任務讓業務自己選時間），
+// 同一廠商同一天時間重疊由後端擋（見 /api/vendor-slots/bookings 409），
+// 前端這裡主要負責畫面分組顯示、modal 表單、跟衝突錯誤訊息的呈現。資料量小，
 // 不走背景快取，每次切到這個頁面或按重新整理就直接抓最新的。
 // ===================================================================
-let SLOT_WINDOWS = [];
 let SLOT_BOOKINGS = [];
 let SLOT_TASKS = [];
 
 async function loadVendorSlots(){
   const container = document.getElementById('slotsContainer');
   const btn = document.getElementById('slotsRefreshBtn');
-  if(container && SLOT_WINDOWS.length === 0 && SLOT_BOOKINGS.length === 0){
+  if(container && SLOT_BOOKINGS.length === 0){
     container.innerHTML = '<div class="login-note">載入中…</div>';
   }
   if(btn) btn.disabled = true;
@@ -6278,7 +6253,6 @@ async function loadVendorSlots(){
     ]);
     if(!slotsRes.ok) throw new Error('HTTP ' + slotsRes.status);
     const data = await slotsRes.json();
-    SLOT_WINDOWS = data.windows || [];
     SLOT_BOOKINGS = data.bookings || [];
     renderVendorSlots();
     if(tasksRes.ok){
@@ -6404,21 +6378,18 @@ function fmtWeekday(dateStr){
 function renderVendorSlots(){
   const container = document.getElementById('slotsContainer');
   if(!container) return;
-  if(SLOT_WINDOWS.length === 0){
-    container.innerHTML = '<div class="login-note">目前還沒有任何廠商開放時段，點上面「➕ 開放時段」先新增一筆。</div>';
+  if(SLOT_BOOKINGS.length === 0){
+    container.innerHTML = '<div class="login-note">目前還沒有任何已確定的時段，點上面「➕ 預約時段」或「📨 指派給業務」新增一筆。</div>';
     return;
   }
-  // 依廠商分組，每個廠商底下再依日期分組（開放時段一定會建出一組 {window,bookings}，
-  // 預約如果剛好日期沒有對應開放時段紀錄也一樣會顯示，不會憑空消失）。
+  // 依廠商分組，每個廠商底下再依日期分組。2026-10-01 拿掉「開放時段」這個
+  // 中介概念後，這裡單純照已經卡下來的預約組出畫面，不再顯示「還空著的日期」
+  // （候選日期已經改成在任務裡自己帶，不需要另外宣告廠商哪幾天有開）。
   const byVendor = {};
-  SLOT_WINDOWS.forEach(w => {
-    if(!byVendor[w.vendor]) byVendor[w.vendor] = {};
-    byVendor[w.vendor][w.date] = {window: w, bookings: []};
-  });
   SLOT_BOOKINGS.forEach(b => {
     if(!byVendor[b.vendor]) byVendor[b.vendor] = {};
-    if(!byVendor[b.vendor][b.date]) byVendor[b.vendor][b.date] = {window: null, bookings: []};
-    byVendor[b.vendor][b.date].bookings.push(b);
+    if(!byVendor[b.vendor][b.date]) byVendor[b.vendor][b.date] = [];
+    byVendor[b.vendor][b.date].push(b);
   });
 
   const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship'};
@@ -6427,11 +6398,8 @@ function renderVendorSlots(){
     const vendorClass = VENDOR_CLASS[vendor] || 'vendor-other';
     const dates = Object.keys(byVendor[vendor]).sort();
     const dayBlocks = dates.map(date => {
-      const entry = byVendor[vendor][date];
-      const sortedBookings = [...entry.bookings].sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||''));
-      const rows = sortedBookings.length === 0
-        ? '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">（尚無預約，整天都還空著）</div>'
-        : sortedBookings.map(b => `
+      const sortedBookings = [...byVendor[vendor][date]].sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||''));
+      const rows = sortedBookings.map(b => `
             <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
               <span class="chip ${typeChipClass[b.type]||''}" style="flex-shrink:0;">${b.type||''}</span>
               <span style="font-weight:700;font-size:12.5px;flex-shrink:0;">${b.start_time}-${b.end_time}</span>
@@ -6439,15 +6407,9 @@ function renderVendorSlots(){
               <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">${b.registrant||''}</span>
               <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotBooking('${b.record_id}')">刪除</button>
             </div>`).join('');
-      const windowDeleteBtn = entry.window
-        ? `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;" onclick="deleteSlotWindow('${entry.window.record_id}')">取消開放</button>`
-        : '';
       return `
         <div style="margin-bottom:14px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-            <div style="font-weight:700;font-size:13px;">${fmtDate(date)}（${fmtWeekday(date)}）</div>
-            ${windowDeleteBtn}
-          </div>
+          <div style="font-weight:700;font-size:13px;margin-bottom:4px;">${fmtDate(date)}（${fmtWeekday(date)}）</div>
           ${rows}
         </div>`;
     }).join('');
@@ -6465,18 +6427,6 @@ function renderVendorSlots(){
   }).join('');
 }
 
-async function deleteSlotWindow(recordId){
-  if(!confirm('確定要取消這個開放時段嗎？（如果這天已經有預約，預約本身不會被刪除）')) return;
-  try{
-    const res = await fetch(API_BASE + '/api/vendor-slots/' + encodeURIComponent(recordId), {method:'DELETE'});
-    if(!res.ok) throw new Error('HTTP ' + res.status);
-    SLOT_WINDOWS = SLOT_WINDOWS.filter(w => w.record_id !== recordId);
-    renderVendorSlots();
-    showToast('已取消開放時段');
-  }catch(err){
-    showToast('刪除失敗：' + err.message);
-  }
-}
 async function deleteSlotBooking(recordId){
   if(!confirm('確定要刪除這筆預約嗎？')) return;
   try{
@@ -6495,18 +6445,14 @@ async function deleteSlotBooking(recordId){
 // navigator.clipboard（在非 HTTPS 或某些瀏覽器安全性設定下會整個不存在，
 // 直接呼叫會丟出例外）。
 function copySlotSummary(vendor){
-  const dates = [...new Set(SLOT_WINDOWS.filter(w=>w.vendor===vendor).map(w=>w.date))].sort();
+  const dates = [...new Set(SLOT_BOOKINGS.filter(b=>b.vendor===vendor).map(b=>b.date))].sort();
   let text = vendor + ' 現場排程確認：\n';
   dates.forEach(date => {
     text += fmtDate(date) + '（' + fmtWeekday(date) + '）\n';
     const bookings = SLOT_BOOKINGS.filter(b=>b.vendor===vendor && b.date===date).sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||''));
-    if(bookings.length === 0){
-      text += '　（尚無預約）\n';
-    } else {
-      bookings.forEach(b => {
-        text += `　${b.start_time}-${b.end_time}　${b.type}｜${b.case}${b.alias ? '（'+b.alias+'）' : ''}\n`;
-      });
-    }
+    bookings.forEach(b => {
+      text += `　${b.start_time}-${b.end_time}　${b.type}｜${b.case}${b.alias ? '（'+b.alias+'）' : ''}\n`;
+    });
   });
   document.getElementById('slotSummaryTitle').textContent = '📋 ' + vendor + ' 時段清單';
   document.getElementById('slotSummaryTextarea').value = text;
@@ -6523,48 +6469,6 @@ function copySlotSummaryText(){
   const original = btn.textContent;
   btn.textContent = '✓ 已複製';
   setTimeout(()=>{ btn.textContent = original; }, 1500);
-}
-
-// ---- 開放時段 modal ----
-function openSlotWindowModal(){
-  const sel = document.getElementById('slotWindowVendor');
-  sel.innerHTML = ALL_VENDOR_NAMES.map(v => `<option value="${v}">${v}</option>`).join('');
-  document.getElementById('slotWindowDateRows').innerHTML = '<div style="display:flex;gap:8px;align-items:center;"><input type="date" class="quick-mark-input slot-window-date-input" style="flex:1;"></div>';
-  document.getElementById('slotWindowNote').value = '';
-  document.getElementById('slotWindowModalOverlay').classList.add('show');
-}
-function closeSlotWindowModal(){
-  document.getElementById('slotWindowModalOverlay').classList.remove('show');
-}
-function addSlotWindowDateRow(){
-  const wrap = document.getElementById('slotWindowDateRows');
-  const row = document.createElement('div');
-  row.style.cssText = 'display:flex;gap:8px;align-items:center;';
-  row.innerHTML = '<input type="date" class="quick-mark-input slot-window-date-input" style="flex:1;"><button class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="this.parentElement.remove()">✕</button>';
-  wrap.appendChild(row);
-}
-async function confirmSlotWindow(){
-  const vendor = document.getElementById('slotWindowVendor').value;
-  const dates = [...document.querySelectorAll('.slot-window-date-input')].map(i=>i.value).filter(Boolean);
-  const note = document.getElementById('slotWindowNote').value.trim();
-  if(!vendor || dates.length === 0){ showToast('請選廠商、至少填一個日期'); return; }
-  const btn = document.querySelector('#slotWindowModalOverlay .btn-primary');
-  const originalText = btn.textContent;
-  btn.textContent = '儲存中…'; btn.disabled = true;
-  try{
-    const res = await fetch(API_BASE + '/api/vendor-slots/windows', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, dates, note}),
-    });
-    if(!res.ok){ const err = await res.json().catch(()=>({})); throw new Error(err.error || ('HTTP '+res.status)); }
-    closeSlotWindowModal();
-    showToast('已新增開放時段');
-    loadVendorSlots();
-  }catch(err){
-    showToast('儲存失敗：' + err.message);
-  }finally{
-    btn.textContent = originalText; btn.disabled = false;
-  }
 }
 
 // 原本開始/結束時間用 <input type="time">，使用者反饋原生時間選取器（上午/下午
@@ -6587,15 +6491,12 @@ function slotTimeOptionsHtml(){
 // ---- 預約時段 modal ----
 function openSlotBookingModal(){
   const sel = document.getElementById('slotBookingVendor');
-  // 只列出目前「有開放時段」的廠商，選了廠商之後日期選單只會出現那個廠商開放的日期。
-  const vendorsWithWindows = [...new Set(SLOT_WINDOWS.map(w=>w.vendor))].sort((a,b)=>a.localeCompare(b,'zh-Hant'));
-  if(vendorsWithWindows.length === 0){
-    showToast('目前沒有任何廠商開放時段，請先新增「開放時段」');
-    return;
-  }
-  sel.innerHTML = vendorsWithWindows.map(v => `<option value="${v}">${v}</option>`).join('');
+  // 2026-10-01 拿掉「開放時段」概念後，廠商選單直接列出全部廠商，日期改用
+  // 自由選的 <input type="date">，選好廠商/日期才會顯示當天已卡的時段。
+  sel.innerHTML = ALL_VENDOR_NAMES.map(v => `<option value="${v}">${v}</option>`).join('');
   document.getElementById('slotBookingStart').innerHTML = slotTimeOptionsHtml();
   document.getElementById('slotBookingEnd').innerHTML = slotTimeOptionsHtml();
+  document.getElementById('slotBookingDate').value = '';
   document.getElementById('slotBookingStart').value = '';
   document.getElementById('slotBookingEnd').value = '';
   document.getElementById('slotBookingCase').value = '';
@@ -6603,18 +6504,11 @@ function openSlotBookingModal(){
   document.getElementById('slotBookingRegistrant').value = '';
   document.getElementById('slotBookingNote').value = '';
   document.getElementById('slotBookingError').style.display = 'none';
-  refreshSlotBookingDateOptions();
+  renderSlotBookingDayPreview();
   document.getElementById('slotBookingModalOverlay').classList.add('show');
 }
 function closeSlotBookingModal(){
   document.getElementById('slotBookingModalOverlay').classList.remove('show');
-}
-function refreshSlotBookingDateOptions(){
-  const vendor = document.getElementById('slotBookingVendor').value;
-  const dates = SLOT_WINDOWS.filter(w=>w.vendor===vendor).map(w=>w.date).sort();
-  const sel = document.getElementById('slotBookingDate');
-  sel.innerHTML = dates.map(d => `<option value="${d}">${fmtDate(d)}（${fmtWeekday(d)}）</option>`).join('');
-  renderSlotBookingDayPreview();
 }
 function renderSlotBookingDayPreview(){
   const vendor = document.getElementById('slotBookingVendor').value;
