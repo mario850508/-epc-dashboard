@@ -2132,7 +2132,8 @@
         </div>
         <div class="modal-body">
           <textarea id="slotSummaryTextarea" readonly style="width:100%;min-height:260px;border:1px solid var(--border);border-radius:10px;padding:14px;font-size:12.5px;font-family:ui-monospace,monospace;line-height:1.7;color:var(--text);background:var(--surface-2);resize:vertical;"></textarea>
-          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:12px;" onclick="copySlotSummaryText()">📎 複製清單</button>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:12px;" onclick="shareSlotSummaryToLine()">📤 傳送到 LINE</button>
+          <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:11px;margin-top:8px;" onclick="copySlotSummaryText()">📎 複製清單</button>
         </div>
       </div>
     </div>
@@ -6514,6 +6515,14 @@ function copySlotSummaryText(){
   const original = btn.textContent;
   btn.textContent = '✓ 已複製';
   setTimeout(()=>{ btn.textContent = original; }, 1500);
+}
+// 2026-10-01 新增：LINE 官方提供的分享連結格式（https://line.me/R/msg/text/?
+// 文字），不用申請任何 API/權限，點開會跳轉到 LINE app（手機）或 LINE 桌面版
+// /網頁版，讓使用者自己選要傳給誰，文字已經預先帶好。開新分頁而不是直接
+// location.href，避免使用者從 LINE 切回來時這頁的狀態不見。
+function shareSlotSummaryToLine(){
+  const text = document.getElementById('slotSummaryTextarea').value;
+  window.open('https://line.me/R/msg/text/?' + encodeURIComponent(text), '_blank');
 }
 
 // 原本開始/結束時間用 <input type="time">，使用者反饋原生時間選取器（上午/下午
