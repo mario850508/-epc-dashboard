@@ -597,6 +597,7 @@
         <div class="nav-sub" id="navSub-epc">
           <div class="nav-sub-item" data-sub="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
           <div class="nav-sub-item" data-sub="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
+          <div class="nav-sub-item" data-sub="epc-survey" onclick="showEpcTab('epc-survey')">場勘安排</div>
           <div class="nav-sub-item" data-sub="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨&植筋</div>
           <div class="nav-sub-item" data-sub="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
           <div class="nav-sub-item" data-sub="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
@@ -772,6 +773,7 @@
       <div class="tabs">
         <div class="tab active" data-tab="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
         <div class="tab" data-tab="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
+        <div class="tab" data-tab="epc-survey" onclick="showEpcTab('epc-survey')">場勘安排</div>
         <div class="tab" data-tab="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨&植筋</div>
         <div class="tab" data-tab="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
         <div class="tab" data-tab="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
@@ -788,6 +790,38 @@
           </div>
           <div class="login-note">
             🔗 這裡只顯示未來 7 天內的所有排程項目,跨廠商彙整,方便快速掌握近期要出貨/進場的案件,不用逐日翻日曆。要篩選廠商請用右上角的「🏭 廠商」按鈕,所有頁面共用同一份篩選設定。
+          </div>
+        </div>
+      </div>
+
+      <!-- 場勘安排（2026-10-01 新增；資料來自另一個 Airtable base「工務組」，
+           不是本頁其他表格共用的那個 base，查詢邏輯在後端 /api/site-survey-pending） -->
+      <div class="subview" id="tab-epc-survey">
+        <div class="panel">
+          <div class="panel-title">
+            場勘安排 <span class="module-tag tag-cloud" style="margin-left:6px;" id="surveyCountTag">共 0 筆</span>
+            <div class="panel-title-actions">
+              <button class="btn btn-ghost notes-trigger-btn" id="surveyRefreshBtn" onclick="loadSurveyPendingCases()">🔄 重新整理</button>
+            </div>
+          </div>
+          <div class="pending-toolbar">
+            <input type="text" class="quick-mark-input" id="surveyFilterInput" placeholder="搜尋案號、地址…" oninput="tableSearchInput('survey')" style="max-width:260px;">
+          </div>
+          <table>
+            <thead><tr>
+              <th class="sortable-th" onclick="sortTableBy('survey','case')">案號 <span id="surveySortIcon_case">↕</span></th>
+              <th>廠商</th>
+              <th>業務</th>
+              <th>案場地址</th>
+              <th class="sortable-th" onclick="sortTableBy('survey','provided_date')">案件提供日 <span id="surveySortIcon_provided_date">↕</span></th>
+              <th>預計場勘日</th>
+            </tr></thead>
+            <tbody id="surveyRows">
+              <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>
+            </tbody>
+          </table>
+          <div class="login-note">
+            🔗 資料來源是工務組另一個 Airtable base,不是這頁其他表格共用的那份,所以不會跟著下面「待安排出貨&植筋」的「手動更新」一起刷新,要自己點上面「🔄 重新整理」。列出的是「案件提供日」已經有日期(代表確定由哪間 EPC 承接)、但「實際場勘日」還空白(代表還沒去場勘)的案件;如果這個案號在「併聯審查」已經有送件或取得日期,代表早就過了場勘階段,會自動排除,不會出現在這裡。依「案件提供日」由舊到新排序,越上面代表等越久。
           </div>
         </div>
       </div>
@@ -2762,6 +2796,65 @@ async function loadCompletedCases(){
   }
 }
 
+// ---- 場勘安排（2026-10-01 新增）----
+// 資料來自另一個獨立的 Airtable base（工務組），後端 /api/site-survey-pending
+// 已經做好篩選跟排除邏輯，前端只需要顯示、套用廠商篩選／搜尋／排序。不走
+// 6 秒一次的背景自動同步（避免兩個 base 一起查太頻繁），只在切到這個頁籤、
+// 或按「🔄 重新整理」時才重新抓一次。
+let SURVEY_CASES = [];
+async function loadSurveyPendingCases(){
+  const tbody = document.getElementById('surveyRows');
+  const btn = document.getElementById('surveyRefreshBtn');
+  if(tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>';
+  if(btn) btn.disabled = true;
+  try{
+    const res = await fetch(API_BASE + '/api/site-survey-pending', {cache: 'no-store'});
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    const data = await res.json();
+    SURVEY_CASES = (data.cases || []).map(c => ({
+      ...c,
+      vendorClass: VENDOR_CLASS[c.vendor] || 'vendor-other',
+    }));
+    renderSurveyTable();
+  }catch(err){
+    if(tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入失敗：' + err.message + '</td></tr>';
+    console.error(err);
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+function renderSurveyTable(){
+  const tbody = document.getElementById('surveyRows');
+  if(!tbody) return;
+  const rows = applyTableFilterSort('survey', SURVEY_CASES);
+  const countTag = document.getElementById('surveyCountTag');
+  if(countTag) countTag.textContent = '共 ' + rows.length + ' 筆';
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有需要安排場勘的案件</td></tr>';
+    return;
+  }
+  const todayStr2 = todayStr();
+  tbody.innerHTML = rows.map(r => {
+    const waitDays = r.provided_date ? Math.max(0, Math.round((new Date(todayStr2) - new Date(r.provided_date)) / 86400000)) : null;
+    const waitLabel = waitDays === null ? '' : (waitDays >= 15
+      ? `<span style="color:#D64545;font-weight:700;"> 等 ${waitDays} 天</span>`
+      : `<span style="color:var(--text-muted);"> 等 ${waitDays} 天</span>`);
+    return `
+    <tr>
+      <td><div class="case-id">${r.case || '（無案號）'}</div><div class="case-alias">${r.alias||''}</div></td>
+      <td>${r.vendor ? `<span class="vendor-pill ${r.vendorClass}">${r.vendor}</span>` : ''}</td>
+      <td>${r.sales_person || ''}</td>
+      <td>${r.address || ''}</td>
+      <td>${fmtDate(r.provided_date)}${waitLabel}</td>
+      <td>${r.planned_date ? fmtDate(r.planned_date) : '<span style="color:var(--text-muted);">尚未安排</span>'}</td>
+    </tr>
+  `;
+  }).join('');
+}
+
 let lastKnownUpdatedAt = null;
 // ---- 填寫模組／逆變器規格（直接寫回 Airtable「專案細節」表）----
 let INVERTER_OPTIONS = null;
@@ -3562,6 +3655,7 @@ const TABLE_STATE = {
   issue:   { sortKey: null, sortAsc: true, q: '' },
   archive: { sortKey: null, sortAsc: true, q: '' },
   withdrawn: { sortKey: null, sortAsc: true, q: '' },
+  survey:  { sortKey: null, sortAsc: true, q: '' },
 };
 const TABLE_SORT_FIELDS = {
   entry: ['case','module'],
@@ -3569,6 +3663,7 @@ const TABLE_SORT_FIELDS = {
   issue: ['case'],
   archive: ['case','module'],
   withdrawn: ['case'],
+  survey: ['case','provided_date'],
 };
 const TABLE_RENDER_FN = {
   entry: () => renderEntryTable(),
@@ -3576,6 +3671,7 @@ const TABLE_RENDER_FN = {
   issue: () => renderIssueTable(),
   archive: () => renderArchiveTable(),
   withdrawn: () => renderWithdrawnTable(),
+  survey: () => renderSurveyTable(),
 };
 function sortTableBy(tab, key){
   const st = TABLE_STATE[tab];
@@ -5120,6 +5216,7 @@ function showEpcTab(tab){
   document.querySelector('.nav-sub-item[data-sub="'+tab+'"]').classList.add('active');
   if(tab === 'epc-calendar') renderCalendar();
   if(tab === 'epc-week') renderWeekList();
+  if(tab === 'epc-survey') loadSurveyPendingCases();
   saveNavState({view: 'epc', epcTab: tab});
 }
 function changeCalMonth(delta){
