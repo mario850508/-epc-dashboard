@@ -6745,6 +6745,11 @@ async function selectSlotCaseCandidate(r, caseId, resultsId, aliasId, assigneeId
         if(assigneeEl) assigneeEl.value = data.sales_person;
       }
     }catch(err){ /* 查詢失敗就放棄，不影響已經帶好的案號/別名/廠商 */ }
+  } else if(r.sales_person){
+    // not_in_airtable 的案件沒有 record_id 可以查，業務姓名是搜尋結果裡
+    // 直接帶來的（業務自治區 U 欄），不用再另外查一次。
+    const assigneeEl = document.getElementById(assigneeId);
+    if(assigneeEl) assigneeEl.value = r.sales_person;
   }
 }
 wireSlotCaseSearch('slotTaskCase', 'slotTaskCaseResults', 'slotTaskAlias', 'slotTaskAssignee', 'slotTaskVendor');
