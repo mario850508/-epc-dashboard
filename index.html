@@ -2077,27 +2077,27 @@
           </div>
           <div style="display:flex;gap:10px;margin-bottom:14px;">
             <div style="flex:1;">
-              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">廠商</label>
-              <select class="quick-mark-input" id="slotTaskVendor"></select>
-            </div>
-            <div style="flex:1;">
-              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">項目類型</label>
-              <select class="quick-mark-input" id="slotTaskType">
-                <option value="掛表">掛表</option>
-                <option value="植筋">植筋</option>
-                <option value="放樣">放樣</option>
-                <option value="場勘">場勘</option>
-              </select>
-            </div>
-          </div>
-          <div style="display:flex;gap:10px;margin-bottom:14px;">
-            <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案號</label>
               <input type="text" class="quick-mark-input" id="slotTaskCase" placeholder="例如：潤特桃園45號">
             </div>
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">案場別名（選填）</label>
               <input type="text" class="quick-mark-input" id="slotTaskAlias">
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:14px;">
+            <div style="flex:1;">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">廠商</label>
+              <select class="quick-mark-input" id="slotTaskVendor"></select>
+            </div>
+            <div style="flex:1;">
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">項目類型</label>
+              <select class="quick-mark-input" id="slotTaskType" onchange="applySlotTaskTimeDefault()">
+                <option value="掛表">掛表</option>
+                <option value="植筋">植筋</option>
+                <option value="放樣">放樣</option>
+                <option value="場勘">場勘</option>
+              </select>
             </div>
           </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">候選日期（廠商提供的可安排日期，業務只能從這幾天選）</label>
@@ -2107,6 +2107,15 @@
             </div>
           </div>
           <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-bottom:14px;" onclick="addSlotTaskDateRow()">➕ 再加一天</button>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預估時間（選填，僅供業務參考，實際時間由業務跟屋主協調）</label>
+          <div style="display:flex;gap:10px;margin-bottom:14px;">
+            <div style="flex:1;">
+              <select class="quick-mark-input" id="slotTaskEstStart" onchange="applySlotTaskTimeDefault()"></select>
+            </div>
+            <div style="flex:1;">
+              <select class="quick-mark-input" id="slotTaskEstEnd"></select>
+            </div>
+          </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">指派給（業務姓名，選填，純提示不影響連結本身）</label>
           <input type="text" class="quick-mark-input" id="slotTaskAssignee" placeholder="例如：小夫" style="margin-bottom:18px;">
           <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmSlotTask()">建立任務並產生連結</button>
@@ -6325,6 +6334,11 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskAlias').value = '';
   document.getElementById('slotTaskAssignee').value = '';
   document.getElementById('slotTaskDateRows').innerHTML = '<div style="display:flex;gap:8px;align-items:center;"><input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;"></div>';
+  document.getElementById('slotTaskEstStart').innerHTML = slotTimeOptionsHtml();
+  document.getElementById('slotTaskEstEnd').innerHTML = slotTimeOptionsHtml();
+  document.getElementById('slotTaskEstStart').value = '';
+  document.getElementById('slotTaskEstEnd').value = '';
+  applySlotTaskTimeDefault();
   document.getElementById('slotTaskModalOverlay').classList.add('show');
 }
 function closeSlotTaskModal(){
@@ -6344,6 +6358,8 @@ async function confirmSlotTask(){
   const alias = document.getElementById('slotTaskAlias').value.trim();
   const assignee = document.getElementById('slotTaskAssignee').value.trim();
   const candidateDates = [...document.querySelectorAll('.slot-task-date-input')].map(i=>i.value).filter(Boolean);
+  const estStart = document.getElementById('slotTaskEstStart').value;
+  const estEnd = document.getElementById('slotTaskEstEnd').value;
   if(!vendor || !type || !caseNo || candidateDates.length === 0){
     showToast('請把廠商/項目類型/案號填好，候選日期至少填一天');
     return;
@@ -6360,16 +6376,21 @@ async function confirmSlotTask(){
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
     closeSlotTaskModal();
     loadVendorSlots();
-    showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path);
+    showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path, estStart, estEnd);
   }catch(err){
     showToast('建立失敗：' + err.message);
   }finally{
     btn.textContent = originalText; btn.disabled = false;
   }
 }
-function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path){
+// estStart/estEnd（預估時間）純粹是建立任務當下的前端提示，不會寫回
+// Airtable 任務紀錄，所以只有「建立任務並產生連結」當下的訊息會帶這行；
+// 之後從任務清單用「📎 複製訊息」重新產生，就不會有這行了（候選日期/
+// 業務姓名這些有存在任務紀錄裡，所以還是會有）。
+function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, estStart, estEnd){
   const link = window.location.origin + path;
-  const text = `【${vendor} ${type}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
+  const estLine = (estStart && estEnd) ? `\n預估時間：${estStart}-${estEnd}（僅供參考，實際時間請跟屋主協調）` : '';
+  const text = `【${vendor} ${type}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}${estLine}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
   document.getElementById('slotSummaryTitle').textContent = '📨 傳給業務的訊息';
   document.getElementById('slotSummaryTextarea').value = text;
   document.getElementById('slotSummaryModalOverlay').classList.add('show');
@@ -6515,12 +6536,14 @@ function slotTimeOptionsHtml(){
 // 2026-10-01 新增：各項目類型預設需要的時間長度（分鐘），掛表另外固定
 // 09:00 開始（使用者指定早上9點到中午12點）。開始時間空白時先補 09:00，
 // 再依類型長度算出結束時間；使用者改開始時間或項目類型都會重算一次，
-// 但算完之後還是可以手動改選單，不會卡死。
+// 但算完之後還是可以手動改選單，不會卡死。參數化成 typeId/startId/endId
+// 是因為「預約時段」modal（實際時間，必填）跟「指派給業務」modal（預估
+// 時間，純參考用、選填）都要套用同一套規則。
 const SLOT_TYPE_DURATION_MIN = {'掛表':180,'植筋':180,'放樣':60,'場勘':60};
-function applySlotBookingTimeDefault(){
-  const typeSel = document.getElementById('slotBookingType');
-  const startSel = document.getElementById('slotBookingStart');
-  const endSel = document.getElementById('slotBookingEnd');
+function applyTypeTimeDefault(typeId, startId, endId){
+  const typeSel = document.getElementById(typeId);
+  const startSel = document.getElementById(startId);
+  const endSel = document.getElementById(endId);
   if(!typeSel || !startSel || !endSel) return;
   const duration = SLOT_TYPE_DURATION_MIN[typeSel.value];
   if(!duration) return;
@@ -6530,13 +6553,18 @@ function applySlotBookingTimeDefault(){
   const endVal = String(Math.floor(totalMin / 60)).padStart(2,'0') + ':' + String(totalMin % 60).padStart(2,'0');
   if([...endSel.options].some(o => o.value === endVal)) endSel.value = endVal;
 }
+function applySlotBookingTimeDefault(){ applyTypeTimeDefault('slotBookingType', 'slotBookingStart', 'slotBookingEnd'); }
+function applySlotTaskTimeDefault(){ applyTypeTimeDefault('slotTaskType', 'slotTaskEstStart', 'slotTaskEstEnd'); }
 
-// 2026-10-01 新增：案號打完之後自動帶出別名／負責業務，資料來源跟「電話
-// 紀錄」筆記本功能共用同一個後端查詢（/api/case-lookup?case_no=，需要
-// 完全符合案號），避免兩個廠商時段 modal 的案號/別名/業務要再手動對一次。
-// 只在查到資料時才覆蓋欄位，查無資料（案號還沒打完/打錯）就不動使用者
-// 已經填的內容。debounce 500ms，不然每打一個字就送一次查詢。
-function wireSlotCaseAutofill(caseId, aliasId, assigneeId){
+// 2026-10-01 新增：案號打完之後自動帶出廠商／別名／負責業務，資料來源跟
+// 「電話紀錄」筆記本功能共用同一個後端查詢（/api/case-lookup?case_no=，
+// 需要完全符合案號），避免兩個廠商時段 modal 的案號/廠商/別名/業務要再
+// 手動對一次。只在查到資料時才覆蓋欄位，查無資料（案號還沒打完/打錯）就
+// 不動使用者已經填的內容。debounce 500ms，不然每打一個字就送一次查詢。
+// 廠商欄位是 <select>，用程式改值不會自動觸發 onchange，所以改完手動
+// dispatch 一次 change，讓「預約時段」modal 原本掛在廠商 onchange 上的
+// 當天預約預覽也會跟著刷新。
+function wireSlotCaseAutofill(caseId, aliasId, assigneeId, vendorId){
   const caseInput = document.getElementById(caseId);
   if(!caseInput) return;
   let timer = null;
@@ -6558,12 +6586,19 @@ function wireSlotCaseAutofill(caseId, aliasId, assigneeId){
           const assigneeEl = document.getElementById(assigneeId);
           if(assigneeEl) assigneeEl.value = data.sales_person;
         }
+        if(data.vendor && vendorId){
+          const vendorEl = document.getElementById(vendorId);
+          if(vendorEl && [...vendorEl.options].some(o => o.value === data.vendor)){
+            vendorEl.value = data.vendor;
+            vendorEl.dispatchEvent(new Event('change'));
+          }
+        }
       }catch(err){ /* 查詢失敗就安靜放棄，不影響手動輸入 */ }
     }, 500);
   });
 }
-wireSlotCaseAutofill('slotTaskCase', 'slotTaskAlias', 'slotTaskAssignee');
-wireSlotCaseAutofill('slotBookingCase', 'slotBookingAlias', 'slotBookingRegistrant');
+wireSlotCaseAutofill('slotTaskCase', 'slotTaskAlias', 'slotTaskAssignee', 'slotTaskVendor');
+wireSlotCaseAutofill('slotBookingCase', 'slotBookingAlias', 'slotBookingRegistrant', 'slotBookingVendor');
 
 // ---- 預約時段 modal ----
 function openSlotBookingModal(){
