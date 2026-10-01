@@ -178,6 +178,7 @@ function render(){
           <select id="endTime">${timeOptionsHtml()}</select>
         </div>
       </div>
+      <div class="sub" style="margin-top:-10px;">⏱️ 選好開始時間後，結束時間會依預估作業時長自動帶入，仍可自行調整</div>
 
       <label>您的姓名</label>
       <input type="text" id="registrant" value="${TASK.assignee || ''}" placeholder="例如：小夫">
@@ -198,9 +199,13 @@ function render(){
 // 結束時間；業務改開始時間也會重算一次，但還是可以手動改掉。
 // 2026-10-01 同日：項目類型改成可複選（任務可能同時是「植筋+放樣」），
 // TASK.type 變成陣列，時長直接加總。
+// 2026-10-01 再加一版：PM 在「指派給業務」建立任務時如果有給明確的預估
+// 時長（勾「交由業務安排」直接填，或從完整預估時間換算），會存在
+// TASK.duration_min，這裡優先用這個值；沒有的話（舊任務、或 PM 完全沒給
+// 估計）才退回用項目類型算出的通用時長，確保這裡永遠有個合理預設可用。
 const TYPE_DURATION_MIN = {'掛表':180,'植筋':180,'放樣':60,'場勘':60};
 function applyTimeDurationDefault(){
-  const duration = (TASK.type||[]).reduce((sum, t) => sum + (TYPE_DURATION_MIN[t] || 0), 0);
+  const duration = TASK.duration_min || (TASK.type||[]).reduce((sum, t) => sum + (TYPE_DURATION_MIN[t] || 0), 0);
   if(!duration) return;
   const startSel = document.getElementById('startTime');
   const endSel = document.getElementById('endTime');

@@ -2133,15 +2133,18 @@
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預估時間（選填，僅供業務參考，實際時間由業務跟屋主協調）</label>
           <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;margin-bottom:8px;cursor:pointer;color:var(--text-muted);">
             <input type="checkbox" id="slotTaskEstDelegate" onchange="onSlotTaskEstDelegateChange()">
-            交由業務安排（不先填預估時間）
+            交由業務安排（改填預計花費時間，業務到預約頁選開始時間，結束時間自動帶）
           </label>
-          <div style="display:flex;gap:10px;margin-bottom:14px;">
+          <div id="slotTaskEstRange" style="display:flex;gap:10px;margin-bottom:14px;">
             <div style="flex:1;">
               <select class="quick-mark-input" id="slotTaskEstStart" onchange="applySlotTaskTimeDefault()"></select>
             </div>
             <div style="flex:1;">
               <select class="quick-mark-input" id="slotTaskEstEnd"></select>
             </div>
+          </div>
+          <div id="slotTaskEstDurationWrap" style="display:none;margin-bottom:14px;">
+            <select class="quick-mark-input" id="slotTaskEstDuration"></select>
           </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">指派給（業務姓名，選填，純提示不影響連結本身）</label>
           <input type="text" class="quick-mark-input" id="slotTaskAssignee" placeholder="例如：小夫" style="margin-bottom:18px;">
@@ -6367,21 +6370,33 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskEstEnd').innerHTML = slotTimeOptionsHtml();
   document.getElementById('slotTaskEstStart').value = '';
   document.getElementById('slotTaskEstEnd').value = '';
+  document.getElementById('slotTaskEstDuration').innerHTML = slotDurationOptionsHtml();
   document.getElementById('slotTaskEstDelegate').checked = false;
-  document.getElementById('slotTaskEstStart').disabled = false;
-  document.getElementById('slotTaskEstEnd').disabled = false;
+  document.getElementById('slotTaskEstRange').style.display = 'flex';
+  document.getElementById('slotTaskEstDurationWrap').style.display = 'none';
   applySlotTaskTimeDefault();
   document.getElementById('slotTaskModalOverlay').classList.add('show');
 }
-// 2026-10-01 新增：勾選「交由業務安排」就不用先填預估時間——停用開始/結束
-// 時間下拉（避免誤以為還要填），取消勾選時恢復成依項目類型算出的預設
-// 時間。confirmSlotTask() 送出時也會以這個勾選框為準，不管選單殘留什麼
-// 值，勾了就不帶預估時間進訊息。
+// 2026-10-01 新增：勾選「交由業務安排」時，PM 不填具體的開始/結束時間，
+// 改填一個「預計花費時間」（預設帶入目前勾選項目類型的總時長，可自己改），
+// 業務到 book.html 自助預約頁時就只用選開始時間，結束時間會依這個時長
+// 自動算出來（仍可手動調整）。取消勾選就恢復成原本「填具體預估時間」的
+// 兩個時間下拉。
+function getSlotTaskTypeDurationSum(){
+  const types = getCheckedSlotTypes('slot-task-type-check');
+  return types.reduce((sum, t) => sum + (SLOT_TYPE_DURATION_MIN[t] || 0), 0) || 60;
+}
 function onSlotTaskEstDelegateChange(){
   const delegate = document.getElementById('slotTaskEstDelegate').checked;
-  document.getElementById('slotTaskEstStart').disabled = delegate;
-  document.getElementById('slotTaskEstEnd').disabled = delegate;
-  if(!delegate) applySlotTaskTimeDefault();
+  document.getElementById('slotTaskEstRange').style.display = delegate ? 'none' : 'flex';
+  document.getElementById('slotTaskEstDurationWrap').style.display = delegate ? 'block' : 'none';
+  if(delegate){
+    const durSel = document.getElementById('slotTaskEstDuration');
+    const defaultDuration = String(getSlotTaskTypeDurationSum());
+    if([...durSel.options].some(o => o.value === defaultDuration)) durSel.value = defaultDuration;
+  } else {
+    applySlotTaskTimeDefault();
+  }
 }
 function closeSlotTaskModal(){
   document.getElementById('slotTaskModalOverlay').classList.remove('show');
@@ -6401,8 +6416,14 @@ async function confirmSlotTask(){
   const assignee = document.getElementById('slotTaskAssignee').value.trim();
   const candidateDates = [...document.querySelectorAll('.slot-task-date-input')].map(i=>i.value).filter(Boolean);
   const estDelegate = document.getElementById('slotTaskEstDelegate').checked;
-  const estStart = estDelegate ? '' : document.getElementById('slotTaskEstStart').value;
-  const estEnd = estDelegate ? '' : document.getElementById('slotTaskEstEnd').value;
+  let estStart = '', estEnd = '', durationMin = null;
+  if(estDelegate){
+    durationMin = parseInt(document.getElementById('slotTaskEstDuration').value, 10) || null;
+  } else {
+    estStart = document.getElementById('slotTaskEstStart').value;
+    estEnd = document.getElementById('slotTaskEstEnd').value;
+    if(estStart && estEnd) durationMin = slotMinutesBetween(estStart, estEnd);
+  }
   if(!vendor || type.length === 0 || !caseNo || candidateDates.length === 0){
     showToast('請把廠商/項目類型/案號填好，候選日期至少填一天');
     return;
@@ -6413,27 +6434,35 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, candidate_dates: candidateDates}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, candidate_dates: candidateDates, duration_min: durationMin}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
     closeSlotTaskModal();
     loadVendorSlots();
-    showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path, estStart, estEnd);
+    showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path, estStart, estEnd, durationMin, estDelegate);
   }catch(err){
     showToast('建立失敗：' + err.message);
   }finally{
     btn.textContent = originalText; btn.disabled = false;
   }
 }
-// estStart/estEnd（預估時間）純粹是建立任務當下的前端提示，不會寫回
-// Airtable 任務紀錄，所以只有「建立任務並產生連結」當下的訊息會帶這行；
-// 之後從任務清單用「📎 複製訊息」重新產生，就不會有這行了（候選日期/
-// 業務姓名這些有存在任務紀錄裡，所以還是會有）。
-function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, estStart, estEnd){
+// estStart/estEnd 只是建立當下用來算 durationMin 的輸入，不會直接存；
+// durationMin（分鐘）才是真正寫回 Airtable 任務紀錄的值（見
+// FIELD_TASK_DURATION_MIN），不管是「交由業務安排」直接填的時長，還是
+// 從完整預估時間換算出來的，book.html 自助預約頁都會用這個值幫業務把
+// 結束時間自動帶出來。estDelegate=true 時訊息顯示「預估時長」，否則（有
+// 完整起訖時間）顯示「預估時間」區間；之後從任務清單「📎 複製訊息」重新
+// 產生時一樣會帶（因為 durationMin 已經存在任務紀錄裡了，不像以前會不見）。
+function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, estStart, estEnd, durationMin, estDelegate){
   const link = window.location.origin + path;
   const typeLabel = (type||[]).join('+');
-  const estLine = (estStart && estEnd) ? `\n預估時間：${estStart}-${estEnd}（僅供參考，實際時間依現場工班作業時間為主）` : '';
+  let estLine = '';
+  if(estDelegate && durationMin){
+    estLine = `\n預估時長：${slotDurationLabel(durationMin)}（僅供參考，實際時間依現場工班作業時間為主）`;
+  } else if(estStart && estEnd){
+    estLine = `\n預估時間：${estStart}-${estEnd}（僅供參考，實際時間依現場工班作業時間為主）`;
+  }
   const text = `【${vendor} ${typeLabel}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}${estLine}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
   document.getElementById('slotSummaryTitle').textContent = '📨 傳給業務的訊息';
   document.getElementById('slotSummaryTextarea').value = text;
@@ -6443,7 +6472,7 @@ function copySlotTaskMessage(recordId){
   const t = SLOT_TASKS.find(x => x.record_id === recordId);
   if(!t) return;
   const path = '/book.html?token=' + t.token;
-  showSlotTaskMessage(t.vendor, t.case, t.alias, t.type, t.candidate_dates, path);
+  showSlotTaskMessage(t.vendor, t.case, t.alias, t.type, t.candidate_dates, path, '', '', t.duration_min, !!t.duration_min);
 }
 async function deleteSlotTask(recordId){
   if(!confirm('確定要刪除這個任務嗎？（連結會立刻失效，如果業務已經在填的話會失敗）')) return;
@@ -6586,6 +6615,24 @@ function slotTimeOptionsHtml(){
   return '<option value="">請選擇</option>' + SLOT_TIME_OPTIONS.map(t => `<option value="${t}">${t}</option>`).join('');
 }
 
+// 2026-10-01 新增：「交由業務安排」勾選後的「預計花費時間」下拉，30 分鐘一格、
+// 30 分鐘到 8 小時，跟 book.html 自助預約頁用同一套時長換算邏輯（見那邊的
+// applyBookingDurationDefault）。
+function slotDurationLabel(min){
+  const h = Math.floor(min / 60), m = min % 60;
+  return (h > 0 ? h + '小時' : '') + (m > 0 ? m + '分鐘' : '');
+}
+function slotDurationOptionsHtml(){
+  const opts = [];
+  for(let m = 30; m <= 480; m += 30) opts.push(`<option value="${m}">${slotDurationLabel(m)}</option>`);
+  return opts.join('');
+}
+function slotMinutesBetween(start, end){
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  return (eh * 60 + em) - (sh * 60 + sm);
+}
+
 // 2026-10-01 新增：各項目類型預設需要的時間長度（分鐘），掛表另外固定
 // 09:00 開始（使用者指定早上9點到中午12點）。開始時間空白時先補 09:00，
 // 再依類型長度算出結束時間；使用者改開始時間或項目類型都會重算一次，
@@ -6649,8 +6696,12 @@ function onSlotBookingTypeChange(){
   updateSlotTypeLabel('slot-booking-type-check', 'slotBookingTypeLabel');
 }
 function onSlotTaskTypeChange(){
-  applySlotTaskTimeDefault();
   updateSlotTypeLabel('slot-task-type-check', 'slotTaskTypeLabel');
+  if(document.getElementById('slotTaskEstDelegate').checked){
+    document.getElementById('slotTaskEstDuration').value = String(getSlotTaskTypeDurationSum());
+  } else {
+    applySlotTaskTimeDefault();
+  }
 }
 
 // 2026-10-01 新增：案號打完之後自動帶出廠商／別名／負責業務，資料來源跟
