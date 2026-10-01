@@ -1991,7 +1991,6 @@
       </div>
 
       <div class="subview" id="slots-tab-done">
-        <div id="slotTasksDoneContainer"></div>
         <div id="slotsContainer">
           <div class="login-note">載入中…</div>
         </div>
@@ -6298,34 +6297,30 @@ function showSlotsTab(tab){
   document.querySelector('#view-slots .tab[data-slots-tab="'+tab+'"]').classList.add('active');
 }
 
+// 2026-10-01 調整：「完成安排」分頁原本同時顯示「已完成的任務紀錄」跟
+// 下面實際卡下來的時段卡片，使用者反饋這是同一件事重複顯示兩次（候選
+// 日期/指派業務 vs. 實際日期時間/登記人），看起來很像 bug。拿掉已完成
+// 任務的那份清單，完成安排分頁只留時段卡片（結果），任務清單只保留
+// 還沒確認的（過程）。
 function renderSlotTasks(){
   const pendingContainer = document.getElementById('slotTasksPendingContainer');
-  const doneContainer = document.getElementById('slotTasksDoneContainer');
-  if(!pendingContainer || !doneContainer) return;
+  if(!pendingContainer) return;
   const pending = SLOT_TASKS.filter(t => t.status !== '已完成');
-  const done = SLOT_TASKS.filter(t => t.status === '已完成');
   const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship'};
-  const rowHtml = (t, isDone) => `
+  const rowHtml = (t) => `
     <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
       <span class="vendor-pill ${VENDOR_CLASS[t.vendor]||'vendor-other'}" style="flex-shrink:0;">${t.vendor}</span>
       <span class="chip ${typeChipClass[t.type]||''}" style="flex-shrink:0;">${t.type||''}</span>
       <span style="font-size:12.5px;flex:1;min-width:140px;">${t.case||''}${t.alias?('　'+t.alias):''}</span>
       <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">候選：${t.candidate_dates.map(d=>fmtDate(d)).join('、')}</span>
       ${t.assignee ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">指派：${t.assignee}</span>` : ''}
-      ${isDone
-        ? '<span class="warn-pill" style="background:var(--success-soft);color:var(--success);flex-shrink:0;">✓ 已完成預約</span>'
-        : `<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="copySlotTaskMessage('${t.record_id}')">📎 複製訊息</button>`}
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="copySlotTaskMessage('${t.record_id}')">📎 複製訊息</button>
       <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotTask('${t.record_id}')">刪除</button>
     </div>`;
   pendingContainer.innerHTML = `
     <div class="panel" style="margin-bottom:16px;">
       <div class="panel-title">📋 指派給業務、還在等確認的任務</div>
-      ${pending.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">目前沒有待業務安排的任務</div>' : pending.map(t=>rowHtml(t,false)).join('')}
-    </div>`;
-  doneContainer.innerHTML = done.length === 0 ? '' : `
-    <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-title">📨 業務已完成安排的任務</div>
-      ${done.map(t=>rowHtml(t,true)).join('')}
+      ${pending.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">目前沒有待業務安排的任務</div>' : pending.map(t=>rowHtml(t)).join('')}
     </div>`;
 }
 
