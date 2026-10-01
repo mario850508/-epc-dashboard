@@ -2131,6 +2131,10 @@
           </div>
           <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-bottom:14px;" onclick="addSlotTaskDateRow()">➕ 再加一天</button>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預估時間（選填，僅供業務參考，實際時間由業務跟屋主協調）</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;margin-bottom:8px;cursor:pointer;color:var(--text-muted);">
+            <input type="checkbox" id="slotTaskEstDelegate" onchange="onSlotTaskEstDelegateChange()">
+            交由業務安排（不先填預估時間）
+          </label>
           <div style="display:flex;gap:10px;margin-bottom:14px;">
             <div style="flex:1;">
               <select class="quick-mark-input" id="slotTaskEstStart" onchange="applySlotTaskTimeDefault()"></select>
@@ -6363,8 +6367,21 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskEstEnd').innerHTML = slotTimeOptionsHtml();
   document.getElementById('slotTaskEstStart').value = '';
   document.getElementById('slotTaskEstEnd').value = '';
+  document.getElementById('slotTaskEstDelegate').checked = false;
+  document.getElementById('slotTaskEstStart').disabled = false;
+  document.getElementById('slotTaskEstEnd').disabled = false;
   applySlotTaskTimeDefault();
   document.getElementById('slotTaskModalOverlay').classList.add('show');
+}
+// 2026-10-01 新增：勾選「交由業務安排」就不用先填預估時間——停用開始/結束
+// 時間下拉（避免誤以為還要填），取消勾選時恢復成依項目類型算出的預設
+// 時間。confirmSlotTask() 送出時也會以這個勾選框為準，不管選單殘留什麼
+// 值，勾了就不帶預估時間進訊息。
+function onSlotTaskEstDelegateChange(){
+  const delegate = document.getElementById('slotTaskEstDelegate').checked;
+  document.getElementById('slotTaskEstStart').disabled = delegate;
+  document.getElementById('slotTaskEstEnd').disabled = delegate;
+  if(!delegate) applySlotTaskTimeDefault();
 }
 function closeSlotTaskModal(){
   document.getElementById('slotTaskModalOverlay').classList.remove('show');
@@ -6383,8 +6400,9 @@ async function confirmSlotTask(){
   const alias = document.getElementById('slotTaskAlias').value.trim();
   const assignee = document.getElementById('slotTaskAssignee').value.trim();
   const candidateDates = [...document.querySelectorAll('.slot-task-date-input')].map(i=>i.value).filter(Boolean);
-  const estStart = document.getElementById('slotTaskEstStart').value;
-  const estEnd = document.getElementById('slotTaskEstEnd').value;
+  const estDelegate = document.getElementById('slotTaskEstDelegate').checked;
+  const estStart = estDelegate ? '' : document.getElementById('slotTaskEstStart').value;
+  const estEnd = estDelegate ? '' : document.getElementById('slotTaskEstEnd').value;
   if(!vendor || type.length === 0 || !caseNo || candidateDates.length === 0){
     showToast('請把廠商/項目類型/案號填好，候選日期至少填一天');
     return;
