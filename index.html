@@ -1226,6 +1226,30 @@
         </div>
       </div>
 
+      <!-- 場勘安排 modal（2026-10-01 新增，寫回另一個 Airtable base「工務組」的
+           Table 1，不是這頁其他表格共用的那個 base） -->
+      <div class="modal-overlay" id="surveyPlanModalOverlay" onclick="if(event.target===this) closeSurveyPlanModal()">
+        <div class="modal-box" style="max-width:440px;">
+          <div class="modal-header">
+            <div class="modal-title">📅 安排場勘日期</div>
+            <button class="modal-close" onclick="closeSurveyPlanModal()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:700;font-size:14px;" id="surveyPlanCaseTitle">—</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="surveyPlanCaseAddr">—</div>
+            </div>
+            <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計場勘日（會直接寫回「工務組」Airtable base,不同電腦/同事都能同步看到）</label>
+            <input type="date" class="quick-mark-input" id="surveyPlanDate" style="margin-bottom:14px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:10px 12px;background:#FDECEC;border-radius:10px;cursor:pointer;margin-bottom:18px;">
+              <input type="checkbox" id="surveyPlanException" style="width:16px;height:16px;flex-shrink:0;">
+              <span>⚠️ 標記「場勘異常」——勾選後,隔天不會自動把這個日期回填成實際場勘日(日期本身有調整的話,改上面的日期就好,不用勾這個)</span>
+            </label>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmSurveyPlan()">確認</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 完成掛表 modal（確認/調整日期後才寫回 Airtable「掛表」里程碑） -->
       <div class="modal-overlay" id="meterModalOverlay" onclick="if(event.target===this) closeMeterModal()">
         <div class="modal-box" style="max-width:440px;">
@@ -2849,10 +2873,60 @@ function renderSurveyTable(){
       <td>${r.sales_person || ''}</td>
       <td>${r.address || ''}</td>
       <td>${fmtDate(r.provided_date)}${waitLabel}</td>
-      <td>${r.planned_date ? fmtDate(r.planned_date) : '<span style="color:var(--text-muted);">尚未安排</span>'}</td>
+      <td>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openSurveyPlanModal('${r.record_id}')">${r.planned_date ? fmtDate(r.planned_date) : '尚未安排'}　✎</button>
+        ${r.exception ? '<div style="margin-top:4px;"><span class="warn-pill">⚠️ 場勘異常</span></div>' : ''}
+      </td>
     </tr>
   `;
   }).join('');
+}
+
+// ---- 場勘安排：填寫預計場勘日／標記場勘異常（直接寫回「工務組」那個 Airtable base）----
+let surveyPlanTargetId = null;
+function openSurveyPlanModal(recordId){
+  surveyPlanTargetId = recordId;
+  const r = SURVEY_CASES.find(c => c.record_id === recordId);
+  if(!r){ showToast('找不到這筆案件的資料，請重新整理頁面再試一次'); return; }
+  document.getElementById('surveyPlanCaseTitle').textContent = r.case || '（無案號）';
+  document.getElementById('surveyPlanCaseAddr').textContent = (r.address||'') + '　' + (r.vendor||'');
+  document.getElementById('surveyPlanDate').value = r.planned_date || '';
+  document.getElementById('surveyPlanException').checked = !!r.exception;
+  document.getElementById('surveyPlanModalOverlay').classList.add('show');
+}
+function closeSurveyPlanModal(){
+  document.getElementById('surveyPlanModalOverlay').classList.remove('show');
+}
+async function confirmSurveyPlan(){
+  const recordId = surveyPlanTargetId;
+  const plannedDate = document.getElementById('surveyPlanDate').value || null;
+  const exception = document.getElementById('surveyPlanException').checked;
+  const btn = document.querySelector('#surveyPlanModalOverlay .btn-primary');
+  const originalText = btn.textContent;
+  btn.textContent = '儲存中…';
+  btn.disabled = true;
+  try{
+    const res = await fetch(API_BASE + '/api/site-survey-pending/' + encodeURIComponent(recordId), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({planned_date: plannedDate, exception: exception}),
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || ('HTTP ' + res.status));
+    }
+    const r = SURVEY_CASES.find(c => c.record_id === recordId);
+    if(r){ r.planned_date = plannedDate; r.exception = exception; }  // 樂觀更新，畫面先反應
+    closeSurveyPlanModal();
+    renderSurveyTable();
+    showToast('已更新場勘安排');
+  }catch(err){
+    showToast('儲存失敗：' + err.message);
+    console.error(err);
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
 }
 
 let lastKnownUpdatedAt = null;
