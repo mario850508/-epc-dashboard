@@ -148,7 +148,7 @@ function render(){
         <div class="success-title">這個案子已經完成預約了</div>
         <div class="success-detail">
           ${TASK.vendor}　${TASK.case}${TASK.alias?('（'+TASK.alias+'）'):''}　${TASK.type}<br>
-          ${b.date ? (fmtDate(b.date) + '（' + fmtWeekday(b.date) + '）　' + b.start_time + '-' + b.end_time : '（時間資訊讀取不到，請直接聯絡窗口確認）'}
+          ${b.date ? (fmtDate(b.date) + '（' + fmtWeekday(b.date) + '）　' + b.start_time + '-' + b.end_time) : '（時間資訊讀取不到，請直接聯絡窗口確認）'}
           ${b.registrant ? ('<br>登記人：' + b.registrant) : ''}
         </div>
       </div>
