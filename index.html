@@ -6363,7 +6363,7 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskAssignee').value = '';
   document.getElementById('slotTaskCaseResults').classList.remove('show');
   document.getElementById('slotTaskTypeDropdown').classList.remove('show');
-  document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = (c.value === '掛表'); });
+  document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = false; });
   updateSlotTypeLabel('slot-task-type-check', 'slotTaskTypeLabel');
   document.getElementById('slotTaskDateRows').innerHTML = '<div style="display:flex;gap:8px;align-items:center;"><input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;"></div>';
   document.getElementById('slotTaskEstStart').innerHTML = slotTimeOptionsHtml();
@@ -6841,7 +6841,7 @@ function openSlotBookingModal(){
   document.getElementById('slotBookingNote').value = '';
   document.getElementById('slotBookingCaseResults').classList.remove('show');
   document.getElementById('slotBookingTypeDropdown').classList.remove('show');
-  document.querySelectorAll('.slot-booking-type-check').forEach(c => { c.checked = (c.value === '掛表'); });
+  document.querySelectorAll('.slot-booking-type-check').forEach(c => { c.checked = false; });
   updateSlotTypeLabel('slot-booking-type-check', 'slotBookingTypeLabel');
   applySlotBookingTimeDefault();
   document.getElementById('slotBookingError').style.display = 'none';
