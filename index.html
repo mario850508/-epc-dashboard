@@ -450,6 +450,12 @@
     border:none;border-radius:8px;padding:6px 12px;cursor:pointer;flex-shrink:0;
   }
   .qm-empty{padding:12px 14px;font-size:12px;color:var(--text-muted);}
+  /* 2026-10-01：項目類型下拉式複選（掛表/植筋/放樣/場勘），跟上面
+     .quick-mark-results 共用同一個下拉面板外觀，裡面放勾選框而不是搜尋結果。 */
+  .slot-type-option{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);}
+  .slot-type-option:last-child{border-bottom:none;}
+  .slot-type-option:hover{background:var(--surface-2);}
+  .slot-type-trigger{display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;}
   .qm-confirmed{
     display:none;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;
     background:var(--success-soft);color:var(--success);border-radius:10px;font-size:12.5px;font-weight:600;
@@ -2033,11 +2039,17 @@
           <div style="display:flex;gap:10px;margin-bottom:14px;">
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">項目類型（可複選，例如放樣+植筋一起跑）</label>
-              <div style="display:flex;flex-wrap:wrap;gap:4px 14px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);">
-                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-booking-type-check" value="掛表" onchange="applySlotBookingTimeDefault()">掛表</label>
-                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-booking-type-check" value="植筋" onchange="applySlotBookingTimeDefault()">植筋</label>
-                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-booking-type-check" value="放樣" onchange="applySlotBookingTimeDefault()">放樣</label>
-                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-booking-type-check" value="場勘" onchange="applySlotBookingTimeDefault()">場勘</label>
+              <div class="quick-mark-input-wrap">
+                <div class="quick-mark-input slot-type-trigger" id="slotBookingTypeTrigger" onclick="toggleSlotTypeDropdown('slotBookingTypeDropdown')">
+                  <span id="slotBookingTypeLabel" style="color:var(--text-muted);">請選擇</span>
+                  <span style="color:var(--text-muted);font-size:11px;">▾</span>
+                </div>
+                <div class="quick-mark-results slot-type-dropdown" id="slotBookingTypeDropdown" data-trigger-id="slotBookingTypeTrigger">
+                  <label class="slot-type-option"><input type="checkbox" class="slot-booking-type-check" value="掛表" onchange="onSlotBookingTypeChange()">掛表</label>
+                  <label class="slot-type-option"><input type="checkbox" class="slot-booking-type-check" value="植筋" onchange="onSlotBookingTypeChange()">植筋</label>
+                  <label class="slot-type-option"><input type="checkbox" class="slot-booking-type-check" value="放樣" onchange="onSlotBookingTypeChange()">放樣</label>
+                  <label class="slot-type-option"><input type="checkbox" class="slot-booking-type-check" value="場勘" onchange="onSlotBookingTypeChange()">場勘</label>
+                </div>
               </div>
             </div>
             <div style="flex:1;">
@@ -2097,11 +2109,17 @@
             </div>
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">項目類型（可複選）</label>
-              <div style="display:flex;flex-wrap:wrap;gap:4px 14px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);">
-                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-task-type-check" value="掛表" onchange="applySlotTaskTimeDefault()">掛表</label>
-                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-task-type-check" value="植筋" onchange="applySlotTaskTimeDefault()">植筋</label>
-                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-task-type-check" value="放樣" onchange="applySlotTaskTimeDefault()">放樣</label>
-                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-task-type-check" value="場勘" onchange="applySlotTaskTimeDefault()">場勘</label>
+              <div class="quick-mark-input-wrap">
+                <div class="quick-mark-input slot-type-trigger" id="slotTaskTypeTrigger" onclick="toggleSlotTypeDropdown('slotTaskTypeDropdown')">
+                  <span id="slotTaskTypeLabel" style="color:var(--text-muted);">請選擇</span>
+                  <span style="color:var(--text-muted);font-size:11px;">▾</span>
+                </div>
+                <div class="quick-mark-results slot-type-dropdown" id="slotTaskTypeDropdown" data-trigger-id="slotTaskTypeTrigger">
+                  <label class="slot-type-option"><input type="checkbox" class="slot-task-type-check" value="掛表" onchange="onSlotTaskTypeChange()">掛表</label>
+                  <label class="slot-type-option"><input type="checkbox" class="slot-task-type-check" value="植筋" onchange="onSlotTaskTypeChange()">植筋</label>
+                  <label class="slot-type-option"><input type="checkbox" class="slot-task-type-check" value="放樣" onchange="onSlotTaskTypeChange()">放樣</label>
+                  <label class="slot-type-option"><input type="checkbox" class="slot-task-type-check" value="場勘" onchange="onSlotTaskTypeChange()">場勘</label>
+                </div>
               </div>
             </div>
           </div>
@@ -6337,7 +6355,9 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskAlias').value = '';
   document.getElementById('slotTaskAssignee').value = '';
   document.getElementById('slotTaskCaseResults').classList.remove('show');
+  document.getElementById('slotTaskTypeDropdown').classList.remove('show');
   document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = (c.value === '掛表'); });
+  updateSlotTypeLabel('slot-task-type-check', 'slotTaskTypeLabel');
   document.getElementById('slotTaskDateRows').innerHTML = '<div style="display:flex;gap:8px;align-items:center;"><input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;"></div>';
   document.getElementById('slotTaskEstStart').innerHTML = slotTimeOptionsHtml();
   document.getElementById('slotTaskEstEnd').innerHTML = slotTimeOptionsHtml();
@@ -6576,6 +6596,45 @@ function applyTypeTimeDefault(typeCheckClass, startId, endId){
 function applySlotBookingTimeDefault(){ applyTypeTimeDefault('slot-booking-type-check', 'slotBookingStart', 'slotBookingEnd'); }
 function applySlotTaskTimeDefault(){ applyTypeTimeDefault('slot-task-type-check', 'slotTaskEstStart', 'slotTaskEstEnd'); }
 
+// 2026-10-01：項目類型從「一排勾選框」改成「下拉式複選」（使用者反饋勾選框
+// 排一排不好看），點觸發框展開下拉面板，面板裡還是勾選框（可以勾多個），
+// 觸發框上的文字即時顯示已選的項目，沒選就顯示「請選擇」。跟案號模糊搜尋
+// 共用同一個 .quick-mark-results 下拉外觀跟 position:relative 容器寫法。
+function updateSlotTypeLabel(checkClass, labelId){
+  const labelEl = document.getElementById(labelId);
+  if(!labelEl) return;
+  const types = getCheckedSlotTypes(checkClass);
+  if(types.length === 0){
+    labelEl.textContent = '請選擇';
+    labelEl.style.color = 'var(--text-muted)';
+  } else {
+    labelEl.textContent = types.join('、');
+    labelEl.style.color = 'var(--text)';
+  }
+}
+function toggleSlotTypeDropdown(panelId){
+  const panel = document.getElementById(panelId);
+  if(!panel) return;
+  document.querySelectorAll('.slot-type-dropdown.show').forEach(p => { if(p.id !== panelId) p.classList.remove('show'); });
+  panel.classList.toggle('show');
+}
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.slot-type-dropdown.show').forEach(panel => {
+    const trigger = document.getElementById(panel.dataset.triggerId);
+    if(!panel.contains(e.target) && e.target !== trigger && !(trigger && trigger.contains(e.target))){
+      panel.classList.remove('show');
+    }
+  });
+});
+function onSlotBookingTypeChange(){
+  applySlotBookingTimeDefault();
+  updateSlotTypeLabel('slot-booking-type-check', 'slotBookingTypeLabel');
+}
+function onSlotTaskTypeChange(){
+  applySlotTaskTimeDefault();
+  updateSlotTypeLabel('slot-task-type-check', 'slotTaskTypeLabel');
+}
+
 // 2026-10-01 新增：案號打完之後自動帶出廠商／別名／負責業務，資料來源跟
 // 「電話紀錄」筆記本功能共用同一個後端查詢（/api/case-lookup?case_no=，
 // 需要完全符合案號），避免兩個廠商時段 modal 的案號/廠商/別名/業務要再
@@ -6704,7 +6763,9 @@ function openSlotBookingModal(){
   document.getElementById('slotBookingRegistrant').value = '';
   document.getElementById('slotBookingNote').value = '';
   document.getElementById('slotBookingCaseResults').classList.remove('show');
+  document.getElementById('slotBookingTypeDropdown').classList.remove('show');
   document.querySelectorAll('.slot-booking-type-check').forEach(c => { c.checked = (c.value === '掛表'); });
+  updateSlotTypeLabel('slot-booking-type-check', 'slotBookingTypeLabel');
   applySlotBookingTimeDefault();
   document.getElementById('slotBookingError').style.display = 'none';
   renderSlotBookingDayPreview();
