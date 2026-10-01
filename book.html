@@ -147,7 +147,7 @@ function render(){
         <div class="success-icon">✅</div>
         <div class="success-title">這個案子已經完成預約了</div>
         <div class="success-detail">
-          ${TASK.vendor}　${TASK.case}${TASK.alias?('（'+TASK.alias+'）'):''}　${TASK.type}<br>
+          ${TASK.vendor}　${TASK.case}${TASK.alias?('（'+TASK.alias+'）'):''}　${(TASK.type||[]).join('+')}<br>
           ${b.date ? (fmtDate(b.date) + '（' + fmtWeekday(b.date) + '）　' + b.start_time + '-' + b.end_time) : '（時間資訊讀取不到，請直接聯絡窗口確認）'}
           ${b.registrant ? ('<br>登記人：' + b.registrant) : ''}
         </div>
@@ -158,10 +158,10 @@ function render(){
 
   app.innerHTML = `
     <div class="card">
-      <h1>${TASK.vendor}　${TASK.type}</h1>
+      <h1>${TASK.vendor}　${(TASK.type||[]).join('+')}</h1>
       <div class="sub">請跟屋主確認好時間後再送出，送出後這個時段就會鎖定、其他案件不能再卡進來</div>
       <div class="info-row"><span class="info-label">案號</span><span>${TASK.case}${TASK.alias?('　'+TASK.alias):''}</span></div>
-      <div class="info-row"><span class="info-label">項目</span><span class="pill">${TASK.type}</span></div>
+      <div class="info-row"><span class="info-label">項目</span><span class="pill">${(TASK.type||[]).join('+')}</span></div>
 
       <label>選擇日期（廠商提供的候選日期）</label>
       <div class="date-options" id="dateOptions">
@@ -196,9 +196,11 @@ function render(){
 // modal 用同一套規則（掛表固定早上9點開始，其他類型只給時長，開始時間
 // 預設也是9點，業務可以自己改）。開始時間空白時先補 09:00，再依時長算出
 // 結束時間；業務改開始時間也會重算一次，但還是可以手動改掉。
+// 2026-10-01 同日：項目類型改成可複選（任務可能同時是「植筋+放樣」），
+// TASK.type 變成陣列，時長直接加總。
 const TYPE_DURATION_MIN = {'掛表':180,'植筋':180,'放樣':60,'場勘':60};
 function applyTimeDurationDefault(){
-  const duration = TYPE_DURATION_MIN[TASK.type];
+  const duration = (TASK.type||[]).reduce((sum, t) => sum + (TYPE_DURATION_MIN[t] || 0), 0);
   if(!duration) return;
   const startSel = document.getElementById('startTime');
   const endSel = document.getElementById('endTime');
@@ -237,7 +239,7 @@ async function submitBooking(){
     const data = await res.json().catch(()=>({}));
     if(res.status === 409 && data.conflict){
       const c = data.conflict;
-      errorBox.innerHTML = `⚠️ 這個時段已經被佔用了：<b>${c.start_time}-${c.end_time}</b>　${c.type||''}｜${c.case||''}${c.alias?('（'+c.alias+'）'):''}　登記人：${c.registrant||''}<br>請換一個時間再試一次。`;
+      errorBox.innerHTML = `⚠️ 這個時段已經被佔用了：<b>${c.start_time}-${c.end_time}</b>　${(c.type||[]).join('+')}｜${c.case||''}${c.alias?('（'+c.alias+'）'):''}　登記人：${c.registrant||''}<br>請換一個時間再試一次。`;
       errorBox.style.display = 'block';
       return;
     }

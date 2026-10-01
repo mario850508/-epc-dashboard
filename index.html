@@ -2032,13 +2032,13 @@
           </div>
           <div style="display:flex;gap:10px;margin-bottom:14px;">
             <div style="flex:1;">
-              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">項目類型</label>
-              <select class="quick-mark-input" id="slotBookingType" onchange="applySlotBookingTimeDefault()">
-                <option value="掛表">掛表</option>
-                <option value="植筋">植筋</option>
-                <option value="放樣">放樣</option>
-                <option value="場勘">場勘</option>
-              </select>
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">項目類型（可複選，例如放樣+植筋一起跑）</label>
+              <div style="display:flex;flex-wrap:wrap;gap:4px 14px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);">
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-booking-type-check" value="掛表" onchange="applySlotBookingTimeDefault()">掛表</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-booking-type-check" value="植筋" onchange="applySlotBookingTimeDefault()">植筋</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-booking-type-check" value="放樣" onchange="applySlotBookingTimeDefault()">放樣</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-booking-type-check" value="場勘" onchange="applySlotBookingTimeDefault()">場勘</label>
+              </div>
             </div>
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">登記人（業務姓名）</label>
@@ -2090,13 +2090,13 @@
               <select class="quick-mark-input" id="slotTaskVendor"></select>
             </div>
             <div style="flex:1;">
-              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">項目類型</label>
-              <select class="quick-mark-input" id="slotTaskType" onchange="applySlotTaskTimeDefault()">
-                <option value="掛表">掛表</option>
-                <option value="植筋">植筋</option>
-                <option value="放樣">放樣</option>
-                <option value="場勘">場勘</option>
-              </select>
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">項目類型（可複選）</label>
+              <div style="display:flex;flex-wrap:wrap;gap:4px 14px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);">
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-task-type-check" value="掛表" onchange="applySlotTaskTimeDefault()">掛表</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-task-type-check" value="植筋" onchange="applySlotTaskTimeDefault()">植筋</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-task-type-check" value="放樣" onchange="applySlotTaskTimeDefault()">放樣</label>
+                <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="checkbox" class="slot-task-type-check" value="場勘" onchange="applySlotTaskTimeDefault()">場勘</label>
+              </div>
             </div>
           </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">候選日期（廠商提供的可安排日期，業務只能從這幾天選）</label>
@@ -6307,10 +6307,11 @@ function renderSlotTasks(){
   if(!pendingContainer) return;
   const pending = SLOT_TASKS.filter(t => t.status !== '已完成');
   const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship'};
+  const typeChipsHtml = (types) => (types||[]).map(ty => `<span class="chip ${typeChipClass[ty]||''}" style="flex-shrink:0;">${ty}</span>`).join('');
   const rowHtml = (t) => `
     <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
       <span class="vendor-pill ${VENDOR_CLASS[t.vendor]||'vendor-other'}" style="flex-shrink:0;">${t.vendor}</span>
-      <span class="chip ${typeChipClass[t.type]||''}" style="flex-shrink:0;">${t.type||''}</span>
+      ${typeChipsHtml(t.type)}
       <span style="font-size:12.5px;flex:1;min-width:140px;">${t.case||''}${t.alias?('　'+t.alias):''}</span>
       <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">候選：${t.candidate_dates.map(d=>fmtDate(d)).join('、')}</span>
       ${t.assignee ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">指派：${t.assignee}</span>` : ''}
@@ -6329,6 +6330,7 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskCase').value = '';
   document.getElementById('slotTaskAlias').value = '';
   document.getElementById('slotTaskAssignee').value = '';
+  document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = (c.value === '掛表'); });
   document.getElementById('slotTaskDateRows').innerHTML = '<div style="display:flex;gap:8px;align-items:center;"><input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;"></div>';
   document.getElementById('slotTaskEstStart').innerHTML = slotTimeOptionsHtml();
   document.getElementById('slotTaskEstEnd').innerHTML = slotTimeOptionsHtml();
@@ -6349,14 +6351,14 @@ function addSlotTaskDateRow(){
 }
 async function confirmSlotTask(){
   const vendor = document.getElementById('slotTaskVendor').value;
-  const type = document.getElementById('slotTaskType').value;
+  const type = getCheckedSlotTypes('slot-task-type-check');
   const caseNo = document.getElementById('slotTaskCase').value.trim();
   const alias = document.getElementById('slotTaskAlias').value.trim();
   const assignee = document.getElementById('slotTaskAssignee').value.trim();
   const candidateDates = [...document.querySelectorAll('.slot-task-date-input')].map(i=>i.value).filter(Boolean);
   const estStart = document.getElementById('slotTaskEstStart').value;
   const estEnd = document.getElementById('slotTaskEstEnd').value;
-  if(!vendor || !type || !caseNo || candidateDates.length === 0){
+  if(!vendor || type.length === 0 || !caseNo || candidateDates.length === 0){
     showToast('請把廠商/項目類型/案號填好，候選日期至少填一天');
     return;
   }
@@ -6385,8 +6387,9 @@ async function confirmSlotTask(){
 // 業務姓名這些有存在任務紀錄裡，所以還是會有）。
 function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, estStart, estEnd){
   const link = window.location.origin + path;
+  const typeLabel = (type||[]).join('+');
   const estLine = (estStart && estEnd) ? `\n預估時間：${estStart}-${estEnd}（僅供參考，實際時間依現場工班作業時間為主）` : '';
-  const text = `【${vendor} ${type}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}${estLine}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
+  const text = `【${vendor} ${typeLabel}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}${estLine}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
   document.getElementById('slotSummaryTitle').textContent = '📨 傳給業務的訊息';
   document.getElementById('slotSummaryTextarea').value = text;
   document.getElementById('slotSummaryModalOverlay').classList.add('show');
@@ -6434,6 +6437,7 @@ function renderVendorSlots(){
   });
 
   const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship'};
+  const typeChipsHtml = (types) => (types||[]).map(ty => `<span class="chip ${typeChipClass[ty]||''}" style="flex-shrink:0;">${ty}</span>`).join('');
 
   container.innerHTML = Object.keys(byVendor).sort((a,b)=>a.localeCompare(b,'zh-Hant')).map(vendor => {
     const vendorClass = VENDOR_CLASS[vendor] || 'vendor-other';
@@ -6442,7 +6446,7 @@ function renderVendorSlots(){
       const sortedBookings = [...byVendor[vendor][date]].sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||''));
       const rows = sortedBookings.map(b => `
             <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
-              <span class="chip ${typeChipClass[b.type]||''}" style="flex-shrink:0;">${b.type||''}</span>
+              ${typeChipsHtml(b.type)}
               <span style="font-weight:700;font-size:12.5px;flex-shrink:0;">${b.start_time}-${b.end_time}</span>
               <span style="font-size:12.5px;flex:1;min-width:120px;">${b.case||''}${b.alias?('　'+b.alias):''}</span>
               <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">${b.registrant||''}</span>
@@ -6492,7 +6496,7 @@ function copySlotSummary(vendor){
     text += fmtDate(date) + '（' + fmtWeekday(date) + '）\n';
     const bookings = SLOT_BOOKINGS.filter(b=>b.vendor===vendor && b.date===date).sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||''));
     bookings.forEach(b => {
-      text += `　${b.start_time}-${b.end_time}　${b.type}｜${b.case}${b.alias ? '（'+b.alias+'）' : ''}\n`;
+      text += `　${b.start_time}-${b.end_time}　${(b.type||[]).join('+')}｜${b.case}${b.alias ? '（'+b.alias+'）' : ''}\n`;
     });
   });
   document.getElementById('slotSummaryTitle').textContent = '📋 ' + vendor + ' 時段清單';
@@ -6540,16 +6544,21 @@ function slotTimeOptionsHtml(){
 // 2026-10-01 新增：各項目類型預設需要的時間長度（分鐘），掛表另外固定
 // 09:00 開始（使用者指定早上9點到中午12點）。開始時間空白時先補 09:00，
 // 再依類型長度算出結束時間；使用者改開始時間或項目類型都會重算一次，
-// 但算完之後還是可以手動改選單，不會卡死。參數化成 typeId/startId/endId
-// 是因為「預約時段」modal（實際時間，必填）跟「指派給業務」modal（預估
-// 時間，純參考用、選填）都要套用同一套規則。
+// 但算完之後還是可以手動改選單，不會卡死。參數化成 typeCheckClass/
+// startId/endId 是因為「預約時段」modal（實際時間，必填）跟「指派給業務」
+// modal（預估時間，純參考用、選填）都要套用同一套規則。
+// 2026-10-01 同日再調整：項目類型改成可複選（使用者反饋常常「放樣跟植筋
+// 一起」跑同一趟），勾選多個時長度直接加總（例如植筋3hr+放樣1hr＝4hr）。
 const SLOT_TYPE_DURATION_MIN = {'掛表':180,'植筋':180,'放樣':60,'場勘':60};
-function applyTypeTimeDefault(typeId, startId, endId){
-  const typeSel = document.getElementById(typeId);
+function getCheckedSlotTypes(checkClass){
+  return [...document.querySelectorAll('.' + checkClass + ':checked')].map(c => c.value);
+}
+function applyTypeTimeDefault(typeCheckClass, startId, endId){
   const startSel = document.getElementById(startId);
   const endSel = document.getElementById(endId);
-  if(!typeSel || !startSel || !endSel) return;
-  const duration = SLOT_TYPE_DURATION_MIN[typeSel.value];
+  if(!startSel || !endSel) return;
+  const types = getCheckedSlotTypes(typeCheckClass);
+  const duration = types.reduce((sum, t) => sum + (SLOT_TYPE_DURATION_MIN[t] || 0), 0);
   if(!duration) return;
   if(!startSel.value) startSel.value = '09:00';
   const [h, m] = startSel.value.split(':').map(Number);
@@ -6557,8 +6566,8 @@ function applyTypeTimeDefault(typeId, startId, endId){
   const endVal = String(Math.floor(totalMin / 60)).padStart(2,'0') + ':' + String(totalMin % 60).padStart(2,'0');
   if([...endSel.options].some(o => o.value === endVal)) endSel.value = endVal;
 }
-function applySlotBookingTimeDefault(){ applyTypeTimeDefault('slotBookingType', 'slotBookingStart', 'slotBookingEnd'); }
-function applySlotTaskTimeDefault(){ applyTypeTimeDefault('slotTaskType', 'slotTaskEstStart', 'slotTaskEstEnd'); }
+function applySlotBookingTimeDefault(){ applyTypeTimeDefault('slot-booking-type-check', 'slotBookingStart', 'slotBookingEnd'); }
+function applySlotTaskTimeDefault(){ applyTypeTimeDefault('slot-task-type-check', 'slotTaskEstStart', 'slotTaskEstEnd'); }
 
 // 2026-10-01 新增：案號打完之後自動帶出廠商／別名／負責業務，資料來源跟
 // 「電話紀錄」筆記本功能共用同一個後端查詢（/api/case-lookup?case_no=，
@@ -6619,6 +6628,7 @@ function openSlotBookingModal(){
   document.getElementById('slotBookingAlias').value = '';
   document.getElementById('slotBookingRegistrant').value = '';
   document.getElementById('slotBookingNote').value = '';
+  document.querySelectorAll('.slot-booking-type-check').forEach(c => { c.checked = (c.value === '掛表'); });
   applySlotBookingTimeDefault();
   document.getElementById('slotBookingError').style.display = 'none';
   renderSlotBookingDayPreview();
@@ -6637,7 +6647,7 @@ function renderSlotBookingDayPreview(){
   if(bookings.length === 0){
     preview.innerHTML = '這天目前還沒有任何預約，整天都空著。';
   } else {
-    preview.innerHTML = '這天已經有：' + bookings.map(b => `<b>${b.start_time}-${b.end_time}</b>（${b.type}·${b.case}）`).join('、');
+    preview.innerHTML = '這天已經有：' + bookings.map(b => `<b>${b.start_time}-${b.end_time}</b>（${(b.type||[]).join('+')}·${b.case}）`).join('、');
   }
 }
 async function confirmSlotBooking(){
@@ -6645,15 +6655,15 @@ async function confirmSlotBooking(){
   const date = document.getElementById('slotBookingDate').value;
   const start_time = document.getElementById('slotBookingStart').value;
   const end_time = document.getElementById('slotBookingEnd').value;
-  const type = document.getElementById('slotBookingType').value;
+  const type = getCheckedSlotTypes('slot-booking-type-check');
   const registrant = document.getElementById('slotBookingRegistrant').value.trim();
   const caseNo = document.getElementById('slotBookingCase').value.trim();
   const alias = document.getElementById('slotBookingAlias').value.trim();
   const note = document.getElementById('slotBookingNote').value.trim();
   const errBox = document.getElementById('slotBookingError');
   errBox.style.display = 'none';
-  if(!vendor || !date || !start_time || !end_time || !caseNo || !registrant){
-    showToast('請把廠商/日期/時間/案號/登記人都填好');
+  if(!vendor || !date || !start_time || !end_time || !caseNo || !registrant || type.length === 0){
+    showToast('請把廠商/日期/時間/項目類型/案號/登記人都填好');
     return;
   }
   const btn = document.querySelector('#slotBookingModalOverlay .btn-primary');
@@ -6667,7 +6677,7 @@ async function confirmSlotBooking(){
     const data = await res.json().catch(()=>({}));
     if(res.status === 409){
       const c = data.conflict || {};
-      errBox.innerHTML = `⚠️ 這個時段已經被佔用了：<b>${c.start_time}-${c.end_time}</b>　${c.type||''}｜${c.case||''}${c.alias?('（'+c.alias+'）'):''}　登記人：${c.registrant||''}`;
+      errBox.innerHTML = `⚠️ 這個時段已經被佔用了：<b>${c.start_time}-${c.end_time}</b>　${(c.type||[]).join('+')}｜${c.case||''}${c.alias?('（'+c.alias+'）'):''}　登記人：${c.registrant||''}`;
       errBox.style.display = 'block';
       return;
     }
