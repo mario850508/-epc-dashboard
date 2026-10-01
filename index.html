@@ -2143,8 +2143,15 @@
               <select class="quick-mark-input" id="slotTaskEstEnd"></select>
             </div>
           </div>
-          <div id="slotTaskEstDurationWrap" style="display:none;margin-bottom:14px;">
-            <select class="quick-mark-input" id="slotTaskEstDuration"></select>
+          <div id="slotTaskEstDurationWrap" style="display:none;gap:10px;margin-bottom:14px;">
+            <div style="flex:1;">
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">小時</label>
+              <input type="number" class="quick-mark-input" id="slotTaskEstDurationHour" min="0" max="12" step="1" value="0">
+            </div>
+            <div style="flex:1;">
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">分鐘</label>
+              <input type="number" class="quick-mark-input" id="slotTaskEstDurationMin" min="0" max="59" step="15" value="0">
+            </div>
           </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">指派給（業務姓名，選填，純提示不影響連結本身）</label>
           <input type="text" class="quick-mark-input" id="slotTaskAssignee" placeholder="例如：小夫" style="margin-bottom:18px;">
@@ -6370,7 +6377,8 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskEstEnd').innerHTML = slotTimeOptionsHtml();
   document.getElementById('slotTaskEstStart').value = '';
   document.getElementById('slotTaskEstEnd').value = '';
-  document.getElementById('slotTaskEstDuration').innerHTML = slotDurationOptionsHtml();
+  document.getElementById('slotTaskEstDurationHour').value = '0';
+  document.getElementById('slotTaskEstDurationMin').value = '0';
   document.getElementById('slotTaskEstDelegate').checked = false;
   document.getElementById('slotTaskEstRange').style.display = 'flex';
   document.getElementById('slotTaskEstDurationWrap').style.display = 'none';
@@ -6378,22 +6386,31 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskModalOverlay').classList.add('show');
 }
 // 2026-10-01 新增：勾選「交由業務安排」時，PM 不填具體的開始/結束時間，
-// 改填一個「預計花費時間」（預設帶入目前勾選項目類型的總時長，可自己改），
-// 業務到 book.html 自助預約頁時就只用選開始時間，結束時間會依這個時長
-// 自動算出來（仍可手動調整）。取消勾選就恢復成原本「填具體預估時間」的
-// 兩個時間下拉。
+// 改填一個「預計花費時間」（小時+分鐘兩個數字輸入，可以直接打數字或用
+// 上下箭頭增減，預設帶入目前勾選項目類型的總時長），業務到 book.html
+// 自助預約頁時就只用選開始時間，結束時間會依這個時長自動算出來（仍可
+// 手動調整）。取消勾選就恢復成原本「填具體預估時間」的兩個時間下拉。
+// 2026-10-01 同日：原本用一個 30 分鐘一格的下拉選單（30分~8小時共16個
+// 選項），使用者反饋選項太多太雜，改成這種小時/分鐘分開輸入的方式。
 function getSlotTaskTypeDurationSum(){
   const types = getCheckedSlotTypes('slot-task-type-check');
   return types.reduce((sum, t) => sum + (SLOT_TYPE_DURATION_MIN[t] || 0), 0) || 60;
 }
+function setSlotTaskEstDurationFromMinutes(totalMin){
+  document.getElementById('slotTaskEstDurationHour').value = String(Math.floor(totalMin / 60));
+  document.getElementById('slotTaskEstDurationMin').value = String(totalMin % 60);
+}
+function getSlotTaskEstDurationMinutes(){
+  const h = parseInt(document.getElementById('slotTaskEstDurationHour').value, 10) || 0;
+  const m = parseInt(document.getElementById('slotTaskEstDurationMin').value, 10) || 0;
+  return h * 60 + m;
+}
 function onSlotTaskEstDelegateChange(){
   const delegate = document.getElementById('slotTaskEstDelegate').checked;
   document.getElementById('slotTaskEstRange').style.display = delegate ? 'none' : 'flex';
-  document.getElementById('slotTaskEstDurationWrap').style.display = delegate ? 'block' : 'none';
+  document.getElementById('slotTaskEstDurationWrap').style.display = delegate ? 'flex' : 'none';
   if(delegate){
-    const durSel = document.getElementById('slotTaskEstDuration');
-    const defaultDuration = String(getSlotTaskTypeDurationSum());
-    if([...durSel.options].some(o => o.value === defaultDuration)) durSel.value = defaultDuration;
+    setSlotTaskEstDurationFromMinutes(getSlotTaskTypeDurationSum());
   } else {
     applySlotTaskTimeDefault();
   }
@@ -6418,7 +6435,7 @@ async function confirmSlotTask(){
   const estDelegate = document.getElementById('slotTaskEstDelegate').checked;
   let estStart = '', estEnd = '', durationMin = null;
   if(estDelegate){
-    durationMin = parseInt(document.getElementById('slotTaskEstDuration').value, 10) || null;
+    durationMin = getSlotTaskEstDurationMinutes() || null;
   } else {
     estStart = document.getElementById('slotTaskEstStart').value;
     estEnd = document.getElementById('slotTaskEstEnd').value;
@@ -6615,17 +6632,11 @@ function slotTimeOptionsHtml(){
   return '<option value="">請選擇</option>' + SLOT_TIME_OPTIONS.map(t => `<option value="${t}">${t}</option>`).join('');
 }
 
-// 2026-10-01 新增：「交由業務安排」勾選後的「預計花費時間」下拉，30 分鐘一格、
-// 30 分鐘到 8 小時，跟 book.html 自助預約頁用同一套時長換算邏輯（見那邊的
-// applyBookingDurationDefault）。
+// 2026-10-01 新增：把分鐘數轉成「X小時Y分鐘」文字，給「交由業務安排」的
+// 預估時長訊息行用。
 function slotDurationLabel(min){
   const h = Math.floor(min / 60), m = min % 60;
   return (h > 0 ? h + '小時' : '') + (m > 0 ? m + '分鐘' : '');
-}
-function slotDurationOptionsHtml(){
-  const opts = [];
-  for(let m = 30; m <= 480; m += 30) opts.push(`<option value="${m}">${slotDurationLabel(m)}</option>`);
-  return opts.join('');
 }
 function slotMinutesBetween(start, end){
   const [sh, sm] = start.split(':').map(Number);
@@ -6698,7 +6709,7 @@ function onSlotBookingTypeChange(){
 function onSlotTaskTypeChange(){
   updateSlotTypeLabel('slot-task-type-check', 'slotTaskTypeLabel');
   if(document.getElementById('slotTaskEstDelegate').checked){
-    document.getElementById('slotTaskEstDuration').value = String(getSlotTaskTypeDurationSum());
+    setSlotTaskEstDurationFromMinutes(getSlotTaskTypeDurationSum());
   } else {
     applySlotTaskTimeDefault();
   }
