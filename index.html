@@ -1981,10 +1981,20 @@
         </div>
       </div>
 
-      <div id="slotTasksContainer"></div>
+      <div class="tabs" style="margin-bottom:14px;">
+        <div class="tab active" data-slots-tab="pending" onclick="showSlotsTab('pending')">📋 指派任務</div>
+        <div class="tab" data-slots-tab="done" onclick="showSlotsTab('done')">✅ 完成安排</div>
+      </div>
 
-      <div id="slotsContainer">
-        <div class="login-note">載入中…</div>
+      <div class="subview active" id="slots-tab-pending">
+        <div id="slotTasksPendingContainer"></div>
+      </div>
+
+      <div class="subview" id="slots-tab-done">
+        <div id="slotTasksDoneContainer"></div>
+        <div id="slotsContainer">
+          <div class="login-note">載入中…</div>
+        </div>
       </div>
 
       <div class="login-note">
@@ -6268,12 +6278,22 @@ async function loadVendorSlots(){
   }
 }
 
+// 2026-10-01 從單一清單拆成兩個分頁：「指派任務」只顯示還沒確認時間的任務，
+// 「完成安排」把已完成的任務跟下面實際卡下來的時段卡片放在一起看，避免
+// 使用者還要在同一個落落長清單裡自己分辨哪些結束了。
+function showSlotsTab(tab){
+  document.querySelectorAll('#view-slots .subview').forEach(v=>v.classList.remove('active'));
+  document.getElementById('slots-tab-'+tab).classList.add('active');
+  document.querySelectorAll('#view-slots .tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('#view-slots .tab[data-slots-tab="'+tab+'"]').classList.add('active');
+}
+
 function renderSlotTasks(){
-  const container = document.getElementById('slotTasksContainer');
-  if(!container) return;
+  const pendingContainer = document.getElementById('slotTasksPendingContainer');
+  const doneContainer = document.getElementById('slotTasksDoneContainer');
+  if(!pendingContainer || !doneContainer) return;
   const pending = SLOT_TASKS.filter(t => t.status !== '已完成');
   const done = SLOT_TASKS.filter(t => t.status === '已完成');
-  if(pending.length === 0 && done.length === 0){ container.innerHTML = ''; return; }
   const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship'};
   const rowHtml = (t, isDone) => `
     <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
@@ -6287,11 +6307,15 @@ function renderSlotTasks(){
         : `<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="copySlotTaskMessage('${t.record_id}')">📎 複製訊息</button>`}
       <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotTask('${t.record_id}')">刪除</button>
     </div>`;
-  container.innerHTML = `
+  pendingContainer.innerHTML = `
     <div class="panel" style="margin-bottom:16px;">
-      <div class="panel-title">📨 指派給業務的任務</div>
+      <div class="panel-title">📋 指派給業務、還在等確認的任務</div>
       ${pending.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">目前沒有待業務安排的任務</div>' : pending.map(t=>rowHtml(t,false)).join('')}
-      ${done.length > 0 ? `<div style="margin-top:10px;font-size:11.5px;color:var(--text-muted);font-weight:600;">已完成</div>${done.map(t=>rowHtml(t,true)).join('')}` : ''}
+    </div>`;
+  doneContainer.innerHTML = done.length === 0 ? '' : `
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-title">📨 業務已完成安排的任務</div>
+      ${done.map(t=>rowHtml(t,true)).join('')}
     </div>`;
 }
 
