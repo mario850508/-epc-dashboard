@@ -2036,11 +2036,11 @@
           <div style="display:flex;gap:10px;margin-bottom:14px;">
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">開始時間</label>
-              <input type="time" class="quick-mark-input" id="slotBookingStart">
+              <select class="quick-mark-input" id="slotBookingStart"></select>
             </div>
             <div style="flex:1;">
               <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">結束時間</label>
-              <input type="time" class="quick-mark-input" id="slotBookingEnd">
+              <select class="quick-mark-input" id="slotBookingEnd"></select>
             </div>
           </div>
           <div style="display:flex;gap:10px;margin-bottom:14px;">
@@ -6404,6 +6404,23 @@ async function confirmSlotWindow(){
   }
 }
 
+// 原本開始/結束時間用 <input type="time">，使用者反饋原生時間選取器（上午/下午
+// 分段輸入）很難用。改成固定的 <select> 時間下拉（07:00~20:00，每 30 分鐘一格），
+// 跟案件安排時段的場景夠用，點選比對著原生元件輸入精準快很多。
+const SLOT_TIME_OPTIONS = (() => {
+  const list = [];
+  for(let h = 7; h <= 20; h++){
+    for(const m of [0, 30]){
+      if(h === 20 && m === 30) continue; // 到 20:00 就好，不用到 20:30
+      list.push(String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0'));
+    }
+  }
+  return list;
+})();
+function slotTimeOptionsHtml(){
+  return '<option value="">請選擇</option>' + SLOT_TIME_OPTIONS.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+
 // ---- 預約時段 modal ----
 function openSlotBookingModal(){
   const sel = document.getElementById('slotBookingVendor');
@@ -6414,6 +6431,8 @@ function openSlotBookingModal(){
     return;
   }
   sel.innerHTML = vendorsWithWindows.map(v => `<option value="${v}">${v}</option>`).join('');
+  document.getElementById('slotBookingStart').innerHTML = slotTimeOptionsHtml();
+  document.getElementById('slotBookingEnd').innerHTML = slotTimeOptionsHtml();
   document.getElementById('slotBookingStart').value = '';
   document.getElementById('slotBookingEnd').value = '';
   document.getElementById('slotBookingCase').value = '';
