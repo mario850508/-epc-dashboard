@@ -214,6 +214,12 @@
   .btn-ghost{background:var(--surface);border:1px solid var(--border);color:var(--text);}
   .btn-danger{background:#E5484D;color:#fff;}
   .btn-danger:hover{background:#C9383D;}
+  /* 2026-10-02：.btn-primary 是藍色，跟廠商時段協調頁其他暖色調元素
+     （分頁/下拉選單的 sun 漸層）不搭，使用者反饋「指派給業務」應該是這頁
+     真正常用的主要動作、要更顯眼，改成跟 .tab.active 同一套暖色漸層的
+     按鈕樣式，只用在這個 toolbar，不動全站共用的 .btn-primary（藍色）。 */
+  .btn-warm-primary{background:linear-gradient(135deg,var(--sun-1),var(--sun-2));color:#fff;box-shadow:0 4px 10px rgba(230,140,20,.32);}
+  .btn-warm-primary:hover{transform:translateY(-1px);box-shadow:0 6px 14px rgba(230,140,20,.4);}
 
   /* 2026-09-30 改版：.panel 是幾乎每個頁面的主要容器（排程日曆/掛表安排/
      異常案件/歷史紀錄/PDF公文更名…共 17 處），使用者反饋這些卡片還是死白，
@@ -1981,8 +1987,8 @@
           <div class="page-sub">現場時段（掛表/植筋/放樣/場勘）預約，業務各自登記，系統自動擋同廠商同時段重複預約</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-ghost" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" onclick="openSlotTaskModal()">📨 指派給業務</button>
-          <button class="btn btn-primary" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" onclick="openSlotBookingModal()">➕ 預約時段</button>
+          <button class="btn btn-warm-primary" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" onclick="openSlotTaskModal()">📨 指派給業務</button>
+          <button class="btn btn-ghost" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" onclick="openSlotBookingModal()">➕ 預約時段</button>
           <button class="btn btn-ghost" style="padding:9px 16px;font-size:12.5px;white-space:nowrap;" id="slotsRefreshBtn" onclick="loadVendorSlots()">🔄 重新整理</button>
         </div>
       </div>
