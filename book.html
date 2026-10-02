@@ -181,11 +181,10 @@ function render(){
       <div class="sub" style="margin-top:6px;margin-bottom:16px;">⏱️ 選好開始時間後，結束時間會依預估作業時長自動帶入，仍可自行調整</div>
 
       <label>屋主聯絡資訊</label>
-      ${(TASK.owner_name || TASK.owner_phone) ? `
       <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:12.5px;margin:-4px 0 8px;">
         <input type="checkbox" id="sameAsContract" onchange="onSameAsContractChange()">
         同公證書資訊
-      </label>` : ''}
+      </label>
       <div class="row2" style="margin-bottom:16px;">
         <div>
           <input type="text" id="ownerName" placeholder="屋主姓名">
