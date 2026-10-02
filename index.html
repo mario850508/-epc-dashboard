@@ -2178,7 +2178,8 @@
         </div>
         <div class="modal-body">
           <textarea id="slotSummaryTextarea" readonly style="width:100%;min-height:260px;border:1px solid var(--border);border-radius:10px;padding:14px;font-size:12.5px;font-family:ui-monospace,monospace;line-height:1.7;color:var(--text);background:var(--surface-2);resize:vertical;"></textarea>
-          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:12px;" onclick="shareSlotSummaryToLine()">📤 傳送到 LINE</button>
+          <button class="btn btn-ghost" id="slotSummaryPreviewBtn" style="width:100%;justify-content:center;padding:11px;margin-top:12px;display:none;" onclick="previewSlotTaskLink()">👀 預覽業務填單畫面</button>
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:8px;" onclick="shareSlotSummaryToLine()">📤 傳送到 LINE</button>
           <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:11px;margin-top:8px;" onclick="copySlotSummaryText()">📎 複製清單</button>
         </div>
       </div>
@@ -6497,7 +6498,18 @@ function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, 
   const text = `【${vendor} ${typeLabel}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}${estLine}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
   document.getElementById('slotSummaryTitle').textContent = '📨 傳給業務的訊息';
   document.getElementById('slotSummaryTextarea').value = text;
+  const previewBtn = document.getElementById('slotSummaryPreviewBtn');
+  previewBtn.dataset.link = link;
+  previewBtn.style.display = 'block';
   document.getElementById('slotSummaryModalOverlay').classList.add('show');
+}
+// 2026-10-02 新增：傳送給業務之前先自己看一眼業務會看到的畫面長什麼樣子。
+// 只有「指派給業務」產生的訊息才有連結可以預覽，複製清單（copySlotSummary）
+// 沒有對應的 book.html 連結，所以按鈕預設隱藏，只有 showSlotTaskMessage
+// 才會打開。
+function previewSlotTaskLink(){
+  const link = document.getElementById('slotSummaryPreviewBtn').dataset.link;
+  if(link) window.open(link, '_blank');
 }
 function copySlotTaskMessage(recordId){
   const t = SLOT_TASKS.find(x => x.record_id === recordId);
@@ -6606,6 +6618,7 @@ function copySlotSummary(vendor){
   });
   document.getElementById('slotSummaryTitle').textContent = '📋 ' + vendor + ' 時段清單';
   document.getElementById('slotSummaryTextarea').value = text;
+  document.getElementById('slotSummaryPreviewBtn').style.display = 'none'; // 複製清單沒有對應的 book.html 連結可以預覽
   document.getElementById('slotSummaryModalOverlay').classList.add('show');
 }
 function closeSlotSummaryModal(){
