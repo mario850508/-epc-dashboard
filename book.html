@@ -306,7 +306,9 @@ function selectDate(d){
   const fits = s => s + duration <= 20 * 60 && !busy.some(([bs, be]) => s < be && bs < s + duration);
   const cur = startSel.value ? toMin(startSel.value) : null;
   if(cur === null || !fits(cur)){
-    const cand = TIME_OPTIONS.find(t => fits(toMin(t)));
+    // 優先挑 09:00 以後（預設開始時間是 09:00，不要跳到一大早 07:00），
+    // 09:00 以後都排不下才退回找更早的。
+    const cand = TIME_OPTIONS.find(t => toMin(t) >= 9 * 60 && fits(toMin(t))) || TIME_OPTIONS.find(t => fits(toMin(t)));
     startSel.value = cand || '';
     endSel.value = '';
   }
