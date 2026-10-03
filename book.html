@@ -72,6 +72,8 @@
   .success-title{font-size:17px;font-weight:700;margin-bottom:6px;}
   .success-detail{font-size:13.5px;color:var(--text-muted);line-height:1.8;}
   .loading, .not-found{text-align:center;color:var(--text-muted);font-size:13px;padding:40px 10px;}
+  select option:disabled{background:#E9E9EC;color:#9AA0AA;}
+  .busy-hint{display:none;font-size:12px;line-height:1.7;color:#8A5A12;background:#FFF4DC;border-radius:10px;padding:8px 12px;margin:10px 0 0;}
 </style>
 </head>
 <body>
@@ -171,13 +173,14 @@ function render(){
       <div class="row2">
         <div>
           <label>開始時間</label>
-          <select id="startTime" onchange="applyTimeDurationDefault()">${timeOptionsHtml()}</select>
+          <select id="startTime" onchange="onStartTimeChange()">${timeOptionsHtml()}</select>
         </div>
         <div>
           <label>結束時間</label>
-          <select id="endTime">${timeOptionsHtml()}</select>
+          <select id="endTime" onchange="refreshTimeOptions()">${timeOptionsHtml()}</select>
         </div>
       </div>
+      <div class="busy-hint" id="busyHint"></div>
       <div class="sub" style="margin-top:6px;margin-bottom:16px;">⏱️ 選好開始時間後，結束時間會依預估作業時長自動帶入，仍可自行調整</div>
 
       <label>屋主聯絡資訊</label>
@@ -205,6 +208,9 @@ function render(){
     </div>
     <div class="hint">🔗 這個連結只能用一次，完成預約後就會失效，不用擔心被重複填寫。</div>`;
   applyTimeDurationDefault();
+  refreshTimeOptions();
+  // 只有一個候選日期的話直接幫業務選好，才看得到那天哪些時間已被預約
+  if(TASK.candidate_dates.length === 1) selectDate(TASK.candidate_dates[0]);
 }
 
 // 2026-10-01 新增：各項目類型預設時間長度（分鐘），跟主控台「預約時段」
@@ -218,22 +224,95 @@ function render(){
 // TASK.duration_min，這裡優先用這個值；沒有的話（舊任務、或 PM 完全沒給
 // 估計）才退回用項目類型算出的通用時長，確保這裡永遠有個合理預設可用。
 const TYPE_DURATION_MIN = {'掛表':180,'植筋':180,'放樣':60,'場勘':60};
+function getTaskDuration(){
+  return TASK.duration_min || (TASK.type||[]).reduce((sum, t) => sum + (TYPE_DURATION_MIN[t] || 0), 0);
+}
 function applyTimeDurationDefault(){
-  const duration = TASK.duration_min || (TASK.type||[]).reduce((sum, t) => sum + (TYPE_DURATION_MIN[t] || 0), 0);
+  const duration = getTaskDuration();
   if(!duration) return;
   const startSel = document.getElementById('startTime');
   const endSel = document.getElementById('endTime');
   if(!startSel || !endSel) return;
-  if(!startSel.value) startSel.value = '09:00';
-  const [h, m] = startSel.value.split(':').map(Number);
-  const totalMin = h * 60 + m + duration;
+  if(!startSel.value){
+    const def = [...startSel.options].find(o => o.value === '09:00');
+    if(def && !def.disabled) startSel.value = '09:00'; else return;
+  }
+  const totalMin = toMin(startSel.value) + duration;
   const endVal = String(Math.floor(totalMin / 60)).padStart(2,'0') + ':' + String(totalMin % 60).padStart(2,'0');
-  if([...endSel.options].some(o => o.value === endVal)) endSel.value = endVal;
+  const endOpt = [...endSel.options].find(o => o.value === endVal);
+  if(endOpt && !endOpt.disabled) endSel.value = endVal;
+}
+
+// 2026-10-03：這個廠商在選定日期「已經被預約」的時段，直接在開始/結束時間下拉
+// 裡灰掉不能選（disabled），不用等按完成預約才被後端 409 擋下來。資料來自
+// TASK.busy_slots（後端只給日期＋起訖時間，不帶別人的案號）。送出時後端仍
+// 會再檢查一次衝突（兩個人同時開著頁面、其中一個先送出的情況還是會擋）。
+function toMin(t){ const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+function fmtMin(total){ return String(Math.floor(total / 60)).padStart(2,'0') + ':' + String(total % 60).padStart(2,'0'); }
+function getBusyRanges(date){
+  return ((TASK && TASK.busy_slots) || []).filter(b => b.date === date).map(b => [toMin(b.start_time), toMin(b.end_time)]);
+}
+function refreshTimeOptions(){
+  const startSel = document.getElementById('startTime');
+  const endSel = document.getElementById('endTime');
+  if(!startSel || !endSel) return;
+  const busy = selectedDate ? getBusyRanges(selectedDate) : [];
+  const startMin = startSel.value ? toMin(startSel.value) : null;
+  [...startSel.options].forEach(o => {
+    if(!o.value) return;
+    const m = toMin(o.value);
+    const blocked = busy.some(([s, e]) => m >= s && m < e);
+    o.disabled = blocked;
+    o.textContent = blocked ? o.value + '　已被預約' : o.value;
+  });
+  [...endSel.options].forEach(o => {
+    if(!o.value) return;
+    const m = toMin(o.value);
+    const beforeStart = startMin !== null && m <= startMin;
+    const overlaps = startMin !== null
+      ? busy.some(([s, e]) => s < m && startMin < e)
+      : busy.some(([s, e]) => m > s && m <= e);
+    o.disabled = beforeStart || overlaps;
+    o.textContent = (overlaps && !beforeStart) ? o.value + '　已被預約' : o.value;
+  });
+  [startSel, endSel].forEach(sel => {
+    if(sel.value && sel.selectedOptions[0] && sel.selectedOptions[0].disabled) sel.value = '';
+  });
+  const hint = document.getElementById('busyHint');
+  if(hint){
+    if(busy.length){
+      hint.textContent = '📌 這個廠商這天已經有預約：' + busy.slice().sort((a, b) => a[0] - b[0]).map(([s, e]) => fmtMin(s) + '-' + fmtMin(e)).join('、') + '（灰色的時間不能選）';
+      hint.style.display = 'block';
+    } else {
+      hint.style.display = 'none';
+    }
+  }
+}
+function onStartTimeChange(){
+  refreshTimeOptions();
+  applyTimeDurationDefault();
+  refreshTimeOptions();
 }
 
 function selectDate(d){
   selectedDate = d;
   document.querySelectorAll('.date-btn').forEach(b => b.classList.toggle('active', b.dataset.date === d));
+  // 換日期後，如果目前的開始時間（預設 09:00）剛好落在這天已被預約的時段、或
+  // 預估時長排下去會撞到，就自動換成這天第一個排得下的開始時間。
+  const startSel = document.getElementById('startTime');
+  const endSel = document.getElementById('endTime');
+  const busy = getBusyRanges(d);
+  const duration = getTaskDuration() || 30;
+  const fits = s => s + duration <= 20 * 60 && !busy.some(([bs, be]) => s < be && bs < s + duration);
+  const cur = startSel.value ? toMin(startSel.value) : null;
+  if(cur === null || !fits(cur)){
+    const cand = TIME_OPTIONS.find(t => fits(toMin(t)));
+    startSel.value = cand || '';
+    endSel.value = '';
+  }
+  refreshTimeOptions();
+  applyTimeDurationDefault();
+  refreshTimeOptions();
 }
 
 // 2026-10-01 新增：「同公證書資訊」勾選後，把 PM 建立任務時已經查到的屋主
@@ -271,6 +350,9 @@ async function submitBooking(){
       const c = data.conflict;
       errorBox.innerHTML = `⚠️ 這個時段已經被佔用了：<b>${c.start_time}-${c.end_time}</b>　${(c.type||[]).join('+')}｜${c.case||''}${c.alias?('（'+c.alias+'）'):''}　登記人：${c.registrant||''}<br>請換一個時間再試一次。`;
       errorBox.style.display = 'block';
+      // 頁面開著的期間別人剛好先預約了：把這段加進已被預約清單，下拉立刻灰掉
+      TASK.busy_slots = (TASK.busy_slots || []).concat([{date: selectedDate, start_time: c.start_time, end_time: c.end_time}]);
+      refreshTimeOptions();
       return;
     }
     if(!res.ok){
