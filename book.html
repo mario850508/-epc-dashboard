@@ -245,6 +245,7 @@ function render(){
     // 業務按「修改備選時間」或「屋主還是不行」進來：直接切到提供其他時間，並帶入上次填的
     document.getElementById('altToggle').checked = true;
     onAltToggle();
+    if((TASK.alt_slots || []).length) document.getElementById('altRows').innerHTML = ''; // 清掉 onAltToggle 自動補的空白列
     (TASK.alt_slots || []).forEach(s => addAltRow(s));
     if(TASK.rep_note) document.getElementById('note').value = TASK.rep_note;
     if(TASK.owner_name) document.getElementById('ownerName').value = TASK.owner_name;
