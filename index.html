@@ -2850,7 +2850,7 @@ function renderWithdrawnTable(){
   tbody.innerHTML = items.map(it => {
     return `
     <tr>
-      <td><div class="case-id">${it.case}</div><div class="case-alias">${it.alias||''}</div>${salesLineHtml(it.sales_person)}</td>
+      <td><div class="case-id">${it.case}</div><div class="case-alias">${it.alias||''}</div>${salesLineHtml(it.sales_person)}${slotBadgeHtml(it.case)}</td>
       <td>${it.vendor ? `<span class="vendor-pill ${it.vendorClass}">${it.vendor}</span>` : ''}</td>
       <td>${it.address}</td>
       <td style="max-width:260px;white-space:pre-wrap;">${it.withdrawn_note}</td>
@@ -2892,6 +2892,34 @@ function glueCount(str){
 // Airtable 那邊「綠點業務」欄位還沒設定，或這筆案件沒填）就不顯示這行。
 function salesLineHtml(salesPerson){
   return salesPerson ? `<div class="case-alias" style="color:var(--primary-dark);">業務：${salesPerson}</div>` : '';
+}
+// 2026-10-04 新增：廠商時段協調已經預約確定的時段（掛表/植筋/放樣/場勘），用
+// 案號比對，顯示在各個案件列表的案號下面（案件進場安排／掛表安排／場勘安排／
+// 待安排出貨&植筋…共用同一個小函式）。純顯示、不寫入任何既有日期欄位——
+// 使用者先要「看得到」，邊用邊看要不要再把時段寫回預計日期欄位。點標籤直接
+// 跳到廠商時段協調的「完成安排」。已經過去的日期用淡色，最多顯示 3 筆。
+function slotBadgeHtml(caseNo){
+  if(!caseNo || typeof SLOT_BOOKINGS === 'undefined' || !SLOT_BOOKINGS.length) return '';
+  const list = SLOT_BOOKINGS.filter(b => b.case === caseNo).sort((a, b) => (a.date + (a.start_time||'')).localeCompare(b.date + (b.start_time||'')));
+  if(!list.length) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+  return list.slice(0, 3).map(b => {
+    const past = b.date < todayStr;
+    const wd = ['日','一','二','三','四','五','六'][new Date(b.date + 'T00:00:00').getDay()];
+    return `<div class="case-alias" style="color:${past ? 'var(--text-muted)' : 'var(--sun-3)'};cursor:pointer;" title="廠商時段協調已預約，點一下查看" onclick="event.stopPropagation();showView('slots');showSlotsTab('done');loadVendorSlots();">📌 ${(b.type||[]).join('+')}　${fmtDate(b.date)}（${wd}）${b.start_time}-${b.end_time}${past ? '（已過）' : ''}</div>`;
+  }).join('');
+}
+async function loadSlotBookingsQuiet(){
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots', {cache: 'no-store'});
+    if(!res.ok) return;
+    const data = await res.json();
+    const next = data.bookings || [];
+    if(JSON.stringify(next) === JSON.stringify(SLOT_BOOKINGS)) return; // 沒變動就不重畫各個表格（避免輪詢時干擾正在操作的畫面）
+    SLOT_BOOKINGS = next;
+    refreshAllVendorFilteredViews();
+  }catch(err){ console.error('載入廠商時段失敗（不影響其他頁面）', err); }
 }
 // 2026-09-01 新增：如果這個案件曾經在「料件使用清單」（未使用料件的挪用紀錄）
 // 裡出現過（也就是這個案場用的模組/逆變器不是全新出貨，而是挪用其他撤案案件
@@ -3688,7 +3716,7 @@ function renderPendingTable(){
       : `<span class="pm-pill" style="background:var(--success-soft);color:var(--success);">同意備案 ${r.agree}</span>`;
     return `
       <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${hasSpec ? r.module : '尚未填寫規格'}" data-inverter="${hasSpec ? (r.inverter||'') : ''}">
-        <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${materialReuseNoteHtml(r.case)}</td>
+        <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${slotBadgeHtml(r.case)}${materialReuseNoteHtml(r.case)}</td>
         <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
         <td>${r.address}
           <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
@@ -3742,7 +3770,7 @@ function renderEntryTable(){
          <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openCompleteMeterModal('${r.record_id}')">✓ 完工</button>`;
     return `
     <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}" data-entrydatefull="${r.entry_date||''}">
-      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${materialReuseNoteHtml(r.case)}</td>
+      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${slotBadgeHtml(r.case)}${materialReuseNoteHtml(r.case)}</td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}
         <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
@@ -3807,7 +3835,7 @@ function renderMeterTable(){
             : `<span style="color:var(--m-rebar);">尚未取得</span>`;
           return `
           <tr>
-            <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${materialReuseNoteHtml(r.case)}</td>
+            <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${slotBadgeHtml(r.case)}${materialReuseNoteHtml(r.case)}</td>
             <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
             <td>${r.address}
               <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
@@ -3843,7 +3871,7 @@ function renderMeterTable(){
           : `<span style="color:var(--m-rebar);">尚未取得</span>`;
         return `
         <tr>
-          <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${materialReuseNoteHtml(r.case)}</td>
+          <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${slotBadgeHtml(r.case)}${materialReuseNoteHtml(r.case)}</td>
           <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
           <td>${r.address}
             <div style="margin-top:4px;">${ownerInfoButtonHtml(r.record_id)}</div>
@@ -3896,7 +3924,7 @@ function renderIssueTable(){
   tbody.innerHTML = items.map(it => {
     return `
     <tr>
-      <td><div class="case-id">${it.case}</div><div class="case-alias">${it.alias||''}</div>${salesLineHtml(it.sales_person)}</td>
+      <td><div class="case-id">${it.case}</div><div class="case-alias">${it.alias||''}</div>${salesLineHtml(it.sales_person)}${slotBadgeHtml(it.case)}</td>
       <td>${it.vendor ? `<span class="vendor-pill ${it.vendorClass}">${it.vendor}</span>` : ''}</td>
       <td>${it.address}</td>
       <td><span class="pm-pill">${it.stage}</span></td>
@@ -3999,7 +4027,7 @@ function renderArchiveTable(){
     const shipText = fmtDate(r.ship_date) + (invDate ? `（變流器 ${fmtDate(invDate)}）` : '');
     return `
     <tr>
-      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}</td>
+      <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${slotBadgeHtml(r.case)}</td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}</td>
       <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
@@ -4091,6 +4119,7 @@ document.addEventListener('DOMContentLoaded', function(){
   loadEntryCases();
   loadCompletedCases();
   loadAppData();
+  loadSlotBookingsQuiet(); // 廠商時段協調的預約，讓各案件列表可以顯示「📌 已預約」標籤
   startAutoSync();
   // 提早在背景偷偷把「模組型號」「逆變器型號」這兩份選項清單抓好，
   // 之後使用者點開「填寫規格」視窗時大機率已經是現成的，不用現場等。
@@ -4125,6 +4154,7 @@ function startAutoSync(){
       }
       const includeArchived = (autoSyncTick % AUTO_SYNC_ARCHIVE_EVERY_N_TICKS === 0);
       await loadAppData(includeArchived);
+      await loadSlotBookingsQuiet(); // 業務在 book.html 剛預約的，這邊也會跟著出現標籤
     }catch(err){
       // 忽略單次輪詢失敗，等下一輪繼續
     }finally{
@@ -6322,6 +6352,7 @@ async function loadVendorSlots(){
     const data = await slotsRes.json();
     SLOT_BOOKINGS = data.bookings || [];
     renderVendorSlots();
+    refreshAllVendorFilteredViews();
     if(tasksRes.ok){
       const taskData = await tasksRes.json();
       SLOT_TASKS = taskData.tasks || [];
@@ -6596,6 +6627,7 @@ async function deleteSlotBooking(recordId){
     if(!res.ok) throw new Error('HTTP ' + res.status);
     SLOT_BOOKINGS = SLOT_BOOKINGS.filter(b => b.record_id !== recordId);
     renderVendorSlots();
+    refreshAllVendorFilteredViews();
     showToast('已刪除預約');
   }catch(err){
     showToast('刪除失敗：' + err.message);
