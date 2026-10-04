@@ -2163,7 +2163,12 @@
             </div>
           </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">指派給（業務姓名，選填，純提示不影響連結本身）</label>
-          <input type="text" class="quick-mark-input" id="slotTaskAssignee" placeholder="例如：小夫" style="margin-bottom:18px;">
+          <input type="text" class="quick-mark-input" id="slotTaskAssignee" placeholder="例如：小夫" style="margin-bottom:14px;">
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">請業務在這個時間前回覆給我（預設當天 18:00 下班前，可調整；日期留空＝不設期限）</label>
+          <div style="display:flex;gap:10px;margin-bottom:18px;">
+            <div style="flex:1.3;"><input type="date" class="quick-mark-input" id="slotTaskDeadlineDate"></div>
+            <div style="flex:1;"><select class="quick-mark-input" id="slotTaskDeadlineTime"></select></div>
+          </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmSlotTask()">建立任務並產生連結</button>
         </div>
       </div>
@@ -6442,6 +6447,8 @@ function renderSlotTasks(){
       <span style="font-size:12.5px;flex:1;min-width:140px;">${t.case||''}${t.alias?('　'+t.alias):''}</span>
       <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">候選：${t.candidate_dates.map(d=>fmtDate(d)).join('、')}</span>
       ${t.assignee ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">指派：${t.assignee}</span>` : ''}
+      ${t.deadline ? (() => { const over = new Date(t.deadline) < new Date(); return `<span style="font-size:11px;font-weight:700;flex-shrink:0;color:${over ? '#D64545' : '#B45309'};">⏰ ${fmtDeadline(t.deadline)}${over ? '（已逾期）' : ''}</span>`; })() : ''}
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="adjustSlotDeadline('${t.record_id}')">⏰ 期限</button>
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="copySlotTaskMessage('${t.record_id}')">📎 複製訊息</button>
       <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotTask('${t.record_id}')">刪除</button>
     </div>${stageBlockHtml(t)}`;
@@ -6453,6 +6460,37 @@ function renderSlotTasks(){
       <div class="panel-title">📋 指派給業務、還在等確認的任務</div>
       ${sorted.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">目前沒有待業務安排的任務</div>' : sorted.map(t=>rowHtml(t)).join('')}
     </div>`;
+}
+// 調整回覆期限：用 prompt 輸入「2026-10-05 18:00」，留空＝取消期限
+async function adjustSlotDeadline(recordId){
+  const t = SLOT_TASKS.find(x => x.record_id === recordId);
+  if(!t) return;
+  let cur = '';
+  if(t.deadline){
+    const d = new Date(t.deadline);
+    cur = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  const input = prompt('業務回覆期限（格式：2026-10-05 18:00，留空＝取消期限）', cur);
+  if(input === null) return;
+  let iso = null;
+  if(input.trim()){
+    const m = input.trim().match(/^(\d{4}-\d{1,2}-\d{1,2})\s+(\d{1,2}:\d{2})$/);
+    if(!m){ showToast('格式不對，請輸入像 2026-10-05 18:00'); return; }
+    const [y, mo, da] = m[1].split('-');
+    iso = y + '-' + mo.padStart(2,'0') + '-' + da.padStart(2,'0') + 'T' + m[2].padStart(5,'0') + ':00+08:00';
+  }
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(recordId) + '/deadline', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({deadline: iso}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    t.deadline = iso ? new Date(iso).toISOString() : '';
+    renderSlotTasks();
+    showToast(iso ? '已更新回覆期限，要通知業務的話請用「複製訊息」重新傳' : '已取消回覆期限');
+  }catch(err){
+    showToast('調整失敗：' + err.message);
+  }
 }
 async function chooseSlotAlt(recordId, idx){
   try{
@@ -6518,6 +6556,8 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskOwnerName').value = '';
   document.getElementById('slotTaskOwnerPhone').value = '';
   document.getElementById('slotTaskOwnerInfo').style.display = 'none';
+  document.getElementById('slotTaskDeadlineTime').innerHTML = deadlineTimeOptionsHtml();
+  setDefaultSlotDeadline();
   document.getElementById('slotTaskCaseResults').classList.remove('show');
   document.getElementById('slotTaskTypeDropdown').classList.remove('show');
   document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = false; });
@@ -6542,6 +6582,29 @@ function openSlotTaskModal(){
 // 手動調整）。取消勾選就恢復成原本「填具體預估時間」的兩個時間下拉。
 // 2026-10-01 同日：原本用一個 30 分鐘一格的下拉選單（30分~8小時共16個
 // 選項），使用者反饋選項太多太雜，改成這種小時/分鐘分開輸入的方式。
+// 2026-10-04：業務回覆期限。預設當天 18:00（下班），如果建任務時已經過 18:00 就預設
+// 隔天 18:00（不然一建立就逾期）。期限用台北時間 +08:00 的 ISO 字串存。
+function deadlineTimeOptionsHtml(){
+  const list = [];
+  for(let h = 7; h <= 23; h++){ list.push(String(h).padStart(2,'0') + ':00'); list.push(String(h).padStart(2,'0') + ':30'); }
+  return list.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+function setDefaultSlotDeadline(){
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (now.getHours() >= 18 ? 1 : 0));
+  document.getElementById('slotTaskDeadlineDate').value = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  document.getElementById('slotTaskDeadlineTime').value = '18:00';
+}
+function slotDeadlineIso(dateStr, timeStr){
+  return dateStr ? (dateStr + 'T' + (timeStr || '18:00') + ':00+08:00') : null;
+}
+function fmtDeadline(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d)) return '';
+  const wd = ['日','一','二','三','四','五','六'][d.getDay()];
+  return String(d.getMonth()+1).padStart(2,'0') + '/' + String(d.getDate()).padStart(2,'0') + '（' + wd + '）' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
 function getSlotTaskTypeDurationSum(){
   const types = getCheckedSlotTypes('slot-task-type-check');
   return types.reduce((sum, t) => sum + (SLOT_TYPE_DURATION_MIN[t] || 0), 0) || 60;
@@ -6583,6 +6646,7 @@ async function confirmSlotTask(){
   const assignee = document.getElementById('slotTaskAssignee').value.trim();
   const ownerName = document.getElementById('slotTaskOwnerName').value.trim();
   const ownerPhone = document.getElementById('slotTaskOwnerPhone').value.trim();
+  const deadline = slotDeadlineIso(document.getElementById('slotTaskDeadlineDate').value, document.getElementById('slotTaskDeadlineTime').value);
   const candidateDates = [...document.querySelectorAll('.slot-task-date-input')].map(i=>i.value).filter(Boolean);
   const estDelegate = document.getElementById('slotTaskEstDelegate').checked;
   let estStart = '', estEnd = '', durationMin = null;
@@ -6603,13 +6667,13 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, candidate_dates: candidateDates, duration_min: durationMin, owner_name: ownerName, owner_phone: ownerPhone}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, candidate_dates: candidateDates, duration_min: durationMin, owner_name: ownerName, owner_phone: ownerPhone, deadline}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
     closeSlotTaskModal();
     loadVendorSlots();
-    showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path, estStart, estEnd, durationMin, estDelegate);
+    showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path, estStart, estEnd, durationMin, estDelegate, deadline);
   }catch(err){
     showToast('建立失敗：' + err.message);
   }finally{
@@ -6623,7 +6687,7 @@ async function confirmSlotTask(){
 // 結束時間自動帶出來。estDelegate=true 時訊息顯示「預估時長」，否則（有
 // 完整起訖時間）顯示「預估時間」區間；之後從任務清單「📎 複製訊息」重新
 // 產生時一樣會帶（因為 durationMin 已經存在任務紀錄裡了，不像以前會不見）。
-function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, estStart, estEnd, durationMin, estDelegate){
+function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, estStart, estEnd, durationMin, estDelegate, deadline){
   const link = window.location.origin + path;
   const typeLabel = (type||[]).join('+');
   let estLine = '';
@@ -6632,7 +6696,7 @@ function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, 
   } else if(estStart && estEnd){
     estLine = `\n預估時間：${estStart}-${estEnd}（僅供參考，實際時間依現場工班作業時間為主）`;
   }
-  const text = `【${vendor} ${typeLabel}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}${estLine}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
+  const text = `【${vendor} ${typeLabel}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}${estLine}${deadline ? `\n⏰ 請於 ${fmtDeadline(deadline)} 前回覆給我` : ''}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
   document.getElementById('slotSummaryTitle').textContent = '📨 傳給業務的訊息';
   document.getElementById('slotSummaryTextarea').value = text;
   const previewBtn = document.getElementById('slotSummaryPreviewBtn');
@@ -6653,7 +6717,7 @@ function copySlotTaskMessage(recordId){
   if(!t) return;
   if(t.stage === '待業務確認' && t.chosen_slot){ showSlotChosenMessage(t); return; }
   const path = '/book.html?token=' + t.token;
-  showSlotTaskMessage(t.vendor, t.case, t.alias, t.type, t.candidate_dates, path, '', '', t.duration_min, !!t.duration_min);
+  showSlotTaskMessage(t.vendor, t.case, t.alias, t.type, t.candidate_dates, path, '', '', t.duration_min, !!t.duration_min, t.deadline);
 }
 async function deleteSlotTask(recordId){
   if(!confirm('確定要刪除這個任務嗎？（連結會立刻失效，如果業務已經在填的話會失敗）')) return;

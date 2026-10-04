@@ -73,6 +73,9 @@
   .success-detail{font-size:13.5px;color:var(--text-muted);line-height:1.8;}
   .loading, .not-found{text-align:center;color:var(--text-muted);font-size:13px;padding:40px 10px;}
   select option:disabled{background:#E9E9EC;color:#9AA0AA;}
+  .deadline-bar{display:none;margin:0 0 14px;padding:10px 14px;border-radius:12px;background:#FFF4DC;border:1px solid #F3DDA8;color:#8A5A12;font-size:13.5px;font-weight:700;line-height:1.6;}
+  .deadline-bar.soon{background:#FDECEC;border-color:#F5C2C2;color:#B42318;}
+  .deadline-bar small{display:block;font-weight:500;font-size:12px;opacity:.85;}
   .alt-toggle{display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:600;line-height:1.5;background:#FFF4DC;border:1px solid #F3DDA8;border-radius:12px;padding:12px 14px;margin:6px 0 4px;cursor:pointer;}
   .alt-toggle input{margin-top:3px;flex-shrink:0;}
   .alt-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;}
@@ -176,6 +179,7 @@ function render(){
   app.innerHTML = `
     <div class="card">
       <h1>${TASK.vendor}　${(TASK.type||[]).join('+')}</h1>
+      <div class="deadline-bar" id="deadlineBar"></div>
       <div class="sub">請跟屋主確認好時間後再送出，送出後這個時段就會鎖定、其他案件不能再卡進來</div>
       <div class="info-row"><span class="info-label">案號</span><span>${TASK.case}${TASK.alias?('　'+TASK.alias):''}</span></div>
       <div class="info-row"><span class="info-label">項目</span><span class="pill">${(TASK.type||[]).join('+')}</span></div>
@@ -237,6 +241,7 @@ function render(){
     </div>
     <div class="hint">🔗 這個連結只能用一次，完成預約後就會失效，不用擔心被重複填寫。</div>`;
   altMode = false;
+  startDeadlineTicker();
   applyTimeDurationDefault();
   refreshTimeOptions();
   // 只有一個候選日期的話直接幫業務選好，才看得到那天哪些時間已被預約
@@ -251,6 +256,35 @@ function render(){
     if(TASK.owner_name) document.getElementById('ownerName').value = TASK.owner_name;
     if(TASK.owner_phone) document.getElementById('ownerPhone').value = TASK.owner_phone;
   }
+}
+
+// ===== 2026-10-04：窗口設定的「請在這個時間前回覆」＋倒數 =====
+let deadlineTimer = null;
+function updateDeadlineBar(){
+  const bar = document.getElementById('deadlineBar');
+  if(!bar){ clearInterval(deadlineTimer); deadlineTimer = null; return; }
+  if(!TASK.deadline){ bar.style.display = 'none'; return; }
+  const due = new Date(TASK.deadline);
+  if(isNaN(due)){ bar.style.display = 'none'; return; }
+  const wd = ['日','一','二','三','四','五','六'][due.getDay()];
+  const dueText = String(due.getMonth() + 1).padStart(2, '0') + '/' + String(due.getDate()).padStart(2, '0') + '（' + wd + '）' + String(due.getHours()).padStart(2, '0') + ':' + String(due.getMinutes()).padStart(2, '0');
+  const ms = due - Date.now();
+  let remain;
+  if(ms <= 0){
+    remain = '⚠️ 已超過期限，請盡快回覆或聯絡窗口';
+  } else {
+    const mins = Math.floor(ms / 60000);
+    const d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60;
+    remain = '還剩 ' + (d ? d + ' 天 ' : '') + ((d || h) ? h + ' 小時 ' : '') + m + ' 分鐘';
+  }
+  bar.className = 'deadline-bar' + ((ms <= 0 || ms < 3600000) ? ' soon' : '');
+  bar.innerHTML = '⏰ 請在 ' + dueText + ' 前回覆窗口<small>' + remain + '</small>';
+  bar.style.display = 'block';
+}
+function startDeadlineTicker(){
+  if(deadlineTimer) clearInterval(deadlineTimer);
+  updateDeadlineBar();
+  deadlineTimer = setInterval(updateDeadlineBar, 30000);
 }
 
 // ===== 2026-10-04：屋主原時間不行 → 業務提供其他時間 → 窗口選定 → 業務確認 =====
