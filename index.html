@@ -4120,6 +4120,7 @@ document.addEventListener('DOMContentLoaded', function(){
   loadCompletedCases();
   loadAppData();
   loadSlotBookingsQuiet(); // 廠商時段協調的預約，讓各案件列表可以顯示「📌 已預約」標籤
+  loadSlotTasksQuiet();    // 業務回傳備選時間時，側邊欄/分頁要有紅點提醒
   startAutoSync();
   // 提早在背景偷偷把「模組型號」「逆變器型號」這兩份選項清單抓好，
   // 之後使用者點開「填寫規格」視窗時大機率已經是現成的，不用現場等。
@@ -4155,6 +4156,7 @@ function startAutoSync(){
       const includeArchived = (autoSyncTick % AUTO_SYNC_ARCHIVE_EVERY_N_TICKS === 0);
       await loadAppData(includeArchived);
       await loadSlotBookingsQuiet(); // 業務在 book.html 剛預約的，這邊也會跟著出現標籤
+      await loadSlotTasksQuiet();    // 業務剛回傳備選時間/確認時間，紅點跟任務清單也會更新
     }catch(err){
       // 忽略單次輪詢失敗，等下一輪繼續
     }finally{
@@ -6381,12 +6383,58 @@ function showSlotsTab(tab){
 // 日期/指派業務 vs. 實際日期時間/登記人），看起來很像 bug。拿掉已完成
 // 任務的那份清單，完成安排分頁只留時段卡片（結果），任務清單只保留
 // 還沒確認的（過程）。
+function slotAltConflicts(t, s){
+  return SLOT_BOOKINGS.some(b => b.vendor === t.vendor && b.date === s.date && b.start_time < s.end_time && s.start_time < b.end_time);
+}
+function slotLabelText(s){
+  const wd = ['日','一','二','三','四','五','六'][new Date(s.date + 'T00:00:00').getDay()];
+  return fmtDate(s.date) + '（' + wd + '）' + s.start_time + '-' + s.end_time;
+}
+// 2026-10-04：業務「原時間屋主不行，提供其他時間」的協調流程，主控台這邊的畫面：
+// 待窗口確認＝業務已回傳備選時段，窗口跟廠商確認後在這裡選一個；待業務確認＝
+// 已選定、等業務打開連結按確認。標籤/側邊欄會顯示待處理數量。
+function updateSlotTaskBadges(){
+  const n = SLOT_TASKS.filter(t => t.status !== '已完成' && t.stage === '待窗口確認').length;
+  const tab = document.querySelector('#view-slots .tab[data-slots-tab="pending"]');
+  if(tab) tab.textContent = '📋 指派任務' + (n ? '　🔴 ' + n + ' 待處理' : '');
+  const nav = document.querySelector('.nav-item[data-view="slots"]');
+  if(nav){
+    let b = nav.querySelector('.slots-nav-badge');
+    if(n && !b){ b = document.createElement('span'); b.className = 'slots-nav-badge'; b.style.cssText = 'margin-left:6px;background:#E5484D;color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 7px;'; nav.appendChild(b); }
+    if(b){ if(n) b.textContent = n; else b.remove(); }
+  }
+}
 function renderSlotTasks(){
+  updateSlotTaskBadges();
   const pendingContainer = document.getElementById('slotTasksPendingContainer');
   if(!pendingContainer) return;
   const pending = SLOT_TASKS.filter(t => t.status !== '已完成');
   const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship'};
   const typeChipsHtml = (types) => (types||[]).map(ty => `<span class="chip ${typeChipClass[ty]||''}" style="flex-shrink:0;">${ty}</span>`).join('');
+  const stageBlockHtml = (t) => {
+    if(!t.stage || !(t.alt_slots||[]).length) return '';
+    const chosen = t.chosen_slot;
+    const isSame = (a, b) => b && a.date === b.date && a.start_time === b.start_time && a.end_time === b.end_time;
+    const head = t.stage === '待窗口確認'
+      ? `<div style="font-size:12.5px;font-weight:700;color:#B45309;margin-bottom:6px;">🟡 業務回報：原時間屋主無法配合，以下是屋主可以的其他時間——跟廠商確認後選一個</div>`
+      : `<div style="font-size:12.5px;font-weight:700;color:#1E46C4;margin-bottom:6px;">⏳ 已選定 ${slotLabelText(chosen)}，等業務打開連結確認（也可以改選別的）</div>`;
+    const opts = t.alt_slots.map((s, i) => {
+      const busy = slotAltConflicts(t, s);
+      const picked = isSame(s, chosen);
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:600;min-width:170px;${busy ? 'color:var(--text-muted);text-decoration:line-through;' : ''}">${slotLabelText(s)}</span>
+        ${busy ? '<span style="font-size:11px;color:var(--text-muted);">廠商這段已被其他案件預約</span>'
+               : picked ? '<span style="font-size:11px;color:#16A34A;font-weight:700;">✓ 目前選定</span>'
+               : `<button class="btn btn-warm-primary" style="padding:4px 12px;font-size:11.5px;" onclick="chooseSlotAlt('${t.record_id}', ${i})">選這個</button>`}
+      </div>`;
+    }).join('');
+    const note = t.rep_note ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">業務備註：${t.rep_note}</div>` : '';
+    const actions = `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      ${t.stage === '待業務確認' ? `<button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="copySlotTaskMessage('${t.record_id}')">📎 重新產生「請業務確認」訊息</button>` : ''}
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="resetSlotAlts('${t.record_id}')">↩️ 都不行，退回請業務重新提供</button>
+    </div>`;
+    return `<div style="background:#FFF8E8;border:1px solid #F3DDA8;border-radius:12px;padding:10px 14px;margin:2px 0 10px;">${head}${opts}${note}${actions}</div>`;
+  };
   const rowHtml = (t) => `
     <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
       <span class="vendor-pill ${VENDOR_CLASS[t.vendor]||'vendor-other'}" style="flex-shrink:0;">${t.vendor}</span>
@@ -6396,12 +6444,70 @@ function renderSlotTasks(){
       ${t.assignee ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">指派：${t.assignee}</span>` : ''}
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="copySlotTaskMessage('${t.record_id}')">📎 複製訊息</button>
       <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotTask('${t.record_id}')">刪除</button>
-    </div>`;
+    </div>${stageBlockHtml(t)}`;
+  // 需要窗口處理的（業務已回傳備選時段）排最前面
+  const order = {'待窗口確認': 0, '待業務確認': 1};
+  const sorted = [...pending].sort((a, b) => (order[a.stage] ?? 2) - (order[b.stage] ?? 2));
   pendingContainer.innerHTML = `
     <div class="panel" style="margin-bottom:16px;">
       <div class="panel-title">📋 指派給業務、還在等確認的任務</div>
-      ${pending.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">目前沒有待業務安排的任務</div>' : pending.map(t=>rowHtml(t)).join('')}
+      ${sorted.length === 0 ? '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">目前沒有待業務安排的任務</div>' : sorted.map(t=>rowHtml(t)).join('')}
     </div>`;
+}
+async function chooseSlotAlt(recordId, idx){
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(recordId) + '/choose', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({index: idx}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if(res.status === 409 && data.conflict){
+      showToast('這個時段已經被別的案件預約了（' + (data.conflict.case || '') + '），請選其他時間');
+      loadVendorSlots();
+      return;
+    }
+    if(!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+    const t = SLOT_TASKS.find(x => x.record_id === recordId);
+    if(t){ t.stage = '待業務確認'; t.chosen_slot = data.chosen_slot; }
+    renderSlotTasks();
+    if(t) showSlotChosenMessage(t);
+  }catch(err){
+    showToast('選定失敗：' + err.message);
+  }
+}
+async function resetSlotAlts(recordId){
+  if(!confirm('確定要退回嗎？備選時間會清掉，業務需要重新提供其他時間（連結不變）。')) return;
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(recordId) + '/reset', {method: 'POST'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const t = SLOT_TASKS.find(x => x.record_id === recordId);
+    if(t){ t.stage = ''; t.alt_slots = []; t.chosen_slot = null; }
+    renderSlotTasks();
+    showToast('已退回，業務打開連結會看到原本的候選日期');
+  }catch(err){
+    showToast('退回失敗：' + err.message);
+  }
+}
+// 窗口選定時間後，產生「請業務確認」的訊息（跟指派訊息共用同一個複製/LINE/預覽視窗）
+function showSlotChosenMessage(t){
+  const link = window.location.origin + '/book.html?token=' + t.token;
+  const typeLabel = (t.type||[]).join('+');
+  const text = `【${t.vendor} ${typeLabel}｜時間已跟廠商確認】\n案號：${t.case}${t.alias?('（'+t.alias+'）'):''}\n確認時間：${slotLabelText(t.chosen_slot)}\n請跟屋主確認這個時間沒問題後，點以下連結按「確認」完成安排：\n${link}`;
+  document.getElementById('slotSummaryTitle').textContent = '📨 請業務確認的訊息';
+  document.getElementById('slotSummaryTextarea').value = text;
+  const previewBtn = document.getElementById('slotSummaryPreviewBtn');
+  previewBtn.dataset.link = link;
+  previewBtn.style.display = 'block';
+  document.getElementById('slotSummaryModalOverlay').classList.add('show');
+}
+async function loadSlotTasksQuiet(){
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/tasks', {cache: 'no-store'});
+    if(!res.ok) return;
+    const next = (await res.json()).tasks || [];
+    if(JSON.stringify(next) === JSON.stringify(SLOT_TASKS)) return;
+    SLOT_TASKS = next;
+    renderSlotTasks();
+  }catch(err){ console.error('載入時段任務失敗（不影響其他頁面）', err); }
 }
 
 function openSlotTaskModal(){
@@ -6545,6 +6651,7 @@ function previewSlotTaskLink(){
 function copySlotTaskMessage(recordId){
   const t = SLOT_TASKS.find(x => x.record_id === recordId);
   if(!t) return;
+  if(t.stage === '待業務確認' && t.chosen_slot){ showSlotChosenMessage(t); return; }
   const path = '/book.html?token=' + t.token;
   showSlotTaskMessage(t.vendor, t.case, t.alias, t.type, t.candidate_dates, path, '', '', t.duration_min, !!t.duration_min);
 }

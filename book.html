@@ -47,7 +47,7 @@
   .info-label{color:var(--text-muted);width:64px;flex-shrink:0;}
   .pill{display:inline-flex;align-items:center;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;background:#E8EEFF;color:#1E46C4;}
   label{font-size:12.5px;font-weight:600;display:block;margin:14px 0 6px;}
-  select, input[type="text"], textarea{
+  select, input[type="text"], input[type="date"], textarea{
     width:100%;border:1px solid var(--border);border-radius:10px;padding:11px 14px;
     font-size:15px;font-family:inherit;color:var(--text);background:var(--surface);
   }
@@ -73,6 +73,17 @@
   .success-detail{font-size:13.5px;color:var(--text-muted);line-height:1.8;}
   .loading, .not-found{text-align:center;color:var(--text-muted);font-size:13px;padding:40px 10px;}
   select option:disabled{background:#E9E9EC;color:#9AA0AA;}
+  .alt-toggle{display:flex;align-items:flex-start;gap:8px;font-size:13px;font-weight:600;line-height:1.5;background:#FFF4DC;border:1px solid #F3DDA8;border-radius:12px;padding:12px 14px;margin:6px 0 4px;cursor:pointer;}
+  .alt-toggle input{margin-top:3px;flex-shrink:0;}
+  .alt-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;}
+  .alt-row .alt-date{flex:1 1 100%;width:100%;}
+  .alt-row select{flex:1 1 0;min-width:0;}
+  .alt-del{flex:0 0 auto;border:none;background:#F1F3F8;color:#6B7280;border-radius:10px;width:38px;height:38px;font-size:15px;cursor:pointer;}
+  .btn-line{width:100%;margin-top:10px;padding:12px;border:none;border-radius:12px;background:#06C755;color:#fff;font-size:15px;font-weight:700;cursor:pointer;}
+  .btn-ghost-lg{width:100%;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;}
+  .slot-list{margin:10px 0;padding:0;list-style:none;}
+  .slot-list li{padding:9px 12px;margin-bottom:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;font-size:14px;font-weight:600;}
+  .chosen-box{text-align:center;padding:16px 10px;margin:10px 0 6px;background:linear-gradient(135deg,#FFF4DC,#FFE8BD);border-radius:14px;font-size:20px;font-weight:800;color:var(--sun-3);line-height:1.5;}
   .busy-hint{display:none;font-size:12px;line-height:1.7;color:#8A5A12;background:#FFF4DC;border-radius:10px;padding:8px 12px;margin:10px 0 0;}
 </style>
 </head>
@@ -119,6 +130,8 @@ function fmtWeekday(iso){
 
 let TASK = null;
 let selectedDate = '';
+let forceForm = false; // true：即使任務已經有備選時段/選定時段，也顯示填寫表單（業務按「修改」或「屋主還是不行」）
+let altMode = false;   // true：正在填「提供其他時間」而不是直接預約候選日期
 
 async function init(){
   const app = document.getElementById('app');
@@ -157,6 +170,8 @@ function render(){
       <div class="hint">如果時間需要調整，請直接聯絡窗口處理，這個連結已經不能再重新預約。</div>`;
     return;
   }
+  if(!forceForm && TASK.stage === '待業務確認' && TASK.chosen_slot){ renderConfirmChosen(); return; }
+  if(!forceForm && TASK.stage === '待窗口確認' && (TASK.alt_slots || []).length){ renderProposed(); return; }
 
   app.innerHTML = `
     <div class="card">
@@ -165,6 +180,19 @@ function render(){
       <div class="info-row"><span class="info-label">案號</span><span>${TASK.case}${TASK.alias?('　'+TASK.alias):''}</span></div>
       <div class="info-row"><span class="info-label">項目</span><span class="pill">${(TASK.type||[]).join('+')}</span></div>
 
+      <label class="alt-toggle">
+        <input type="checkbox" id="altToggle" onchange="onAltToggle()">
+        <span>原預約時間屋主無法配合，已和屋主確認其他時間<br><span style="font-weight:400;font-size:12px;color:var(--text-muted);">勾選後填入屋主可以的日期與時間，回傳給窗口跟廠商確認</span></span>
+      </label>
+
+      <div id="altBlock" style="display:none;">
+        <label>屋主可以配合的其他時間（可填多組）</label>
+        <div id="altRows"></div>
+        <button type="button" class="btn-ghost-lg" style="margin-top:0;margin-bottom:12px;" onclick="addAltRow()">➕ 再加一組時間</button>
+        <div class="busy-hint" id="altBusyNote" style="display:block;">灰色的時間是這個廠商已被其他案件預約的，不能選。</div>
+      </div>
+
+      <div id="normalBlock">
       <label>選擇日期（廠商提供的候選日期）</label>
       <div class="date-options" id="dateOptions">
         ${TASK.candidate_dates.map(d => `<button type="button" class="date-btn" data-date="${d}" onclick="selectDate('${d}')">${fmtDate(d)}（${fmtWeekday(d)}）</button>`).join('')}
@@ -182,6 +210,7 @@ function render(){
       </div>
       <div class="busy-hint" id="busyHint"></div>
       <div class="sub" style="margin-top:6px;margin-bottom:16px;">⏱️ 選好開始時間後，結束時間會依預估作業時長自動帶入，仍可自行調整</div>
+      </div>
 
       <label>屋主聯絡資訊</label>
       <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:12.5px;margin:-4px 0 8px;">
@@ -204,13 +233,219 @@ function render(){
       <textarea id="note" rows="2"></textarea>
 
       <div class="error-box" id="errorBox"></div>
-      <button class="btn-submit" id="submitBtn" onclick="submitBooking()">完成預約</button>
+      <button class="btn-submit" id="submitBtn" onclick="onSubmitClick()">完成預約</button>
     </div>
     <div class="hint">🔗 這個連結只能用一次，完成預約後就會失效，不用擔心被重複填寫。</div>`;
+  altMode = false;
   applyTimeDurationDefault();
   refreshTimeOptions();
   // 只有一個候選日期的話直接幫業務選好，才看得到那天哪些時間已被預約
   if(TASK.candidate_dates.length === 1) selectDate(TASK.candidate_dates[0]);
+  if(forceForm){
+    // 業務按「修改備選時間」或「屋主還是不行」進來：直接切到提供其他時間，並帶入上次填的
+    document.getElementById('altToggle').checked = true;
+    onAltToggle();
+    (TASK.alt_slots || []).forEach(s => addAltRow(s));
+    if(TASK.rep_note) document.getElementById('note').value = TASK.rep_note;
+    if(TASK.owner_name) document.getElementById('ownerName').value = TASK.owner_name;
+    if(TASK.owner_phone) document.getElementById('ownerPhone').value = TASK.owner_phone;
+  }
+}
+
+// ===== 2026-10-04：屋主原時間不行 → 業務提供其他時間 → 窗口選定 → 業務確認 =====
+function todayIso(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function onAltToggle(){
+  altMode = document.getElementById('altToggle').checked;
+  document.getElementById('altBlock').style.display = altMode ? 'block' : 'none';
+  document.getElementById('normalBlock').style.display = altMode ? 'none' : 'block';
+  document.getElementById('submitBtn').textContent = altMode ? '回傳其他時間給窗口' : '完成預約';
+  if(altMode && !document.querySelector('#altRows .alt-row')) addAltRow();
+}
+function addAltRow(prefill){
+  const row = document.createElement('div');
+  row.className = 'alt-row';
+  row.innerHTML = `<input type="date" class="alt-date" min="${todayIso()}" onchange="onAltRowChange(this)">
+    <select class="alt-start" onchange="onAltStartChange(this)">${timeOptionsHtml()}</select>
+    <select class="alt-end" onchange="onAltRowChange(this)">${timeOptionsHtml()}</select>
+    <button type="button" class="alt-del" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('altRows').appendChild(row);
+  if(prefill){
+    row.querySelector('.alt-date').value = prefill.date;
+    row.querySelector('.alt-start').value = prefill.start_time;
+    row.querySelector('.alt-end').value = prefill.end_time;
+    onAltRowChange(row.querySelector('.alt-date'));
+  }
+}
+function onAltRowChange(el){
+  const row = el.closest('.alt-row');
+  applyBusyToSelects(row.querySelector('.alt-start'), row.querySelector('.alt-end'), row.querySelector('.alt-date').value);
+}
+function onAltStartChange(el){
+  const row = el.closest('.alt-row');
+  const startSel = row.querySelector('.alt-start');
+  const endSel = row.querySelector('.alt-end');
+  const date = row.querySelector('.alt-date').value;
+  applyBusyToSelects(startSel, endSel, date);
+  const duration = getTaskDuration();
+  if(startSel.value && duration){
+    const endVal = fmtMin(toMin(startSel.value) + duration);
+    const endOpt = [...endSel.options].find(o => o.value === endVal);
+    if(endOpt && !endOpt.disabled) endSel.value = endVal;
+  }
+  applyBusyToSelects(startSel, endSel, date);
+}
+function collectAltSlots(){
+  const slots = [];
+  for(const row of document.querySelectorAll('#altRows .alt-row')){
+    const date = row.querySelector('.alt-date').value;
+    const start_time = row.querySelector('.alt-start').value;
+    const end_time = row.querySelector('.alt-end').value;
+    if(!date && !start_time && !end_time) continue; // 整列都空白就略過
+    if(!date || !start_time || !end_time) return {error: '每一組都要填日期、開始時間、結束時間'};
+    if(toMin(start_time) >= toMin(end_time)) return {error: '開始時間要早於結束時間'};
+    slots.push({date, start_time, end_time});
+  }
+  if(!slots.length) return {error: '請至少填一組屋主可以配合的日期與時間'};
+  return {slots};
+}
+function slotLabel(s){ return fmtDate(s.date) + '（' + fmtWeekday(s.date) + '）' + s.start_time + '-' + s.end_time; }
+
+function onSubmitClick(){ return altMode ? submitProposal() : submitBooking(); }
+
+async function submitProposal(){
+  const errorBox = document.getElementById('errorBox');
+  errorBox.style.display = 'none';
+  const r = collectAltSlots();
+  if(r.error){ alert(r.error); return; }
+  const btn = document.getElementById('submitBtn');
+  const originalText = btn.textContent;
+  btn.textContent = '送出中…'; btn.disabled = true;
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/public-task/' + encodeURIComponent(TOKEN) + '/propose', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        slots: r.slots,
+        note: document.getElementById('note').value.trim(),
+        owner_name: document.getElementById('ownerName').value.trim(),
+        owner_phone: document.getElementById('ownerPhone').value.trim(),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok){
+      errorBox.textContent = '⚠️ ' + (data.error || ('HTTP ' + res.status));
+      errorBox.style.display = 'block';
+      return;
+    }
+    TASK.stage = '待窗口確認';
+    TASK.alt_slots = data.slots || r.slots;
+    TASK.chosen_slot = null;
+    TASK.rep_note = document.getElementById('note').value.trim();
+    forceForm = false;
+    render();
+    window.scrollTo(0, 0);
+  }catch(err){
+    errorBox.textContent = '⚠️ 送出失敗：' + err.message;
+    errorBox.style.display = 'block';
+  }finally{
+    btn.textContent = originalText; btn.disabled = false;
+  }
+}
+
+function proposalSummaryText(){
+  const lines = ['【業務回報：原預約時間屋主無法配合】',
+    TASK.vendor + ' ' + (TASK.type || []).join('+') + '｜案號：' + TASK.case + (TASK.alias ? '（' + TASK.alias + '）' : ''),
+    '屋主已確認可以配合的其他時間：'];
+  (TASK.alt_slots || []).forEach((s, i) => lines.push((i + 1) + '. ' + slotLabel(s)));
+  if(TASK.rep_note) lines.push('備註：' + TASK.rep_note);
+  lines.push('請跟廠商確認後，在主控台選定一個時間回傳給我確認。');
+  return lines.join('\n');
+}
+function shareProposalToLine(){
+  window.open('https://line.me/R/msg/text/?' + encodeURIComponent(proposalSummaryText()), '_blank');
+}
+function editProposal(){ forceForm = true; render(); window.scrollTo(0, 0); }
+
+function renderProposed(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="card">
+      <h1>已回傳給安排窗口 ✅</h1>
+      <div class="sub">${TASK.vendor}　${(TASK.type||[]).join('+')}　${TASK.case}${TASK.alias?('（'+TASK.alias+'）'):''}<br>窗口跟廠商確認後會選定一個時間回傳給你，到時候請再打開這個連結按確認。</div>
+      <label>你回傳的屋主可配合時間</label>
+      <ul class="slot-list">${(TASK.alt_slots || []).map(s => `<li>${slotLabel(s)}</li>`).join('')}</ul>
+      ${TASK.rep_note ? `<div class="hint" style="margin-bottom:6px;">備註：${TASK.rep_note}</div>` : ''}
+      <button class="btn-line" onclick="shareProposalToLine()">📤 傳送給窗口（LINE）</button>
+      <button class="btn-ghost-lg" onclick="editProposal()">✏️ 修改備選時間</button>
+    </div>
+    <div class="hint">資料已經存起來了，窗口在主控台就看得到。上面的 LINE 按鈕是方便你直接通知窗口，不傳也沒關係。</div>`;
+}
+
+function renderConfirmChosen(){
+  const app = document.getElementById('app');
+  const s = TASK.chosen_slot;
+  app.innerHTML = `
+    <div class="card">
+      <h1>窗口已跟廠商確認時間</h1>
+      <div class="sub">${TASK.vendor}　${(TASK.type||[]).join('+')}　${TASK.case}${TASK.alias?('（'+TASK.alias+'）'):''}<br>請跟屋主再確認這個時間沒問題，按下確認後這個時段就會鎖定、完成安排。</div>
+      <div class="chosen-box">${slotLabel(s)}</div>
+      <label>您的姓名</label>
+      <input type="text" id="registrant" value="${TASK.assignee || ''}" placeholder="例如：小夫">
+      <label>屋主聯絡資訊</label>
+      <div class="row2" style="margin-bottom:6px;">
+        <div><input type="text" id="ownerName" placeholder="屋主姓名" value="${TASK.owner_name || ''}"></div>
+        <div><input type="text" id="ownerPhone" placeholder="屋主電話" value="${TASK.owner_phone || ''}"></div>
+      </div>
+      <label>備註（選填）</label>
+      <textarea id="note" rows="2"></textarea>
+      <div class="error-box" id="errorBox"></div>
+      <button class="btn-submit" id="submitBtn" onclick="submitConfirm()">✅ 確認這個時間，完成安排</button>
+      <button class="btn-ghost-lg" onclick="editProposal()">屋主這個時間還是不行，重新提供其他時間</button>
+    </div>`;
+}
+
+async function submitConfirm(){
+  const errorBox = document.getElementById('errorBox');
+  errorBox.style.display = 'none';
+  const registrant = document.getElementById('registrant').value.trim();
+  if(!registrant){ alert('請填您的姓名'); return; }
+  const btn = document.getElementById('submitBtn');
+  const originalText = btn.textContent;
+  btn.textContent = '送出中…'; btn.disabled = true;
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/public-task/' + encodeURIComponent(TOKEN) + '/confirm', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        registrant,
+        note: document.getElementById('note').value.trim(),
+        owner_name: document.getElementById('ownerName').value.trim(),
+        owner_phone: document.getElementById('ownerPhone').value.trim(),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if(res.status === 409 && data.conflict){
+      errorBox.innerHTML = '⚠️ 這個時段剛剛被別的案件預約走了，請聯絡窗口重新安排（或按下面「重新提供其他時間」）。';
+      errorBox.style.display = 'block';
+      return;
+    }
+    if(!res.ok){
+      errorBox.textContent = '⚠️ ' + (data.error || ('HTTP ' + res.status));
+      errorBox.style.display = 'block';
+      return;
+    }
+    const s = TASK.chosen_slot;
+    TASK.status = '已完成';
+    TASK.booked = {date: s.date, start_time: s.start_time, end_time: s.end_time, registrant};
+    render();
+    window.scrollTo(0, 0);
+  }catch(err){
+    errorBox.textContent = '⚠️ 送出失敗：' + err.message;
+    errorBox.style.display = 'block';
+  }finally{
+    btn.textContent = originalText; btn.disabled = false;
+  }
 }
 
 // 2026-10-01 新增：各項目類型預設時間長度（分鐘），跟主控台「預約時段」
@@ -256,7 +491,21 @@ function refreshTimeOptions(){
   const startSel = document.getElementById('startTime');
   const endSel = document.getElementById('endTime');
   if(!startSel || !endSel) return;
-  const busy = selectedDate ? getBusyRanges(selectedDate) : [];
+  const busy = applyBusyToSelects(startSel, endSel, selectedDate);
+  const hint = document.getElementById('busyHint');
+  if(hint){
+    if(busy.length){
+      hint.textContent = '📌 這個廠商這天已經有預約：' + busy.slice().sort((a, b) => a[0] - b[0]).map(([s, e]) => fmtMin(s) + '-' + fmtMin(e)).join('、') + '（灰色的時間不能選）';
+      hint.style.display = 'block';
+    } else {
+      hint.style.display = 'none';
+    }
+  }
+}
+// 把某一天這個廠商已被預約的時段，套到一組開始/結束時間下拉上（灰掉不能選）。
+// 主表單跟「提供其他時間」的每一列都共用這支。回傳那天的 busy 區間。
+function applyBusyToSelects(startSel, endSel, date){
+  const busy = date ? getBusyRanges(date) : [];
   const startMin = startSel.value ? toMin(startSel.value) : null;
   [...startSel.options].forEach(o => {
     if(!o.value) return;
@@ -278,15 +527,7 @@ function refreshTimeOptions(){
   [startSel, endSel].forEach(sel => {
     if(sel.value && sel.selectedOptions[0] && sel.selectedOptions[0].disabled) sel.value = '';
   });
-  const hint = document.getElementById('busyHint');
-  if(hint){
-    if(busy.length){
-      hint.textContent = '📌 這個廠商這天已經有預約：' + busy.slice().sort((a, b) => a[0] - b[0]).map(([s, e]) => fmtMin(s) + '-' + fmtMin(e)).join('、') + '（灰色的時間不能選）';
-      hint.style.display = 'block';
-    } else {
-      hint.style.display = 'none';
-    }
-  }
+  return busy;
 }
 function onStartTimeChange(){
   refreshTimeOptions();
