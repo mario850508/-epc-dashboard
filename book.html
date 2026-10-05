@@ -105,7 +105,7 @@
 
 <script>
 const API_BASE = 'https://epc-backend-4aj2.onrender.com';
-const params = new URLSearchParams(window.location.search);
+let params = new URLSearchParams(window.location.search);
 // 從 LIFF 連結（https://liff.line.me/<id>?token=xxx）進來時，LINE 會把原本的 query 暫存在
 // liff.state（例如 "?token=xxx" 或 "/?token=xxx"），所以 token 也要從那裡找。
 function readToken(){
@@ -116,7 +116,7 @@ function readToken(){
   if(qi >= 0) return new URLSearchParams(st.slice(qi)).get('token') || '';
   return '';
 }
-const TOKEN = readToken();
+let TOKEN = readToken();
 
 const TIME_OPTIONS = (() => {
   const list = [];
@@ -207,7 +207,7 @@ async function setupLineBind(data){
   renderLineBind();
   try{
     await loadLiffSdk();
-    await liff.init({liffId: data.liff_id});
+    await ensureLiff(data.liff_id);
     let pending = false;
     try{ pending = sessionStorage.getItem('lineBindPending') === '1'; }catch(e){}
     if(pending && liff.isLoggedIn()){ await doLineBind(); return; }
@@ -248,6 +248,25 @@ async function doLineBind(){
   if(LINE_FRIEND === false) showLineModal('friend');
 }
 
+// LIFF 只初始化一次（重複 init 會出錯），所有地方都走這個
+let _liffInitPromise = null;
+function ensureLiff(liffId){
+  if(!_liffInitPromise) _liffInitPromise = loadLiffSdk().then(() => liff.init({liffId}));
+  return _liffInitPromise;
+}
+// 2026-10-05：第一次用 LINE 登入開 LIFF 連結時，網址會先經過一次登入轉址，這時候
+// 網址上還讀不到 token / bind（要等 liff.init 處理完才會被還原成原本的 query），
+// 所以讀不到就先 init LIFF，再重新讀一次網址。
+async function recoverParamsViaLiff(){
+  try{
+    const cfg = await (await fetch(API_BASE + '/api/line/liff-config', {cache:'no-store'})).json();
+    if(!cfg.liff_id) return;
+    await ensureLiff(cfg.liff_id);
+    params = new URLSearchParams(window.location.search);
+    TOKEN = readToken();
+  }catch(err){ console.warn('LIFF 還原網址失敗', err); }
+}
+
 // ---- 安排人員綁定頁：book.html?bind=scheduler（或 LIFF 連結帶 ?bind=scheduler）----
 function readParam(name){
   const direct = params.get(name);
@@ -281,7 +300,7 @@ async function initSchedulerBind(){
     ADD_FRIEND_URL = cfg.add_friend_url || '';
     if(!SCHED_LIFF_ID){ renderSchedulerBind('LINE 功能尚未設定，請聯絡管理者'); return; }
     await loadLiffSdk();
-    await liff.init({liffId: SCHED_LIFF_ID});
+    await ensureLiff(SCHED_LIFF_ID);
     let pending = false, name = '';
     try{ pending = sessionStorage.getItem('schedBindPending') === '1'; name = localStorage.getItem('schedulerBindName') || ''; }catch(e){}
     if(pending && name && liff.isLoggedIn()) await doSchedulerBind(name);
@@ -311,6 +330,7 @@ async function doSchedulerBind(name){
 
 async function init(){
   const app = document.getElementById('app');
+  if(!TOKEN && readParam('bind') !== 'scheduler') await recoverParamsViaLiff();
   if(readParam('bind') === 'scheduler'){ initSchedulerBind(); return; }
   if(!TOKEN){
     app.innerHTML = '<div class="not-found">連結不完整，缺少 token，請跟窗口確認連結是否複製完整。</div>';
