@@ -2003,6 +2003,7 @@
       </div>
 
       <div class="subview" id="slots-tab-done">
+        <div id="slotTypeFilterBar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
         <div id="slotsContainer">
           <div class="login-note">載入中…</div>
         </div>
@@ -2055,6 +2056,7 @@
                   <label class="slot-type-option"><input type="checkbox" class="slot-booking-type-check" value="植筋" onchange="onSlotBookingTypeChange()">植筋</label>
                   <label class="slot-type-option"><input type="checkbox" class="slot-booking-type-check" value="放樣" onchange="onSlotBookingTypeChange()">放樣</label>
                   <label class="slot-type-option"><input type="checkbox" class="slot-booking-type-check" value="場勘" onchange="onSlotBookingTypeChange()">場勘</label>
+                  <label class="slot-type-option"><input type="checkbox" class="slot-booking-type-check" value="進場" onchange="onSlotBookingTypeChange()">進場</label>
                 </div>
               </div>
             </div>
@@ -2128,6 +2130,7 @@
                   <label class="slot-type-option"><input type="checkbox" class="slot-task-type-check" value="植筋" onchange="onSlotTaskTypeChange()">植筋</label>
                   <label class="slot-type-option"><input type="checkbox" class="slot-task-type-check" value="放樣" onchange="onSlotTaskTypeChange()">放樣</label>
                   <label class="slot-type-option"><input type="checkbox" class="slot-task-type-check" value="場勘" onchange="onSlotTaskTypeChange()">場勘</label>
+                  <label class="slot-type-option"><input type="checkbox" class="slot-task-type-check" value="進場" onchange="onSlotTaskTypeChange()">進場</label>
                 </div>
               </div>
             </div>
@@ -6414,7 +6417,7 @@ function renderSlotTasks(){
   const pendingContainer = document.getElementById('slotTasksPendingContainer');
   if(!pendingContainer) return;
   const pending = SLOT_TASKS.filter(t => t.status !== '已完成');
-  const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship'};
+  const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship','進場':'chip-enter'};
   const typeChipsHtml = (types) => (types||[]).map(ty => `<span class="chip ${typeChipClass[ty]||''}" style="flex-shrink:0;">${ty}</span>`).join('');
   const stageBlockHtml = (t) => {
     if(!t.stage || !(t.alt_slots||[]).length) return '';
@@ -6738,24 +6741,44 @@ function fmtWeekday(dateStr){
   return '週' + wdays[d.getDay()];
 }
 
+// 2026-10-05：「完成安排」頁可以依項目類型篩選（例如只看「放樣」排了哪些案件）
+let SLOT_TYPE_FILTER = '';
+function setSlotTypeFilter(t){ SLOT_TYPE_FILTER = t; renderVendorSlots(); }
+function renderSlotTypeFilterBar(){
+  const bar = document.getElementById('slotTypeFilterBar');
+  if(!bar) return;
+  const types = ['', '掛表', '植筋', '放樣', '場勘', '進場'];
+  bar.innerHTML = types.map(t => {
+    const n = t ? SLOT_BOOKINGS.filter(b => (b.type||[]).includes(t)).length : SLOT_BOOKINGS.length;
+    const on = SLOT_TYPE_FILTER === t;
+    return `<button type="button" class="btn ${on ? 'btn-primary' : 'btn-ghost'}" style="padding:4px 12px;font-size:12px;" onclick="setSlotTypeFilter('${t}')">${t || '全部'} ${n}</button>`;
+  }).join('');
+}
+
 function renderVendorSlots(){
   const container = document.getElementById('slotsContainer');
   if(!container) return;
+  renderSlotTypeFilterBar();
+  const list = SLOT_TYPE_FILTER ? SLOT_BOOKINGS.filter(b => (b.type||[]).includes(SLOT_TYPE_FILTER)) : SLOT_BOOKINGS;
   if(SLOT_BOOKINGS.length === 0){
     container.innerHTML = '<div class="login-note">目前還沒有任何已確定的時段，點上面「➕ 預約時段」或「📨 指派給業務」新增一筆。</div>';
+    return;
+  }
+  if(list.length === 0){
+    container.innerHTML = '<div class="login-note">沒有符合「' + SLOT_TYPE_FILTER + '」的預約。</div>';
     return;
   }
   // 依廠商分組，每個廠商底下再依日期分組。2026-10-01 拿掉「開放時段」這個
   // 中介概念後，這裡單純照已經卡下來的預約組出畫面，不再顯示「還空著的日期」
   // （候選日期已經改成在任務裡自己帶，不需要另外宣告廠商哪幾天有開）。
   const byVendor = {};
-  SLOT_BOOKINGS.forEach(b => {
+  list.forEach(b => {
     if(!byVendor[b.vendor]) byVendor[b.vendor] = {};
     if(!byVendor[b.vendor][b.date]) byVendor[b.vendor][b.date] = [];
     byVendor[b.vendor][b.date].push(b);
   });
 
-  const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship'};
+  const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship','進場':'chip-enter'};
   const typeChipsHtml = (types) => (types||[]).map(ty => `<span class="chip ${typeChipClass[ty]||''}" style="flex-shrink:0;">${ty}</span>`).join('');
 
   container.innerHTML = Object.keys(byVendor).sort((a,b)=>a.localeCompare(b,'zh-Hant')).map(vendor => {
