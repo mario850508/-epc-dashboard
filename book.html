@@ -99,6 +99,7 @@
       <div class="brand-sub">現場時段預約</div>
     </div>
   </div>
+  <div id="lineBindBox"></div>
   <div id="app"><div class="loading">載入中…</div></div>
 </div>
 
@@ -136,6 +137,62 @@ let selectedDate = '';
 let forceForm = false; // true：即使任務已經有備選時段/選定時段，也顯示填寫表單（業務按「修改」或「屋主還是不行」）
 let altMode = false;   // true：正在填「提供其他時間」而不是直接預約候選日期
 
+// ---- LINE 提醒綁定（LIFF）：業務按一次「綁定」，之後回覆期限前會收到 LINE 提醒 ----
+let LINE_BOUND = false;
+function loadLiffSdk(){
+  return new Promise((resolve, reject) => {
+    if(window.liff) return resolve();
+    const sc = document.createElement('script');
+    sc.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+    sc.onload = resolve; sc.onerror = () => reject(new Error('LIFF 載入失敗'));
+    document.head.appendChild(sc);
+  });
+}
+function renderLineBind(msg){
+  const box = document.getElementById('lineBindBox');
+  if(!box) return;
+  if(LINE_BOUND){
+    box.innerHTML = `<div class="card" style="padding:12px 16px;font-size:13px;">✅ 已綁定 LINE 提醒，期限前會自動通知你${msg?('<br><span style="color:var(--text-muted);">'+msg+'</span>'):''}<br><span style="color:var(--text-muted);font-size:12px;">請確認有加「陽光機器人」為好友，否則收不到</span></div>`;
+  }else{
+    box.innerHTML = `<div class="card" style="padding:12px 16px;font-size:13px;">🔔 要在回覆期限前收到 LINE 提醒嗎？<br>
+      <button type="button" class="btn-ghost-lg" style="margin-top:8px;" onclick="startLineBind()">綁定 LINE 提醒</button>
+      ${msg?('<div style="color:#c0392b;margin-top:6px;">'+msg+'</div>'):''}</div>`;
+  }
+}
+async function setupLineBind(data){
+  if(!data.liff_id || !TASK.assignee || TASK.status === '已完成') return;
+  LINE_BOUND = !!data.line_bound;
+  renderLineBind();
+  try{
+    await loadLiffSdk();
+    await liff.init({liffId: data.liff_id});
+    let pending = false;
+    try{ pending = sessionStorage.getItem('lineBindPending') === '1'; }catch(e){}
+    if(pending && liff.isLoggedIn()) await doLineBind();
+  }catch(err){
+    console.warn('LIFF init 失敗', err);
+  }
+}
+async function startLineBind(){
+  try{ sessionStorage.setItem('lineBindPending', '1'); }catch(e){}
+  try{
+    if(!window.liff || !liff.id){ renderLineBind('LINE 功能尚未準備好，請稍後再試'); return; }
+    if(!liff.isLoggedIn()){ liff.login({redirectUri: window.location.href}); return; }
+    await doLineBind();
+  }catch(err){ renderLineBind('綁定失敗：' + err.message); }
+}
+async function doLineBind(){
+  try{ sessionStorage.removeItem('lineBindPending'); }catch(e){}
+  const res = await fetch(API_BASE + '/api/vendor-slots/public-task/' + encodeURIComponent(TOKEN) + '/bind-line', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({access_token: liff.getAccessToken()}),
+  });
+  const d = await res.json().catch(()=>({}));
+  if(!res.ok){ renderLineBind(d.error || '綁定失敗'); return; }
+  LINE_BOUND = true;
+  renderLineBind(d.display_name ? ('LINE 名稱：' + d.display_name) : '');
+}
+
 async function init(){
   const app = document.getElementById('app');
   if(!TOKEN){
@@ -151,6 +208,7 @@ async function init(){
     }
     TASK = data.task;
     render();
+    setupLineBind(data);
   }catch(err){
     app.innerHTML = '<div class="not-found">載入失敗：' + err.message + '，請檢查網路連線後重新整理</div>';
   }
