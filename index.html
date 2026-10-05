@@ -2167,10 +2167,10 @@
           </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">指派給（業務姓名，選填，純提示不影響連結本身）</label>
           <input type="text" class="quick-mark-input" id="slotTaskAssignee" placeholder="例如：小夫" style="margin-bottom:14px;">
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">請業務在這個時間前回覆給我（預設當天 18:00 下班前，可調整；日期留空＝不設期限）</label>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">請業務在這個時間前回覆給我（預設隔天 18:00，進場為 2 天後 18:00，可調整；日期留空＝不設期限）</label>
           <div style="display:flex;gap:10px;margin-bottom:18px;">
-            <div style="flex:1.3;"><input type="date" class="quick-mark-input" id="slotTaskDeadlineDate"></div>
-            <div style="flex:1;"><select class="quick-mark-input" id="slotTaskDeadlineTime"></select></div>
+            <div style="flex:1.3;"><input type="date" class="quick-mark-input" id="slotTaskDeadlineDate" onchange="slotDeadlineTouched=true"></div>
+            <div style="flex:1;"><select class="quick-mark-input" id="slotTaskDeadlineTime" onchange="slotDeadlineTouched=true"></select></div>
           </div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmSlotTask()">建立任務並產生連結</button>
         </div>
@@ -6560,10 +6560,11 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskOwnerPhone').value = '';
   document.getElementById('slotTaskOwnerInfo').style.display = 'none';
   document.getElementById('slotTaskDeadlineTime').innerHTML = deadlineTimeOptionsHtml();
-  setDefaultSlotDeadline();
+  slotDeadlineTouched = false;
   document.getElementById('slotTaskCaseResults').classList.remove('show');
   document.getElementById('slotTaskTypeDropdown').classList.remove('show');
   document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = false; });
+  setDefaultSlotDeadline();
   updateSlotTypeLabel('slot-task-type-check', 'slotTaskTypeLabel');
   document.getElementById('slotTaskDateRows').innerHTML = '<div style="display:flex;gap:8px;align-items:center;"><input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;"></div>';
   document.getElementById('slotTaskEstStart').innerHTML = slotTimeOptionsHtml();
@@ -6592,9 +6593,13 @@ function deadlineTimeOptionsHtml(){
   for(let h = 7; h <= 23; h++){ list.push(String(h).padStart(2,'0') + ':00'); list.push(String(h).padStart(2,'0') + ':30'); }
   return list.map(t => `<option value="${t}">${t}</option>`).join('');
 }
+// 2026-10-05 改：預設回覆期限＝隔天 18:00；項目有「進場」的任務＝2 天後 18:00。
+// 使用者手動改過日期/時間（slotDeadlineTouched）之後，勾選項目類型就不再覆蓋。
+let slotDeadlineTouched = false;
 function setDefaultSlotDeadline(){
   const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (now.getHours() >= 18 ? 1 : 0));
+  const days = getCheckedSlotTypes('slot-task-type-check').includes('進場') ? 2 : 1;
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days);
   document.getElementById('slotTaskDeadlineDate').value = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
   document.getElementById('slotTaskDeadlineTime').value = '18:00';
 }
@@ -6961,6 +6966,7 @@ function onSlotBookingTypeChange(){
 }
 function onSlotTaskTypeChange(){
   updateSlotTypeLabel('slot-task-type-check', 'slotTaskTypeLabel');
+  if(!slotDeadlineTouched) setDefaultSlotDeadline();
   if(document.getElementById('slotTaskEstDelegate').checked){
     setSlotTaskEstDurationFromMinutes(getSlotTaskTypeDurationSum());
   } else {
