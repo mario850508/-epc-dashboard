@@ -6718,7 +6718,7 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: (document.getElementById('slotTaskCreator') || {}).value || '', candidate_dates: candidateDates, duration_min: durationMin, owner_name: ownerName, owner_phone: ownerPhone, deadline}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: (document.getElementById('slotTaskCreator') || {}).value || '', candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', owner_name: ownerName, owner_phone: ownerPhone, deadline}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
@@ -6768,7 +6768,15 @@ function copySlotTaskMessage(recordId){
   if(!t) return;
   if(t.stage === '待業務確認' && t.chosen_slot){ showSlotChosenMessage(t); return; }
   const path = '/book.html?token=' + t.token;
-  showSlotTaskMessage(t.vendor, t.case, t.alias, t.type, t.candidate_dates, path, '', '', t.duration_min, !!t.duration_min, t.deadline);
+  let estS = '', estE = '', delegate = !!t.duration_min;
+  if(t.est_start && t.duration_min){
+    const [h, m] = t.est_start.split(':').map(Number);
+    const endMin = h * 60 + m + t.duration_min;
+    estS = t.est_start;
+    estE = String(Math.floor(endMin / 60)).padStart(2,'0') + ':' + String(endMin % 60).padStart(2,'0');
+    delegate = false;
+  }
+  showSlotTaskMessage(t.vendor, t.case, t.alias, t.type, t.candidate_dates, path, estS, estE, t.duration_min, delegate, t.deadline);
 }
 async function deleteSlotTask(recordId){
   if(!confirm('確定要刪除這個任務嗎？（連結會立刻失效，如果業務已經在填的話會失敗）')) return;
@@ -6985,7 +6993,8 @@ function copySlotSummaryText(){
 // location.href，避免使用者從 LINE 切回來時這頁的狀態不見。
 function shareSlotSummaryToLine(){
   const text = document.getElementById('slotSummaryTextarea').value;
-  window.open('https://line.me/R/msg/text/?' + encodeURIComponent(text), '_blank');
+  // noreferrer：避免 LINE 把目前頁面的網址（主控台首頁）也額外附在訊息後面
+  window.open('https://line.me/R/msg/text/?' + encodeURIComponent(text), '_blank', 'noopener,noreferrer');
 }
 
 // 原本開始/結束時間用 <input type="time">，使用者反饋原生時間選取器（上午/下午

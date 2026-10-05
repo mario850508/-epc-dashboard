@@ -755,8 +755,10 @@ function applyTimeDurationDefault(){
   const endSel = document.getElementById('endTime');
   if(!startSel || !endSel) return;
   if(!startSel.value){
-    const def = [...startSel.options].find(o => o.value === '09:00');
-    if(def && !def.disabled) startSel.value = '09:00'; else return;
+    // 預設開始時間：PM 指派時填的預估開始時間（TASK.est_start），沒有才用 09:00
+    const prefs = [TASK.est_start, '09:00'].filter(Boolean);
+    const def = prefs.map(v => [...startSel.options].find(o => o.value === v)).find(o => o && !o.disabled);
+    if(def) startSel.value = def.value; else return;
   }
   const totalMin = toMin(startSel.value) + duration;
   const endVal = String(Math.floor(totalMin / 60)).padStart(2,'0') + ':' + String(totalMin % 60).padStart(2,'0');
@@ -836,7 +838,8 @@ function selectDate(d){
     // 優先挑 09:00 以後（預設開始時間是 09:00，不要跳到一大早 07:00），
     // 09:00 以後都排不下才退回找更早的。
     const cand = TIME_OPTIONS.find(t => toMin(t) >= 9 * 60 && fits(toMin(t))) || TIME_OPTIONS.find(t => fits(toMin(t)));
-    startSel.value = cand || '';
+    const pref = (TASK.est_start && TIME_OPTIONS.includes(TASK.est_start) && fits(toMin(TASK.est_start))) ? TASK.est_start : null;
+    startSel.value = pref || cand || '';
     endSel.value = '';
   }
   refreshTimeOptions();
