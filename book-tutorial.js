@@ -14,6 +14,22 @@
 
   const SLIDES = [
     {
+      title: '必做：先綁定 LINE 提醒',
+      svg: `${CARD}
+        <rect x="22" y="20" width="276" height="46" rx="12" fill="#fff" stroke="#E4E8F1"/>
+        <text x="34" y="38" font-size="11.5" fill="#1B2333" ${F}>🔔 要在回覆期限前收到 LINE 提醒嗎？</text>
+        <rect x="34" y="44" width="108" height="16" rx="8" fill="#F7931E"/><text x="88" y="56" text-anchor="middle" font-size="10.5" font-weight="800" fill="#fff" ${F}>綁定 LINE 提醒</text>
+        <rect x="22" y="78" width="276" height="86" rx="12" fill="#E8F5E9"/>
+        <circle cx="42" cy="96" r="9" fill="#06C755"/><text x="42" y="100" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" ${F}>LINE</text>
+        <text x="58" y="100" font-size="10.5" font-weight="700" fill="#166534" ${F}>陽光機器人</text>
+        <rect x="34" y="106" width="250" height="48" rx="10" fill="#fff"/>
+        <text x="44" y="123" font-size="11" fill="#1B2333" ${F}>⏰ 小夫 您好，工程宜蘭20號</text>
+        <text x="44" y="139" font-size="11" fill="#1B2333" ${F}>場勘時段還沒確認，回覆期限 18:00，</text>
+        <text x="44" y="151" font-size="11" fill="#1B2333" ${F}>剩約 60 分鐘。</text>
+        ${badge(300, 22, '必')}`,
+      text: '送出預約前，要先完成這一步：① 加「陽光機器人」LINE 好友 ② 按頁面上方的「綁定 LINE 提醒」。只要綁一次，之後期限前 1 小時還沒安排，機器人會直接傳訊息提醒你。沒綁定就不能送出預約。',
+    },
+    {
       title: '這個頁面是做什麼的？',
       svg: `${CARD}
         <text x="24" y="34" font-size="15" font-weight="800" fill="#1B2333" ${F}>三創　場勘</text>
@@ -82,22 +98,6 @@
         <text x="160" y="159" text-anchor="middle" font-size="10" fill="#4B7A5C" ${F}>窗口會收到通知，不用再另外回報</text>
         ${badge(300, 22, 5)}`,
       text: '確認日期、時間、屋主資料都對了，按「完成預約」。時段就會鎖定，其他案子不能再卡進來，窗口也會收到通知。這個連結只能用一次，完成後就失效。',
-    },
-    {
-      title: '建議：綁定 LINE，期限前收提醒',
-      svg: `${CARD}
-        <rect x="22" y="20" width="276" height="46" rx="12" fill="#fff" stroke="#E4E8F1"/>
-        <text x="34" y="38" font-size="11.5" fill="#1B2333" ${F}>🔔 要在回覆期限前收到 LINE 提醒嗎？</text>
-        <rect x="34" y="44" width="108" height="16" rx="8" fill="#F7931E"/><text x="88" y="56" text-anchor="middle" font-size="10.5" font-weight="800" fill="#fff" ${F}>綁定 LINE 提醒</text>
-        <rect x="22" y="78" width="276" height="86" rx="12" fill="#E8F5E9"/>
-        <circle cx="42" cy="96" r="9" fill="#06C755"/><text x="42" y="100" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" ${F}>LINE</text>
-        <text x="58" y="100" font-size="10.5" font-weight="700" fill="#166534" ${F}>陽光機器人</text>
-        <rect x="34" y="106" width="250" height="48" rx="10" fill="#fff"/>
-        <text x="44" y="123" font-size="11" fill="#1B2333" ${F}>⏰ 小夫 您好，工程宜蘭20號</text>
-        <text x="44" y="139" font-size="11" fill="#1B2333" ${F}>場勘時段還沒確認，回覆期限 18:00，</text>
-        <text x="44" y="151" font-size="11" fill="#1B2333" ${F}>剩約 60 分鐘。</text>
-        ${badge(300, 22, 6)}`,
-      text: '先加「陽光機器人」LINE 好友，再按頁面上方的「綁定 LINE 提醒」，只要綁一次。之後只要期限前 1 小時還沒安排，機器人會直接傳訊息提醒你。',
     },
   ];
 

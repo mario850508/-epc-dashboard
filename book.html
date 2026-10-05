@@ -120,7 +120,7 @@
   <div id="app"><div class="loading">載入中…</div></div>
 </div>
 
-<script src="book-tutorial.js?v=2"></script>
+<script src="book-tutorial.js?v=3"></script>
 <script>
 const API_BASE = 'https://epc-backend-4aj2.onrender.com';
 let params = new URLSearchParams(window.location.search);
@@ -167,22 +167,40 @@ let altMode = false;   // true：正在填「提供其他時間」而不是直�
 
 // ---- LINE 提醒綁定（LIFF）：業務按一次「綁定」，之後回覆期限前會收到 LINE 提醒 ----
 let LINE_BOUND = false;
+// 2026-10-05：有設定 LIFF 且任務有指派業務時，必須先綁定 LINE（而且已加陽光機器人好友）才能送出。
+// LIFF 載入失敗（例如網路問題）時不擋，避免業務完全不能用。
+let LINE_REQUIRED = false;
+let LIFF_FAILED = false;
+function lineGateOk(){
+  if(!LINE_REQUIRED || LIFF_FAILED) return true;
+  return LINE_BOUND && LINE_FRIEND !== false;
+}
+function lineGateBlock(){
+  showLineModal(LINE_BOUND ? 'friend' : 'bind');
+  const el = document.getElementById('lineBindBox');
+  if(el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
 let LINE_FRIEND = null;   // null：還不知道（沒登入取不到）、true：已是好友、false：確定還沒加陽光機器人好友
 let ADD_FRIEND_URL = '';
 // 進頁面跳出的提醒視窗：mode 'bind'＝還沒綁定（引導先加好友再綁定）、'friend'＝已綁定但還沒加好友
 function showLineModal(mode){
   if(document.getElementById('tutorialOverlay')){ window._pendingLineModal = mode; return; }
   closeLineModal();
+  const must = LINE_REQUIRED && !LIFF_FAILED;
   const friendBtn = (ADD_FRIEND_URL && LINE_FRIEND !== true)
     ? `<a href="${ADD_FRIEND_URL}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;padding:12px;border-radius:10px;background:#06c755;color:#fff;font-weight:700;margin-top:10px;">➕ 加入陽光機器人好友</a>`
     : '';
   const bindBtn = mode === 'bind'
-    ? `<button type="button" onclick="closeLineModal();startLineBind()" style="width:100%;padding:12px;border-radius:10px;border:0;background:linear-gradient(135deg,#ffb347,#f7931e);color:#fff;font-weight:700;font-size:15px;margin-top:10px;">② 綁定 LINE 提醒</button>`
-    : '';
-  const title = mode === 'bind' ? '🔔 想在期限前收到 LINE 提醒嗎？' : '⚠️ 你還沒加陽光機器人為好友';
+    ? `<button type="button" onclick="closeLineModal(true);startLineBind()" style="width:100%;padding:12px;border-radius:10px;border:0;background:linear-gradient(135deg,#ffb347,#f7931e);color:#fff;font-weight:700;font-size:15px;margin-top:10px;">② 綁定 LINE 提醒</button>`
+    : `<button type="button" onclick="recheckFriend()" style="width:100%;padding:12px;border-radius:10px;border:0;background:linear-gradient(135deg,#ffb347,#f7931e);color:#fff;font-weight:700;font-size:15px;margin-top:10px;">✅ 我已加好友，重新檢查</button>`;
+  const title = mode === 'bind'
+    ? (must ? '🔔 請先綁定 LINE 提醒' : '🔔 想在期限前收到 LINE 提醒嗎？')
+    : '⚠️ 你還沒加陽光機器人為好友';
   const sub = mode === 'bind'
-    ? '請先加入「陽光機器人」好友，再按綁定，回覆期限前 1 小時系統會私訊提醒你。'
-    : '加入好友後才收得到期限提醒。';
+    ? (must ? '這是送出預約前必要的步驟：請先加入「陽光機器人」好友，再按綁定。回覆期限前 1 小時沒安排，機器人會私訊提醒你。'
+            : '請先加入「陽光機器人」好友，再按綁定，回覆期限前 1 小時系統會私訊提醒你。')
+    : '加入好友後才收得到期限提醒，請先加好友，再按下面的按鈕。';
+  const skipBtn = must ? '' : '<button type="button" onclick="closeLineModal()" style="width:100%;padding:10px;border:0;background:none;color:#888;margin-top:6px;">稍後再說</button>';
   const ov = document.createElement('div');
   ov.id = 'lineModalOverlay';
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
@@ -191,11 +209,22 @@ function showLineModal(mode){
     <div style="font-size:13px;color:#666;margin-top:6px;line-height:1.6;">${sub}</div>
     ${mode === 'bind' && friendBtn ? '<div style="font-size:12px;color:#888;margin-top:12px;">① 先加好友</div>' : ''}
     ${friendBtn}${bindBtn}
-    <button type="button" onclick="closeLineModal()" style="width:100%;padding:10px;border:0;background:none;color:#888;margin-top:6px;">稍後再說</button>
+    <div id="lineModalMsg" style="font-size:12.5px;color:#c0392b;margin-top:8px;"></div>
+    ${skipBtn}
   </div>`;
   document.body.appendChild(ov);
 }
-function closeLineModal(){
+async function recheckFriend(){
+  await checkFriendship(true);
+  if(LINE_FRIEND === false){
+    const m = document.getElementById('lineModalMsg');
+    if(m) m.textContent = '還是沒偵測到好友，請先點上面的「加入陽光機器人好友」，加完再按一次。';
+    return;
+  }
+  closeLineModal(true);
+  renderLineBind();
+}
+function closeLineModal(){  // 參數保留給呼叫端表示「內部流程關閉」，行為相同
   const ov = document.getElementById('lineModalOverlay');
   if(ov) ov.remove();
 }
@@ -214,7 +243,7 @@ function renderLineBind(msg){
   if(LINE_BOUND){
     box.innerHTML = `<div class="card" style="padding:12px 16px;font-size:13px;">✅ 已綁定 LINE 提醒，期限前會自動通知你${msg?('<br><span style="color:var(--text-muted);">'+msg+'</span>'):''}${LINE_FRIEND !== false ? (LINE_FRIEND === null ? '<br><span style="color:var(--text-muted);font-size:12px;">請確認有加「陽光機器人」為好友，否則收不到</span>' : '') : ('<div style="margin-top:8px;color:#c0392b;">⚠️ 你還沒加「陽光機器人」為好友，加了才收得到提醒</div>' + (ADD_FRIEND_URL ? `<a class="btn-ghost-lg" style="display:block;text-align:center;text-decoration:none;margin-top:6px;" href="${ADD_FRIEND_URL}">➕ 加入陽光機器人好友</a>` : ''))}</div>`;
   }else{
-    box.innerHTML = `<div class="card" style="padding:12px 16px;font-size:13px;">🔔 要在回覆期限前收到 LINE 提醒嗎？<br>
+    box.innerHTML = `<div class="card" style="padding:12px 16px;font-size:13px;${LINE_REQUIRED && !LIFF_FAILED ? 'border-color:#F5C2C2;background:#FFF5F5;' : ''}">${LINE_REQUIRED && !LIFF_FAILED ? '<b style="color:#B42318;">🔔 必要步驟：請先綁定 LINE 提醒，才能送出預約</b>' : '🔔 要在回覆期限前收到 LINE 提醒嗎？'}<br>
       <button type="button" class="btn-ghost-lg" style="margin-top:8px;" onclick="startLineBind()">綁定 LINE 提醒</button>
       ${msg?('<div style="color:#c0392b;margin-top:6px;">'+msg+'</div>'):''}</div>`;
   }
@@ -223,6 +252,7 @@ async function setupLineBind(data){
   if(!data.liff_id || !TASK.assignee || TASK.status === '已完成') return;
   LINE_BOUND = !!data.line_bound;
   ADD_FRIEND_URL = data.add_friend_url || '';
+  LINE_REQUIRED = true;
   renderLineBind();
   try{
     await loadLiffSdk();
@@ -235,6 +265,8 @@ async function setupLineBind(data){
     else if(LINE_FRIEND === false) showLineModal('friend');
   }catch(err){
     console.warn('LIFF init 失敗', err);
+    LIFF_FAILED = true;   // LIFF 載不起來（網路問題等）就不擋，避免業務完全不能用
+    renderLineBind();
   }
 }
 async function checkFriendship(skipRender){
@@ -568,6 +600,7 @@ function slotLabel(s){ return fmtDate(s.date) + '（' + fmtWeekday(s.date) + '�
 function onSubmitClick(){ return altMode ? submitProposal() : submitBooking(); }
 
 async function submitProposal(){
+  if(!lineGateOk()){ lineGateBlock(); return; }
   const errorBox = document.getElementById('errorBox');
   errorBox.style.display = 'none';
   const r = collectAltSlots();
@@ -659,6 +692,7 @@ function renderConfirmChosen(){
 }
 
 async function submitConfirm(){
+  if(!lineGateOk()){ lineGateBlock(); return; }
   const errorBox = document.getElementById('errorBox');
   errorBox.style.display = 'none';
   const registrant = document.getElementById('registrant').value.trim();
@@ -820,6 +854,7 @@ function onSameAsContractChange(){
 }
 
 async function submitBooking(){
+  if(!lineGateOk()){ lineGateBlock(); return; }
   const errorBox = document.getElementById('errorBox');
   errorBox.style.display = 'none';
   const start_time = document.getElementById('startTime').value;
