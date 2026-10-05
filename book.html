@@ -139,6 +139,8 @@ let altMode = false;   // true：正在填「提供其他時間」而不是直�
 
 // ---- LINE 提醒綁定（LIFF）：業務按一次「綁定」，之後回覆期限前會收到 LINE 提醒 ----
 let LINE_BOUND = false;
+let LINE_FRIEND = true;   // false：已確認還沒加陽光機器人好友
+let ADD_FRIEND_URL = '';
 function loadLiffSdk(){
   return new Promise((resolve, reject) => {
     if(window.liff) return resolve();
@@ -152,7 +154,7 @@ function renderLineBind(msg){
   const box = document.getElementById('lineBindBox');
   if(!box) return;
   if(LINE_BOUND){
-    box.innerHTML = `<div class="card" style="padding:12px 16px;font-size:13px;">✅ 已綁定 LINE 提醒，期限前會自動通知你${msg?('<br><span style="color:var(--text-muted);">'+msg+'</span>'):''}<br><span style="color:var(--text-muted);font-size:12px;">請確認有加「陽光機器人」為好友，否則收不到</span></div>`;
+    box.innerHTML = `<div class="card" style="padding:12px 16px;font-size:13px;">✅ 已綁定 LINE 提醒，期限前會自動通知你${msg?('<br><span style="color:var(--text-muted);">'+msg+'</span>'):''}${LINE_FRIEND ? '<br><span style="color:var(--text-muted);font-size:12px;">請確認有加「陽光機器人」為好友，否則收不到</span>' : ('<div style="margin-top:8px;color:#c0392b;">⚠️ 你還沒加「陽光機器人」為好友，加了才收得到提醒</div>' + (ADD_FRIEND_URL ? `<a class="btn-ghost-lg" style="display:block;text-align:center;text-decoration:none;margin-top:6px;" href="${ADD_FRIEND_URL}">➕ 加入陽光機器人好友</a>` : ''))}</div>`;
   }else{
     box.innerHTML = `<div class="card" style="padding:12px 16px;font-size:13px;">🔔 要在回覆期限前收到 LINE 提醒嗎？<br>
       <button type="button" class="btn-ghost-lg" style="margin-top:8px;" onclick="startLineBind()">綁定 LINE 提醒</button>
@@ -162,6 +164,7 @@ function renderLineBind(msg){
 async function setupLineBind(data){
   if(!data.liff_id || !TASK.assignee || TASK.status === '已完成') return;
   LINE_BOUND = !!data.line_bound;
+  ADD_FRIEND_URL = data.add_friend_url || '';
   renderLineBind();
   try{
     await loadLiffSdk();
@@ -169,9 +172,18 @@ async function setupLineBind(data){
     let pending = false;
     try{ pending = sessionStorage.getItem('lineBindPending') === '1'; }catch(e){}
     if(pending && liff.isLoggedIn()) await doLineBind();
+    else await checkFriendship();
   }catch(err){
     console.warn('LIFF init 失敗', err);
   }
+}
+async function checkFriendship(skipRender){
+  try{
+    if(!window.liff || !liff.isLoggedIn()) return;
+    const fr = await liff.getFriendship();
+    LINE_FRIEND = !!fr.friendFlag;
+    if(!skipRender) renderLineBind();
+  }catch(e){ /* 沒有連結官方帳號時取不到，維持預設提示 */ }
 }
 async function startLineBind(){
   try{ sessionStorage.setItem('lineBindPending', '1'); }catch(e){}
@@ -190,6 +202,7 @@ async function doLineBind(){
   const d = await res.json().catch(()=>({}));
   if(!res.ok){ renderLineBind(d.error || '綁定失敗'); return; }
   LINE_BOUND = true;
+  await checkFriendship(true);
   renderLineBind(d.display_name ? ('LINE 名稱：' + d.display_name) : '');
 }
 
