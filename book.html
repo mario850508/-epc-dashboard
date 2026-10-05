@@ -149,8 +149,37 @@ let altMode = false;   // true：正在填「提供其他時間」而不是直�
 
 // ---- LINE 提醒綁定（LIFF）：業務按一次「綁定」，之後回覆期限前會收到 LINE 提醒 ----
 let LINE_BOUND = false;
-let LINE_FRIEND = true;   // false：已確認還沒加陽光機器人好友
+let LINE_FRIEND = null;   // null：還不知道（沒登入取不到）、true：已是好友、false：確定還沒加陽光機器人好友
 let ADD_FRIEND_URL = '';
+// 進頁面跳出的提醒視窗：mode 'bind'＝還沒綁定（引導先加好友再綁定）、'friend'＝已綁定但還沒加好友
+function showLineModal(mode){
+  closeLineModal();
+  const friendBtn = (ADD_FRIEND_URL && LINE_FRIEND !== true)
+    ? `<a href="${ADD_FRIEND_URL}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;padding:12px;border-radius:10px;background:#06c755;color:#fff;font-weight:700;margin-top:10px;">➕ 加入陽光機器人好友</a>`
+    : '';
+  const bindBtn = mode === 'bind'
+    ? `<button type="button" onclick="closeLineModal();startLineBind()" style="width:100%;padding:12px;border-radius:10px;border:0;background:linear-gradient(135deg,#ffb347,#f7931e);color:#fff;font-weight:700;font-size:15px;margin-top:10px;">② 綁定 LINE 提醒</button>`
+    : '';
+  const title = mode === 'bind' ? '🔔 想在期限前收到 LINE 提醒嗎？' : '⚠️ 你還沒加陽光機器人為好友';
+  const sub = mode === 'bind'
+    ? '請先加入「陽光機器人」好友，再按綁定，回覆期限前 1 小時系統會私訊提醒你。'
+    : '加入好友後才收得到期限提醒。';
+  const ov = document.createElement('div');
+  ov.id = 'lineModalOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML = `<div style="background:#fff;color:#222;border-radius:16px;padding:20px;max-width:360px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+    <div style="font-size:17px;font-weight:700;">${title}</div>
+    <div style="font-size:13px;color:#666;margin-top:6px;line-height:1.6;">${sub}</div>
+    ${mode === 'bind' && friendBtn ? '<div style="font-size:12px;color:#888;margin-top:12px;">① 先加好友</div>' : ''}
+    ${friendBtn}${bindBtn}
+    <button type="button" onclick="closeLineModal()" style="width:100%;padding:10px;border:0;background:none;color:#888;margin-top:6px;">稍後再說</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function closeLineModal(){
+  const ov = document.getElementById('lineModalOverlay');
+  if(ov) ov.remove();
+}
 function loadLiffSdk(){
   return new Promise((resolve, reject) => {
     if(window.liff) return resolve();
@@ -164,7 +193,7 @@ function renderLineBind(msg){
   const box = document.getElementById('lineBindBox');
   if(!box) return;
   if(LINE_BOUND){
-    box.innerHTML = `<div class="card" style="padding:12px 16px;font-size:13px;">✅ 已綁定 LINE 提醒，期限前會自動通知你${msg?('<br><span style="color:var(--text-muted);">'+msg+'</span>'):''}${LINE_FRIEND ? '<br><span style="color:var(--text-muted);font-size:12px;">請確認有加「陽光機器人」為好友，否則收不到</span>' : ('<div style="margin-top:8px;color:#c0392b;">⚠️ 你還沒加「陽光機器人」為好友，加了才收得到提醒</div>' + (ADD_FRIEND_URL ? `<a class="btn-ghost-lg" style="display:block;text-align:center;text-decoration:none;margin-top:6px;" href="${ADD_FRIEND_URL}">➕ 加入陽光機器人好友</a>` : ''))}</div>`;
+    box.innerHTML = `<div class="card" style="padding:12px 16px;font-size:13px;">✅ 已綁定 LINE 提醒，期限前會自動通知你${msg?('<br><span style="color:var(--text-muted);">'+msg+'</span>'):''}${LINE_FRIEND !== false ? (LINE_FRIEND === null ? '<br><span style="color:var(--text-muted);font-size:12px;">請確認有加「陽光機器人」為好友，否則收不到</span>' : '') : ('<div style="margin-top:8px;color:#c0392b;">⚠️ 你還沒加「陽光機器人」為好友，加了才收得到提醒</div>' + (ADD_FRIEND_URL ? `<a class="btn-ghost-lg" style="display:block;text-align:center;text-decoration:none;margin-top:6px;" href="${ADD_FRIEND_URL}">➕ 加入陽光機器人好友</a>` : ''))}</div>`;
   }else{
     box.innerHTML = `<div class="card" style="padding:12px 16px;font-size:13px;">🔔 要在回覆期限前收到 LINE 提醒嗎？<br>
       <button type="button" class="btn-ghost-lg" style="margin-top:8px;" onclick="startLineBind()">綁定 LINE 提醒</button>
@@ -181,8 +210,10 @@ async function setupLineBind(data){
     await liff.init({liffId: data.liff_id});
     let pending = false;
     try{ pending = sessionStorage.getItem('lineBindPending') === '1'; }catch(e){}
-    if(pending && liff.isLoggedIn()) await doLineBind();
-    else await checkFriendship();
+    if(pending && liff.isLoggedIn()){ await doLineBind(); return; }
+    await checkFriendship();
+    if(!LINE_BOUND) showLineModal('bind');
+    else if(LINE_FRIEND === false) showLineModal('friend');
   }catch(err){
     console.warn('LIFF init 失敗', err);
   }
@@ -214,6 +245,7 @@ async function doLineBind(){
   LINE_BOUND = true;
   await checkFriendship(true);
   renderLineBind(d.display_name ? ('LINE 名稱：' + d.display_name) : '');
+  if(LINE_FRIEND === false) showLineModal('friend');
 }
 
 async function init(){
