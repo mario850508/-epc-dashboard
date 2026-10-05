@@ -248,8 +248,70 @@ async function doLineBind(){
   if(LINE_FRIEND === false) showLineModal('friend');
 }
 
+// ---- 安排人員綁定頁：book.html?bind=scheduler（或 LIFF 連結帶 ?bind=scheduler）----
+function readParam(name){
+  const direct = params.get(name);
+  if(direct) return direct;
+  const st = params.get('liff.state') || '';
+  const qi = st.indexOf('?');
+  return qi >= 0 ? (new URLSearchParams(st.slice(qi)).get(name) || '') : '';
+}
+let SCHED_LIFF_ID = '';
+function renderSchedulerBind(msg, ok){
+  const app = document.getElementById('app');
+  let saved = '';
+  try{ saved = localStorage.getItem('schedulerBindName') || ''; }catch(e){}
+  const friendBlock = (ok && LINE_FRIEND === false)
+    ? ('<div style="margin-top:10px;color:#c0392b;">⚠️ 你還沒加「陽光機器人」為好友，加了才收得到通知</div>' + (ADD_FRIEND_URL ? `<a class="btn-ghost-lg" style="display:block;text-align:center;text-decoration:none;margin-top:6px;" href="${ADD_FRIEND_URL}">➕ 加入陽光機器人好友</a>` : ''))
+    : '';
+  app.innerHTML = ok
+    ? `<div class="card"><h1>✅ 綁定完成</h1><div class="sub">${msg}<br>之後業務完成安排、回傳其他時間、或期限快到還沒安排時，陽光機器人會傳 LINE 通知你。</div>${friendBlock}</div>`
+    : `<div class="card"><h1>🔔 安排人員 LINE 通知綁定</h1>
+        <div class="sub">輸入你的名字（要跟主控台「安排人員」下拉選到的名字一致），再用 LINE 登入綁定。</div>
+        <label>你的名字</label>
+        <input type="text" id="schedName" value="${saved}" placeholder="例如：小夫" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:15px;">
+        <button type="button" class="btn-ghost-lg" style="margin-top:12px;" onclick="startSchedulerBind()">綁定 LINE 通知</button>
+        ${msg ? `<div style="color:#c0392b;margin-top:8px;">${msg}</div>` : ''}</div>`;
+}
+async function initSchedulerBind(){
+  renderSchedulerBind('');
+  try{
+    const cfg = await (await fetch(API_BASE + '/api/line/liff-config', {cache:'no-store'})).json();
+    SCHED_LIFF_ID = cfg.liff_id || '';
+    ADD_FRIEND_URL = cfg.add_friend_url || '';
+    if(!SCHED_LIFF_ID){ renderSchedulerBind('LINE 功能尚未設定，請聯絡管理者'); return; }
+    await loadLiffSdk();
+    await liff.init({liffId: SCHED_LIFF_ID});
+    let pending = false, name = '';
+    try{ pending = sessionStorage.getItem('schedBindPending') === '1'; name = localStorage.getItem('schedulerBindName') || ''; }catch(e){}
+    if(pending && name && liff.isLoggedIn()) await doSchedulerBind(name);
+  }catch(err){ renderSchedulerBind('載入失敗：' + err.message); }
+}
+async function startSchedulerBind(){
+  const name = (document.getElementById('schedName').value || '').trim();
+  if(!name){ renderSchedulerBind('請先輸入名字'); return; }
+  try{ localStorage.setItem('schedulerBindName', name); sessionStorage.setItem('schedBindPending', '1'); }catch(e){}
+  try{
+    if(!window.liff || !liff.id){ renderSchedulerBind('LINE 功能尚未準備好，請稍後再試'); return; }
+    if(!liff.isLoggedIn()){ liff.login({redirectUri: window.location.href}); return; }
+    await doSchedulerBind(name);
+  }catch(err){ renderSchedulerBind('綁定失敗：' + err.message); }
+}
+async function doSchedulerBind(name){
+  try{ sessionStorage.removeItem('schedBindPending'); }catch(e){}
+  const res = await fetch(API_BASE + '/api/line/bind-scheduler', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({access_token: liff.getAccessToken(), name}),
+  });
+  const d = await res.json().catch(()=>({}));
+  if(!res.ok){ renderSchedulerBind(d.error || '綁定失敗'); return; }
+  await checkFriendship(true);
+  renderSchedulerBind('名字：' + name + (d.display_name ? '　LINE：' + d.display_name : ''), true);
+}
+
 async function init(){
   const app = document.getElementById('app');
+  if(readParam('bind') === 'scheduler'){ initSchedulerBind(); return; }
   if(!TOKEN){
     app.innerHTML = '<div class="not-found">連結不完整，缺少 token，請跟窗口確認連結是否複製完整。</div>';
     return;

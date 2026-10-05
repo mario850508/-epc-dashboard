@@ -2172,6 +2172,12 @@
             <div style="flex:1.3;"><input type="date" class="quick-mark-input" id="slotTaskDeadlineDate" onchange="slotDeadlineTouched=true"></div>
             <div style="flex:1;"><select class="quick-mark-input" id="slotTaskDeadlineTime" onchange="slotDeadlineTouched=true"></select></div>
           </div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">安排人員（業務完成安排、期限快到時，LINE 通知這位同仁；選「不通知」就不發）</label>
+          <div style="display:flex;gap:8px;margin-bottom:6px;">
+            <select class="quick-mark-input" id="slotTaskCreator" style="flex:1;"></select>
+            <button type="button" class="btn btn-ghost" style="padding:6px 10px;font-size:12px;white-space:nowrap;" onclick="copySchedulerBindLink()">複製綁定連結</button>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:18px;">名單是已綁定 LINE 的安排人員。新同仁要先用手機 LINE 打開「綁定連結」、輸入名字綁定一次。</div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmSlotTask()">建立任務並產生連結</button>
         </div>
       </div>
@@ -6561,6 +6567,8 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskOwnerInfo').style.display = 'none';
   document.getElementById('slotTaskDeadlineTime').innerHTML = deadlineTimeOptionsHtml();
   slotDeadlineTouched = false;
+  populateSlotCreatorSelect();
+  loadSlotSchedulers();
   document.getElementById('slotTaskCaseResults').classList.remove('show');
   document.getElementById('slotTaskTypeDropdown').classList.remove('show');
   document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = false; });
@@ -6595,6 +6603,41 @@ function deadlineTimeOptionsHtml(){
 }
 // 2026-10-05 改：預設回覆期限＝隔天 18:00；項目有「進場」的任務＝2 天後 18:00。
 // 使用者手動改過日期/時間（slotDeadlineTouched）之後，勾選項目類型就不再覆蓋。
+// 2026-10-05：安排人員（建立任務的同仁）。業務完成安排／回傳其他時間／期限快到時，
+// 後端會用 LINE 通知這個人（名字對應「業務LINE綁定」表）。名單只含已綁定 LINE 的人。
+let SLOT_SCHEDULERS = [];
+function populateSlotCreatorSelect(){
+  const sel = document.getElementById('slotTaskCreator');
+  if(!sel) return;
+  const cur = sel.value;
+  let saved = '';
+  try{ saved = localStorage.getItem('slotSchedulerName') || ''; }catch(e){}
+  sel.innerHTML = '<option value="">（不通知）</option>' + SLOT_SCHEDULERS.map(n => `<option value="${n}">${n}</option>`).join('');
+  const want = cur || saved;
+  if(SLOT_SCHEDULERS.includes(want)) sel.value = want;
+}
+async function loadSlotSchedulers(){
+  try{
+    const res = await fetch(API_BASE + '/api/line/schedulers', {cache: 'no-store'});
+    const data = await res.json();
+    SLOT_SCHEDULERS = data.names || [];
+    populateSlotCreatorSelect();
+  }catch(err){ console.error('載入安排人員名單失敗（不影響建立任務）', err); }
+}
+async function copySchedulerBindLink(){
+  try{
+    const res = await fetch(API_BASE + '/api/line/liff-config', {cache: 'no-store'});
+    const cfg = await res.json();
+    if(!cfg.liff_id){ showToast('LINE 功能尚未設定'); return; }
+    const link = 'https://liff.line.me/' + cfg.liff_id + '?bind=scheduler';
+    const ta = document.createElement('textarea');
+    ta.value = link; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    showToast('已複製綁定連結，請傳給安排人員用手機 LINE 開啟');
+  }catch(err){ showToast('複製失敗：' + err.message); }
+}
 let slotDeadlineTouched = false;
 function setDefaultSlotDeadline(){
   const now = new Date();
@@ -6675,7 +6718,7 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, candidate_dates: candidateDates, duration_min: durationMin, owner_name: ownerName, owner_phone: ownerPhone, deadline}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: (document.getElementById('slotTaskCreator') || {}).value || '', candidate_dates: candidateDates, duration_min: durationMin, owner_name: ownerName, owner_phone: ownerPhone, deadline}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
