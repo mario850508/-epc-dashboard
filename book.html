@@ -87,6 +87,22 @@
   .slot-list{margin:10px 0;padding:0;list-style:none;}
   .slot-list li{padding:9px 12px;margin-bottom:6px;background:var(--surface);border:1px solid var(--border);border-radius:10px;font-size:14px;font-weight:600;}
   .chosen-box{text-align:center;padding:16px 10px;margin:10px 0 6px;background:linear-gradient(135deg,#FFF4DC,#FFE8BD);border-radius:14px;font-size:20px;font-weight:800;color:var(--sun-3);line-height:1.5;}
+  .tut-link{margin-left:auto;border:1px solid #F0E4CC;background:#FFFCF5;color:var(--sun-3);border-radius:16px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;}
+  #tutorialOverlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:14px;}
+  .tut-card{position:relative;background:#fff;border-radius:20px;padding:20px 18px 16px;max-width:400px;width:100%;max-height:96vh;overflow-y:auto;box-shadow:0 14px 50px rgba(0,0,0,.35);}
+  .tut-x{position:absolute;top:10px;right:12px;border:none;background:#F1F3F8;color:#6B7280;width:30px;height:30px;border-radius:50%;font-size:14px;cursor:pointer;}
+  .tut-step{font-size:11.5px;color:var(--text-muted);font-weight:700;}
+  .tut-title{font-size:17px;font-weight:800;margin:2px 36px 10px 0;}
+  .tut-svg{width:100%;height:auto;display:block;background:#FBF6EA;border-radius:14px;}
+  .tut-text{font-size:13.5px;line-height:1.75;color:var(--text);margin:12px 2px 6px;}
+  .tut-dots{display:flex;justify-content:center;gap:6px;margin:10px 0;}
+  .tut-dots span{width:7px;height:7px;border-radius:50%;background:#E4E8F1;}
+  .tut-dots span.on{background:var(--sun-2);width:18px;border-radius:4px;}
+  .tut-btns{display:flex;gap:10px;}
+  .tut-b{flex:1;padding:12px;border-radius:12px;font-size:14.5px;font-weight:700;cursor:pointer;border:1px solid var(--border);}
+  .tut-b.ghost{background:#fff;color:var(--text);}
+  .tut-b.ghost:disabled{opacity:.4;cursor:default;}
+  .tut-b.main{background:linear-gradient(135deg,var(--sun-1),var(--sun-2));color:#fff;border-color:transparent;}
   .busy-hint{display:none;font-size:12px;line-height:1.7;color:#8A5A12;background:#FFF4DC;border-radius:10px;padding:8px 12px;margin:10px 0 0;}
 </style>
 </head>
@@ -98,11 +114,13 @@
       <div class="brand-name">陽光管理主控台</div>
       <div class="brand-sub">現場時段預約</div>
     </div>
+    <button type="button" class="tut-link" id="tutLink" style="display:none;" onclick="showTutorial()">❓ 使用教學</button>
   </div>
   <div id="lineBindBox"></div>
   <div id="app"><div class="loading">載入中…</div></div>
 </div>
 
+<script src="book-tutorial.js?v=1"></script>
 <script>
 const API_BASE = 'https://epc-backend-4aj2.onrender.com';
 let params = new URLSearchParams(window.location.search);
@@ -153,6 +171,7 @@ let LINE_FRIEND = null;   // null：還不知道（沒登入取不到）、true�
 let ADD_FRIEND_URL = '';
 // 進頁面跳出的提醒視窗：mode 'bind'＝還沒綁定（引導先加好友再綁定）、'friend'＝已綁定但還沒加好友
 function showLineModal(mode){
+  if(document.getElementById('tutorialOverlay')){ window._pendingLineModal = mode; return; }
   closeLineModal();
   const friendBtn = (ADD_FRIEND_URL && LINE_FRIEND !== true)
     ? `<a href="${ADD_FRIEND_URL}" target="_blank" rel="noopener" style="display:block;text-align:center;text-decoration:none;padding:12px;border-radius:10px;background:#06c755;color:#fff;font-weight:700;margin-top:10px;">➕ 加入陽光機器人好友</a>`
@@ -345,6 +364,9 @@ async function init(){
     }
     TASK = data.task;
     render();
+    const tl = document.getElementById('tutLink');
+    if(tl) tl.style.display = '';
+    if(TASK.status !== '已完成' && typeof maybeShowTutorial === 'function') maybeShowTutorial();
     setupLineBind(data);
   }catch(err){
     app.innerHTML = '<div class="not-found">載入失敗：' + err.message + '，請檢查網路連線後重新整理</div>';
