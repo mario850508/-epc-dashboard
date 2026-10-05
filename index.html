@@ -625,7 +625,7 @@
         <div class="nav-sub" id="navSub-epc">
           <div class="nav-sub-item" data-sub="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
           <div class="nav-sub-item" data-sub="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
-          <div class="nav-sub-item" data-sub="epc-survey" onclick="showEpcTab('epc-survey')">場勘安排</div>
+          <div class="nav-sub-item" data-sub="epc-survey" onclick="showEpcTab('epc-survey')">場勘＆放樣安排</div>
           <div class="nav-sub-item" data-sub="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨&植筋</div>
           <div class="nav-sub-item" data-sub="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
           <div class="nav-sub-item" data-sub="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
@@ -815,7 +815,7 @@
       <div class="tabs">
         <div class="tab active" data-tab="epc-week" onclick="showEpcTab('epc-week')">近一週安排</div>
         <div class="tab" data-tab="epc-calendar" onclick="showEpcTab('epc-calendar')">排程日曆</div>
-        <div class="tab" data-tab="epc-survey" onclick="showEpcTab('epc-survey')">場勘安排</div>
+        <div class="tab" data-tab="epc-survey" onclick="showEpcTab('epc-survey')">場勘＆放樣安排</div>
         <div class="tab" data-tab="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨&植筋</div>
         <div class="tab" data-tab="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
         <div class="tab" data-tab="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
@@ -841,7 +841,7 @@
       <div class="subview" id="tab-epc-survey">
         <div class="panel">
           <div class="panel-title">
-            場勘安排 <span class="module-tag tag-cloud" style="margin-left:6px;" id="surveyCountTag">共 0 筆</span>
+            場勘＆放樣安排 <span class="module-tag tag-cloud" style="margin-left:6px;" id="surveyCountTag">共 0 筆</span>
             <span id="surveyUpdatedAt" style="margin-left:8px;font-size:11px;color:var(--text-muted);font-weight:400;"></span>
             <div class="panel-title-actions">
               <button class="btn btn-ghost notes-trigger-btn" id="surveyRefreshBtn" onclick="triggerSurveyManualRefresh()">🔄 重新整理</button>
@@ -3209,7 +3209,7 @@ function renderSurveyTable(){
       : `<span style="color:var(--text-muted);"> 等 ${waitDays} 天</span>`);
     return `
     <tr>
-      <td><div class="case-id">${r.case || '（無案號）'}</div><div class="case-alias">${r.alias||''}</div></td>
+      <td><div class="case-id">${r.case || '（無案號）'}</div><div class="case-alias">${r.alias||''}</div>${slotBadgeHtml(r.case)}</td>
       <td>${r.vendor ? `<span class="vendor-pill ${r.vendorClass}">${r.vendor}</span>` : ''}</td>
       <td>${r.sales_person || ''}</td>
       <td>${r.address || ''}</td>
