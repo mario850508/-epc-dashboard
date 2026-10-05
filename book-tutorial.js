@@ -35,11 +35,11 @@
         <text x="24" y="92" font-size="11.5" font-weight="700" fill="#1B2333" ${F}>開始時間</text>
         <text x="170" y="92" font-size="11.5" font-weight="700" fill="#1B2333" ${F}>結束時間</text>
         ${field(22, 98, 128, '10:00　▾')}${field(168, 98, 128, '11:00　▾')}
-        <path d="M153 112 h12" stroke="#F2790C" stroke-width="2" marker-end="url(#ar)"/>
-        <defs><marker id="ar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 z" fill="#F2790C"/></marker></defs>
+        <path d="M153 112 h6" stroke="#F2790C" stroke-width="2"/>
+        <polygon points="158,107 166,112 158,117" fill="#F2790C"/>
         <text x="24" y="150" font-size="10.5" fill="#6B7280" ${F}>⏱ 選好開始時間，結束時間會自動帶出（也可以自己改）</text>
         <rect x="22" y="156" width="130" height="18" rx="6" fill="#E9E9EC"/><text x="30" y="169" font-size="10.5" fill="#9AA0AA" ${F}>09:00　已被預約</text>
-        <text x="160" y="169" font-size="10.5" fill="#6B7280" ${F}>← 灰色＝廠商那時段已有別的案子</text>
+        <text x="160" y="169" font-size="10.5" fill="#6B7280" ${F}>← 灰色＝已被別案預約</text>
         ${badge(300, 22, 2)}`,
       text: '點一個候選日期（橘色＝已選）。選開始時間後，結束時間會依預估時間自動算好，不合適可以自己改。灰色、不能選的時間，是廠商那個時段已經被別的案子預約了。',
     },
@@ -74,8 +74,8 @@
       svg: `${CARD}
         <rect x="22" y="24" width="276" height="40" rx="12" fill="#F7931E"/>
         <text x="160" y="49" text-anchor="middle" font-size="14" font-weight="800" fill="#fff" ${F}>完成預約</text>
-        <path d="M160 70 v18" stroke="#F2790C" stroke-width="2.5" marker-end="url(#ar2)"/>
-        <defs><marker id="ar2" markerWidth="7" markerHeight="7" refX="3.5" refY="6" orient="auto"><path d="M0 0 L7 0 L3.5 7 z" fill="#F2790C"/></marker></defs>
+        <path d="M160 68 v14" stroke="#F2790C" stroke-width="2.5"/>
+        <polygon points="152,80 168,80 160,94" fill="#F2790C"/>
         <rect x="22" y="96" width="276" height="68" rx="14" fill="#E7F7EE" stroke="#BFE6CF"/>
         <text x="160" y="124" text-anchor="middle" font-size="22" ${F}>✅</text>
         <text x="160" y="146" text-anchor="middle" font-size="13" font-weight="800" fill="#166534" ${F}>預約完成，時段已鎖定</text>
