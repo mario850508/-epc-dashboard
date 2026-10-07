@@ -555,6 +555,19 @@
   .cert-filter-btn.active{background:var(--primary,#F5A623);border-color:var(--primary,#F5A623);color:#fff;font-weight:700;}
   .cert-path{font-size:11px;color:var(--text-muted);word-break:break-all;max-width:360px;}
   .cert-src{font-size:11px;color:var(--text-muted);margin-top:2px;word-break:break-all;}
+  .cert-case-link{cursor:pointer;color:#1E70C8;text-decoration:underline;text-underline-offset:3px;}
+  .cert-modal-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:16px;}
+  .cert-pdf-frame{width:100%;height:68vh;border:1px solid var(--border,#E3E6EA);border-radius:10px;background:#f4f4f4;}
+  .cert-side-label{font-size:12px;font-weight:700;margin:12px 0 6px;}
+  .cert-file-list{list-style:none;margin:0;padding:0;font-size:12px;max-height:38vh;overflow:auto;border:1px solid var(--border,#E3E6EA);border-radius:8px;}
+  .cert-file-list li{padding:6px 10px;border-bottom:1px solid var(--border,#E3E6EA);word-break:break-all;}
+  .cert-file-list li:last-child{border-bottom:none;}
+  .cert-file-list li.current{background:#FFF7E6;font-weight:700;}
+  .cert-rename-input{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#E3E6EA);border-radius:8px;font-size:13px;}
+  @media (max-width: 768px){
+    .cert-modal-grid{grid-template-columns:1fr;}
+    .cert-pdf-frame{height:55vh;}
+  }
 
   .ops-cat{margin-bottom:18px;}
   .ops-cat-title{font-weight:700;font-size:13px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--primary-soft);color:var(--primary-dark);}
@@ -2039,6 +2052,17 @@
         </div>
       </div>
     </section>
+
+    <!-- 採購專區：出廠證明檢視／改名 modal -->
+    <div class="modal-overlay" id="certModalOverlay" onclick="if(event.target===this) closeCertModal()">
+      <div class="modal-box" style="max-width:1100px;width:96vw;">
+        <div class="modal-header">
+          <div class="modal-title" id="certModalTitle">出廠證明</div>
+          <button class="modal-close" onclick="closeCertModal()">✕</button>
+        </div>
+        <div class="modal-body" id="certModalBody"></div>
+      </div>
+    </div>
 
     <section class="view" id="view-slots">
       <div class="topbar">
@@ -7496,9 +7520,12 @@ function renderInverterCerts(){
     return `
       <tr>
         <td style="white-space:nowrap;">${certEsc(filedAt)}</td>
-        <td><div class="case-id">${certEsc(r.case_no || '—')}</div></td>
+        <td><div class="case-id cert-case-link" onclick="openCertModal('${r.id}')" title="檢視這案的檔案">${certEsc(r.case_no || '未歸檔')}</div></td>
         <td>
-          <div>${certEsc(r.filed_name)}</div>
+          <div>${certEsc(r.filed_name)}
+            <button class="btn btn-ghost" style="padding:2px 7px;font-size:11px;margin-left:4px;" onclick="openCertModal('${r.id}', true)">✏️ 改名</button>
+          </div>
+          ${r.rename_to ? `<div class="cert-src" style="color:#B8720A;">⏳ 改名中 → ${certEsc(r.rename_to)}</div>` : ''}
           ${r.src_name && r.src_name !== r.filed_name ? `<div class="cert-src">原檔:${certEsc(r.src_name)}</div>` : ''}
           ${abbr}
         </td>
@@ -7510,6 +7537,98 @@ function renderInverterCerts(){
         </td>
       </tr>`;
   }).join('');
+}
+
+let certModalId = null;
+let certPollTimer = null;
+
+function openCertModal(id, focusRename){
+  certModalId = id;
+  renderCertModal();
+  document.getElementById('certModalOverlay').classList.add('show');
+  if(focusRename){
+    const inp = document.getElementById('certRenameInput');
+    if(inp){ inp.focus(); inp.select(); }
+  }
+}
+
+function closeCertModal(){
+  document.getElementById('certModalOverlay').classList.remove('show');
+  certModalId = null;
+  if(certPollTimer){ clearInterval(certPollTimer); certPollTimer = null; }
+}
+
+function renderCertModal(){
+  const r = INVERTER_CERTS.find(x => x.id === certModalId);
+  if(!r) return;
+  document.getElementById('certModalTitle').textContent = `📄 ${r.case_no || '未歸檔'}｜變流器出廠暨保固證明書`;
+  const pdf = r.file_url
+    ? `<iframe class="cert-pdf-frame" src="${certEsc(r.file_url)}#view=FitH"></iframe>
+       <div style="margin-top:6px;font-size:12px;"><a href="${certEsc(r.file_url)}" target="_blank" rel="noopener">在新分頁開啟 PDF ↗</a></div>`
+    : `<div class="cert-pdf-frame" style="display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">
+         PDF 預覽還沒上傳<br>(本機小幫手每分鐘同步一次,電腦需開機)</div>`;
+  const files = r.folder_files.length
+    ? r.folder_files.map(n => `<li class="${n === r.filed_name ? 'current' : ''}">${n === r.filed_name ? '👉 ' : ''}${certEsc(n)}</li>`).join('')
+    : '<li style="color:var(--text-muted);">(尚未取得資料夾清單)</li>';
+  const pending = r.rename_to
+    ? `<div style="margin-top:6px;font-size:12px;color:#B8720A;">⏳ 等待本機套用:${certEsc(r.rename_to)}</div>` : '';
+  const result = (!r.rename_to && r.rename_result)
+    ? `<div style="margin-top:6px;font-size:12px;">${certEsc(r.rename_result)}</div>` : '';
+  document.getElementById('certModalBody').innerHTML = `
+    <div class="cert-modal-grid">
+      <div>${pdf}</div>
+      <div>
+        <div class="cert-side-label" style="margin-top:0;">目前檔名</div>
+        <input type="text" class="cert-rename-input" id="certRenameInput" value="${certEsc(r.filed_name)}"
+               onkeydown="if(event.key==='Enter') submitCertRename()">
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="submitCertRename()">💾 儲存檔名</button>
+          ${r.abbr_guessed && !r.abbr_ok ? `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="confirmCertAbbr('${r.id}')">✔ 檔名沒問題(確認簡稱)</button>` : ''}
+        </div>
+        ${pending}${result}
+        <div class="cert-side-label">放置資料夾內的檔案(${r.folder_files.length})</div>
+        <ul class="cert-file-list">${files}</ul>
+        <div class="cert-path" style="margin-top:8px;max-width:none;">${certEsc(r.path)}</div>
+        <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-top:4px;" onclick="copyCertPath('${r.id}')">📋 複製路徑</button>
+        <div class="login-note" style="margin-top:12px;">改名會由這台電腦上的小幫手在 1 分鐘內套用到 G 槽(電腦需開機)。檔名不能含 \\ / : * ? " &lt; &gt; |。</div>
+      </div>
+    </div>`;
+}
+
+async function submitCertRename(){
+  const r = INVERTER_CERTS.find(x => x.id === certModalId);
+  const inp = document.getElementById('certRenameInput');
+  if(!r || !inp) return;
+  const newName = inp.value.trim();
+  if(!newName || newName === r.filed_name){ showToast('檔名沒有變更'); return; }
+  try{
+    const res = await fetch(API_BASE + '/api/procurement/inverter-certs/' + r.id + '/rename', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({new_name: newName}),
+    });
+    const data = await res.json();
+    if(!res.ok || data.error) throw new Error(data.error || res.status);
+    r.rename_to = data.new_name;
+    renderInverterCerts();
+    renderCertModal();
+    showToast('已送出改名,約 1 分鐘內套用到 G 槽');
+    startCertPoll();
+  }catch(e){
+    showToast('改名失敗:' + e.message);
+  }
+}
+
+// 有改名在等本機套用時，每 10 秒重抓一次，套用完（或 3 分鐘）就停
+function startCertPoll(){
+  if(certPollTimer) clearInterval(certPollTimer);
+  const startedAt = Date.now();
+  certPollTimer = setInterval(async () => {
+    await loadInverterCerts();
+    if(certModalId) renderCertModal();
+    const stillPending = INVERTER_CERTS.some(x => x.rename_to);
+    if(!stillPending || Date.now() - startedAt > 180000){
+      clearInterval(certPollTimer); certPollTimer = null;
+    }
+  }, 10000);
 }
 
 function copyCertPath(id){
@@ -7528,6 +7647,7 @@ async function confirmCertAbbr(id){
     const r = INVERTER_CERTS.find(x => x.id === id);
     if(r) r.abbr_ok = true;
     renderInverterCerts();
+    if(certModalId) renderCertModal();
     showToast('已確認簡稱');
   }catch(e){
     showToast('確認失敗:' + e.message);
