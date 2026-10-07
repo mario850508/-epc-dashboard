@@ -2580,6 +2580,26 @@ async function confirmCompleteMeter(){
   }
 }
 
+// 2026-10-07：標記完工填錯時，可以從「掛表安排」退回「案件進場安排」。
+// 作法＝把 APP資料 裡的「完工日期」清空（後端 upsert 看到 null 就清空欄位），案件就不再符合
+// 「已完工」條件、自動回到案件進場安排。只清完工日期，不動預計掛表日期等其他欄位。
+async function undoCompleted(recordId){
+  const found = COMPLETED_CASES.find(c => c.record_id === recordId);
+  const cs = getCaseStatus(recordId);
+  const caseNo = (found && found.case) || (cs && cs.case_no) || '';
+  if(!confirm('確定要把「' + caseNo + '」退回「案件進場安排」嗎？\n（只會清掉完工日期，其他資料不變）')) return;
+  try{
+    await saveCaseStatusField(recordId, caseNo, {completed_date: null});
+    renderEntryTable();
+    renderMeterTable();
+    showToast('已退回「案件進場安排」：' + caseNo);
+    loadAppData();
+  }catch(err){
+    showToast('退回失敗：' + err.message);
+    console.error(err);
+  }
+}
+
 // ---- 預計掛表日期 modal（已完工頁用，寫入 APP資料 表，跨裝置共用；還沒真的寫入 Airtable「掛表」里程碑）----
 let planMeterTargetRecordId = null;
 function openPlanMeterModal(recordId){
@@ -3982,6 +4002,7 @@ function renderMeterTable(){
             <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11.5px;" onclick="openPlanMeterModal('${r.record_id}')">${plannedLabel}　✎</button></td>
             <td>
               <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" onclick="openMeterModal('${r.record_id}')">完成掛表</button>
+              <div style="margin-top:6px;"><button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;" onclick="undoCompleted('${r.record_id}')">↩ 退回未完工</button></div>
             </td>
           </tr>
         `;
@@ -4015,7 +4036,8 @@ function renderMeterTable(){
           <td>${r.module ? `<div>${glueCount(r.module)}</div>${r.inverter ? `<div style="margin-top:2px;">${glueCount(r.inverter)}</div>` : ''}` : '<span style="color:var(--text-muted);font-size:12px;">尚未填寫規格</span>'}</td>
           <td>${negoHtml}</td>
           <td>${contractHtml}</td>
-          <td><button class="btn btn-ghost" disabled style="padding:6px 12px;font-size:12px;opacity:.45;cursor:not-allowed;" title="細部協商、台電購售契約還沒有全部取得，暫時無法安排掛表">🔌 掛表安排</button></td>
+          <td><button class="btn btn-ghost" disabled style="padding:6px 12px;font-size:12px;opacity:.45;cursor:not-allowed;" title="細部協商、台電購售契約還沒有全部取得，暫時無法安排掛表">🔌 掛表安排</button>
+            <div style="margin-top:6px;"><button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;" onclick="undoCompleted('${r.record_id}')">↩ 退回未完工</button></div></td>
         </tr>
       `;
       }).join('');
