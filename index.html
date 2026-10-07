@@ -550,6 +550,12 @@
   .ops-status-done{background:var(--success-soft);color:var(--success);}
   .ops-status-pdf{background:#E9F3FF;color:#1E70C8;}
 
+  /* ---------- 採購專區（2026-10-07 新增）---------- */
+  .cert-filter-btn{border:1px solid var(--border,#E3E6EA);background:transparent;border-radius:20px;padding:5px 12px;font-size:12px;cursor:pointer;color:inherit;}
+  .cert-filter-btn.active{background:var(--primary,#F5A623);border-color:var(--primary,#F5A623);color:#fff;font-weight:700;}
+  .cert-path{font-size:11px;color:var(--text-muted);word-break:break-all;max-width:360px;}
+  .cert-src{font-size:11px;color:var(--text-muted);margin-top:2px;word-break:break-all;}
+
   .ops-cat{margin-bottom:18px;}
   .ops-cat-title{font-weight:700;font-size:13px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--primary-soft);color:var(--primary-dark);}
   .ops-item{padding:10px 0;border-bottom:1px solid var(--border);}
@@ -638,6 +644,9 @@
         <div class="nav-item" data-view="slots" onclick="showView('slots'); loadVendorSlots();">
           <span class="nav-icon">🗓️</span> 廠商時段協調
         </div>
+        <div class="nav-item" data-view="procure" onclick="showView('procure'); loadInverterCerts();">
+          <span class="nav-icon">📦</span> 採購專區
+        </div>
       </div>
     </div>
 
@@ -722,6 +731,17 @@
           <div>
             <div class="module-title">EPC 出貨／進場排程 <span class="module-tag tag-cloud">雲端・手機可看</span></div>
             <div class="module-desc">日曆檢視出貨、植筋、進場、掛表四種日期安排;EPC 廠商可用手機登入查看自己的案件。</div>
+          </div>
+        </div>
+        <div class="chevron">›</div>
+      </div>
+
+      <div class="module-card" onclick="showView('procure'); loadInverterCerts();">
+        <div class="module-left">
+          <div class="module-icon ops">📦</div>
+          <div>
+            <div class="module-title">採購專區 <span class="module-tag tag-cloud">雲端・手機可看</span></div>
+            <div class="module-desc">碩天變流器出廠證明每日自動下載歸檔,查看哪些案件已放進 07 資料夾、哪些待確認。</div>
           </div>
         </div>
         <div class="chevron">›</div>
@@ -1979,6 +1999,47 @@
     </div>
 
     <!-- ============ 廠商時段協調（2026-10-01 新增）============ -->
+    <!-- ============ 採購專區（2026-10-07）============ -->
+    <section class="view" id="view-procure">
+      <div class="topbar">
+        <div>
+          <div class="crumb">功能模組 / 採購專區</div>
+          <h1 class="page-title">採購專區</h1>
+          <div class="page-sub">碩天變流器出廠暨保固證明書:每天 09:00 自動從 CPSDrive 下載,歸檔到 G 槽案件「07 設備保固及出廠證明」</div>
+        </div>
+        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="loadInverterCerts()">🔄 重新整理</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          變流器出廠證明歸檔紀錄
+          <span class="module-tag tag-cloud" style="margin-left:6px;" id="certCountTag">共 0 筆</span>
+        </div>
+        <div class="pending-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input type="text" class="quick-mark-input" id="certSearchInput" placeholder="搜尋案號、檔名…" oninput="renderInverterCerts()" style="max-width:240px;">
+          <span id="certFilterBtns" style="display:flex;gap:6px;flex-wrap:wrap;"></span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>歸檔時間</th>
+              <th>案號</th>
+              <th>歸檔檔名</th>
+              <th>出廠日期</th>
+              <th>狀態</th>
+              <th>放置位置</th>
+            </tr>
+          </thead>
+          <tbody id="certRows">
+            <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>
+          </tbody>
+        </table>
+        <div class="login-note">
+          📦 資料由這台電腦上的 Claude 每日排程寫入(需要電腦、Claude app、Chrome 開著)。「⚠ 簡稱推定」表示該案 07 資料夾原本沒有檔案可參考簡稱(例如 桃81),確認檔名沒問題後按「確認簡稱」。「未歸檔」是對不到案件的檔案(如地址型的變流器銷售),放在 02 料件採購\02 變流器採購\未歸檔變流器出廠證明。
+        </div>
+      </div>
+    </section>
+
     <section class="view" id="view-slots">
       <div class="topbar">
         <div>
@@ -7368,6 +7429,111 @@ async function confirmSlotBooking(){
   }
 }
 
+// ===================================================================
+// 採購專區：變流器出廠證明歸檔紀錄（2026-10-07）
+// ===================================================================
+let INVERTER_CERTS = [];
+let certFilter = 'all';
+const CERT_FILTERS = [
+  ['all', '全部'], ['已歸檔', '已歸檔'], ['未歸檔', '未歸檔'], ['abbr', '待確認簡稱'],
+];
+
+function certEsc(v){
+  return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function loadInverterCerts(){
+  try{
+    const res = await fetch(API_BASE + '/api/procurement/inverter-certs');
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    INVERTER_CERTS = data.certs || [];
+    renderInverterCerts();
+  }catch(e){
+    document.getElementById('certRows').innerHTML =
+      '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入失敗,請按「重新整理」再試一次</td></tr>';
+  }
+}
+
+function setCertFilter(key){ certFilter = key; renderInverterCerts(); }
+
+function certNeedsAbbrCheck(r){ return r.abbr_guessed && !r.abbr_ok; }
+
+function renderInverterCerts(){
+  const counts = {
+    all: INVERTER_CERTS.length,
+    '已歸檔': INVERTER_CERTS.filter(r => r.status === '已歸檔').length,
+    '未歸檔': INVERTER_CERTS.filter(r => r.status === '未歸檔').length,
+    abbr: INVERTER_CERTS.filter(certNeedsAbbrCheck).length,
+  };
+  document.getElementById('certFilterBtns').innerHTML = CERT_FILTERS.map(([k, label]) =>
+    `<button class="cert-filter-btn ${certFilter === k ? 'active' : ''}" onclick="setCertFilter('${k}')">${label} ${counts[k]}</button>`
+  ).join('');
+
+  const kw = (document.getElementById('certSearchInput').value || '').trim();
+  let rows = INVERTER_CERTS;
+  if(certFilter === 'abbr') rows = rows.filter(certNeedsAbbrCheck);
+  else if(certFilter !== 'all') rows = rows.filter(r => r.status === certFilter);
+  if(kw) rows = rows.filter(r => [r.case_no, r.filed_name, r.src_name].some(v => (v || '').includes(kw)));
+  document.getElementById('certCountTag').textContent = `共 ${rows.length} 筆`;
+
+  if(rows.length === 0){
+    document.getElementById('certRows').innerHTML =
+      '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有符合條件的紀錄</td></tr>';
+    return;
+  }
+  document.getElementById('certRows').innerHTML = rows.map(r => {
+    const statusCls = r.status === '已歸檔' ? 'ops-status-done' : (r.status === '未歸檔' ? 'ops-status-pending' : 'ops-status-pdf');
+    const filedAt = r.filed_at ? r.filed_at.replace('T', ' ').slice(0, 16) : '—';
+    let abbr = '';
+    if(certNeedsAbbrCheck(r)){
+      abbr = `<div style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <span class="ops-status-pill ops-status-pending">⚠ 簡稱推定</span>
+        <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;" onclick="confirmCertAbbr('${r.id}')">✔ 確認簡稱</button></div>`;
+    } else if(r.abbr_guessed && r.abbr_ok){
+      abbr = '<div style="margin-top:4px;font-size:11px;color:var(--success);">✔ 簡稱已確認</div>';
+    }
+    return `
+      <tr>
+        <td style="white-space:nowrap;">${certEsc(filedAt)}</td>
+        <td><div class="case-id">${certEsc(r.case_no || '—')}</div></td>
+        <td>
+          <div>${certEsc(r.filed_name)}</div>
+          ${r.src_name && r.src_name !== r.filed_name ? `<div class="cert-src">原檔:${certEsc(r.src_name)}</div>` : ''}
+          ${abbr}
+        </td>
+        <td style="white-space:nowrap;">${certEsc(fmtDate(r.ship_date) || '—')}</td>
+        <td><span class="ops-status-pill ${statusCls}">${certEsc(r.status || '—')}</span></td>
+        <td>
+          <div class="cert-path">${certEsc(r.path)}</div>
+          <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-top:4px;" onclick="copyCertPath('${r.id}')">📋 複製路徑</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function copyCertPath(id){
+  const r = INVERTER_CERTS.find(x => x.id === id);
+  if(!r) return;
+  navigator.clipboard.writeText(r.path).then(() => showToast('已複製路徑,可貼到檔案總管網址列開啟'));
+}
+
+async function confirmCertAbbr(id){
+  try{
+    const res = await fetch(API_BASE + '/api/procurement/inverter-certs/' + id + '/abbr-ok', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ok: true}),
+    });
+    const data = await res.json();
+    if(!res.ok || data.error) throw new Error(data.error || res.status);
+    const r = INVERTER_CERTS.find(x => x.id === id);
+    if(r) r.abbr_ok = true;
+    renderInverterCerts();
+    showToast('已確認簡稱');
+  }catch(e){
+    showToast('確認失敗:' + e.message);
+  }
+}
+
 (function restoreNavState(){
   const state = loadNavState();
   if(state && state.view === 'epc' && state.epcTab && document.getElementById('tab-' + state.epcTab)){
@@ -7380,6 +7546,9 @@ async function confirmSlotBooking(){
   } else if(state && state.view === 'slots'){
     showView('slots');
     loadVendorSlots();
+  } else if(state && state.view === 'procure'){
+    showView('procure');
+    loadInverterCerts();
   } else {
     showView('home');
   }
