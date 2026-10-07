@@ -2018,16 +2018,17 @@
         <div>
           <div class="crumb">功能模組 / 採購專區</div>
           <h1 class="page-title">採購專區</h1>
-          <div class="page-sub">碩天變流器出廠暨保固證明書:每天 09:00 自動從 CPSDrive 下載,歸檔到 G 槽案件「07 設備保固及出廠證明」</div>
+          <div class="page-sub">變流器(碩天 CPSDrive,每天 09:00)與模組(元晶 Email,每小時)出廠證明自動歸檔到 G 槽案件「07 設備保固及出廠證明」</div>
         </div>
         <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="loadInverterCerts()">🔄 重新整理</button>
       </div>
 
       <div class="panel">
         <div class="panel-title">
-          變流器出廠證明歸檔紀錄
+          出廠證明歸檔紀錄
           <span class="module-tag tag-cloud" style="margin-left:6px;" id="certCountTag">共 0 筆</span>
         </div>
+        <div class="tabs" id="certEquipTabs" style="margin-bottom:10px;"></div>
         <div class="pending-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <input type="text" class="quick-mark-input" id="certSearchInput" placeholder="搜尋案號、檔名…" oninput="renderInverterCerts()" style="max-width:240px;">
           <span id="certFilterBtns" style="display:flex;gap:6px;flex-wrap:wrap;"></span>
@@ -2048,7 +2049,7 @@
           </tbody>
         </table>
         <div class="login-note">
-          📦 資料由這台電腦上的 Claude 每日排程寫入(需要電腦、Claude app、Chrome 開著)。「⚠ 簡稱推定」表示該案 07 資料夾原本沒有檔案可參考簡稱(例如 桃81),確認檔名沒問題後按「確認簡稱」。「未歸檔」是對不到案件的檔案(如地址型的變流器銷售),放在 02 料件採購\02 變流器採購\未歸檔變流器出廠證明。
+          📦 變流器:這台電腦上的 Claude 每日排程從碩天 CPSDrive 下載(需要電腦、Claude app、Chrome 開著)。模組:Ina 信箱的 Apps Script 每小時把元晶來信附件存到「01 模組採購\模組出廠證明收件匣」,本機小幫手每 10 分鐘歸檔(發票用 OCR 讀備註欄案名)。「⚠ 簡稱推定」表示該案 07 資料夾原本沒有檔案可參考簡稱(例如 桃81),確認檔名沒問題後按「確認簡稱」。「未歸檔」是對不到案件的檔案(如地址型的變流器銷售),放在 02 料件採購\02 變流器採購\未歸檔變流器出廠證明。
         </div>
       </div>
     </section>
@@ -7458,6 +7459,9 @@ async function confirmSlotBooking(){
 // ===================================================================
 let INVERTER_CERTS = [];
 let certFilter = 'all';
+let certEquip = '變流器';
+const CERT_EQUIPS = [['變流器', '🔌 變流器'], ['模組', '🟦 模組']];
+function setCertEquip(e){ certEquip = e; renderInverterCerts(); }
 const CERT_FILTERS = [
   ['all', '全部'], ['已歸檔', '已歸檔'], ['未歸檔', '未歸檔'], ['abbr', '待確認簡稱'],
 ];
@@ -7484,18 +7488,22 @@ function setCertFilter(key){ certFilter = key; renderInverterCerts(); }
 function certNeedsAbbrCheck(r){ return r.abbr_guessed && !r.abbr_ok; }
 
 function renderInverterCerts(){
+  document.getElementById('certEquipTabs').innerHTML = CERT_EQUIPS.map(([k, label]) =>
+    `<div class="tab ${certEquip === k ? 'active' : ''}" onclick="setCertEquip('${k}')">${label} ${INVERTER_CERTS.filter(r => r.equipment === k).length}</div>`
+  ).join('');
+  const base = INVERTER_CERTS.filter(r => r.equipment === certEquip);
   const counts = {
-    all: INVERTER_CERTS.length,
-    '已歸檔': INVERTER_CERTS.filter(r => r.status === '已歸檔').length,
-    '未歸檔': INVERTER_CERTS.filter(r => r.status === '未歸檔').length,
-    abbr: INVERTER_CERTS.filter(certNeedsAbbrCheck).length,
+    all: base.length,
+    '已歸檔': base.filter(r => r.status === '已歸檔').length,
+    '未歸檔': base.filter(r => r.status === '未歸檔').length,
+    abbr: base.filter(certNeedsAbbrCheck).length,
   };
   document.getElementById('certFilterBtns').innerHTML = CERT_FILTERS.map(([k, label]) =>
     `<button class="cert-filter-btn ${certFilter === k ? 'active' : ''}" onclick="setCertFilter('${k}')">${label} ${counts[k]}</button>`
   ).join('');
 
   const kw = (document.getElementById('certSearchInput').value || '').trim();
-  let rows = INVERTER_CERTS;
+  let rows = base;
   if(certFilter === 'abbr') rows = rows.filter(certNeedsAbbrCheck);
   else if(certFilter !== 'all') rows = rows.filter(r => r.status === certFilter);
   if(kw) rows = rows.filter(r => [r.case_no, r.filed_name, r.src_name].some(v => (v || '').includes(kw)));
@@ -7522,7 +7530,7 @@ function renderInverterCerts(){
         <td style="white-space:nowrap;">${certEsc(filedAt)}</td>
         <td><div class="case-id cert-case-link" onclick="openCertModal('${r.id}')" title="檢視這案的檔案">${certEsc(r.case_no || '未歸檔')}</div></td>
         <td>
-          <div>${certEsc(r.filed_name)}
+          <div>${r.equipment === '模組' ? `<span class="ops-status-pill ops-status-pdf" style="margin-right:4px;">${certEsc(r.doc_type)}</span>` : ''}${certEsc(r.filed_name)}
             <button class="btn btn-ghost" style="padding:2px 7px;font-size:11px;margin-left:4px;" onclick="openCertModal('${r.id}', true)">✏️ 改名</button>
           </div>
           ${r.rename_to ? `<div class="cert-src" style="color:#B8720A;">⏳ 改名中 → ${certEsc(r.rename_to)}</div>` : ''}
@@ -7561,8 +7569,13 @@ function closeCertModal(){
 function renderCertModal(){
   const r = INVERTER_CERTS.find(x => x.id === certModalId);
   if(!r) return;
-  document.getElementById('certModalTitle').textContent = `📄 ${r.case_no || '未歸檔'}｜變流器出廠暨保固證明書`;
-  const pdf = r.file_url
+  document.getElementById('certModalTitle').textContent = `📄 ${r.case_no || '未歸檔'}｜${r.equipment}${r.doc_type}`;
+  const isPdf = /\.pdf$/i.test(r.filed_name || '');
+  const pdf = (r.file_url && !isPdf)
+    ? `<div class="cert-pdf-frame" style="display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;font-size:13px;text-align:center;padding:20px;">
+         <div style="font-size:40px;">📊</div><div>${certEsc(r.filed_name)}</div>
+         <a class="btn btn-primary" style="padding:6px 14px;font-size:12px;" href="${certEsc(r.file_url)}" target="_blank" rel="noopener">下載序號表</a></div>`
+    : r.file_url
     ? `<iframe class="cert-pdf-frame" src="${certEsc(r.file_url)}#view=FitH"></iframe>
        <div style="margin-top:6px;font-size:12px;"><a href="${certEsc(r.file_url)}" target="_blank" rel="noopener">在新分頁開啟 PDF ↗</a></div>`
     : `<div class="cert-pdf-frame" style="display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">
