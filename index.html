@@ -6562,13 +6562,14 @@ function updateSlotTaskBadges(){
     if(b){ if(n) b.textContent = n; else b.remove(); }
   }
 }
-// 2026-10-07：指派任務可以依「廠商（複選）」「負責人（複選）」篩選。
-// 負責人＝指派給的業務，或建立任務的安排人員（兩者擇一符合就算）。
-let SLOT_TASK_FILTER = {vendors: [], people: []};
+// 2026-10-07：指派任務可以依「廠商」「業務」「安排人員」篩選（三個都可複選，可一起用＝要同時符合）。
+// 業務＝任務的「指派給」；安排人員＝建立任務的同仁（creator）。
+let SLOT_TASK_FILTER = {vendors: [], reps: [], schedulers: []};
 function slotTaskFilterMatch(t){
   const f = SLOT_TASK_FILTER;
   if(f.vendors.length && !f.vendors.includes(t.vendor)) return false;
-  if(f.people.length && !(f.people.includes(t.assignee) || f.people.includes(t.creator))) return false;
+  if(f.reps.length && !f.reps.includes(t.assignee)) return false;
+  if(f.schedulers.length && !f.schedulers.includes(t.creator)) return false;
   return true;
 }
 function onSlotTaskFilterChange(el){
@@ -6580,7 +6581,7 @@ function onSlotTaskFilterChange(el){
   renderSlotTasks();
 }
 function clearSlotTaskFilters(){
-  SLOT_TASK_FILTER = {vendors: [], people: []};
+  SLOT_TASK_FILTER = {vendors: [], reps: [], schedulers: []};
   renderSlotTasks();
 }
 function renderSlotTaskFilterBar(pending, shownCount){
@@ -6588,7 +6589,9 @@ function renderSlotTaskFilterBar(pending, shownCount){
   if(!bar) return;
   const openIds = [...bar.querySelectorAll('.slot-type-dropdown.show')].map(p => p.id);
   const vendors = [...new Set([...pending.map(t => t.vendor), ...SLOT_TASK_FILTER.vendors].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
-  const people = [...new Set([...pending.flatMap(t => [t.assignee, t.creator]), ...SLOT_TASK_FILTER.people].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  const zh = (a, b) => a.localeCompare(b, 'zh-Hant');
+  const reps = [...new Set([...pending.map(t => t.assignee), ...SLOT_TASK_FILTER.reps].filter(Boolean))].sort(zh);
+  const schedulers = [...new Set([...pending.map(t => t.creator), ...SLOT_TASK_FILTER.schedulers].filter(Boolean))].sort(zh);
   const dd = (id, emptyLabel, kind, options, selected) => `
     <div class="quick-mark-input-wrap" style="min-width:170px;max-width:260px;">
       <div class="quick-mark-input slot-type-trigger" id="${id}Trigger" onclick="toggleSlotTypeDropdown('${id}Panel')">
@@ -6599,9 +6602,10 @@ function renderSlotTaskFilterBar(pending, shownCount){
         ${options.length ? options.map(o => `<label class="slot-type-option"><input type="checkbox" data-kind="${kind}" data-val="${escHtml(o)}" ${selected.includes(o) ? 'checked' : ''} onchange="onSlotTaskFilterChange(this)">${escHtml(o)}</label>`).join('') : '<div style="padding:10px 14px;font-size:12px;color:var(--text-muted);">沒有可選項目</div>'}
       </div>
     </div>`;
-  const active = SLOT_TASK_FILTER.vendors.length || SLOT_TASK_FILTER.people.length;
+  const active = SLOT_TASK_FILTER.vendors.length || SLOT_TASK_FILTER.reps.length || SLOT_TASK_FILTER.schedulers.length;
   bar.innerHTML = dd('slotTaskFilterVendor', '全部廠商（可複選）', 'vendors', vendors, SLOT_TASK_FILTER.vendors)
-    + dd('slotTaskFilterPeople', '全部負責人（可複選）', 'people', people, SLOT_TASK_FILTER.people)
+    + dd('slotTaskFilterRep', '全部業務（可複選）', 'reps', reps, SLOT_TASK_FILTER.reps)
+    + dd('slotTaskFilterScheduler', '全部安排人員（可複選）', 'schedulers', schedulers, SLOT_TASK_FILTER.schedulers)
     + (active ? `<button type="button" class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="clearSlotTaskFilters()">清除篩選</button>
       <span style="font-size:12px;color:var(--text-muted);">顯示 ${shownCount} / ${pending.length} 筆</span>` : '');
   openIds.forEach(id => { const p = document.getElementById(id); if(p) p.classList.add('show'); });
