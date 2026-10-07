@@ -2035,7 +2035,7 @@
           <span id="certFilterBtns" style="display:flex;gap:6px;flex-wrap:wrap;"></span>
         </div>
         <table>
-          <thead>
+          <thead id="certThead">
             <tr>
               <th>歸檔時間</th>
               <th>案號</th>
@@ -2080,7 +2080,7 @@
             </tbody>
           </table>
           <div class="login-note">
-            📋 盤點範圍:已進場或已掛表、但「設備登記」尚未取得的潤特/工程案件(12 家 EPC)。檢查各案「07 設備保固及出廠證明」資料夾的檔名是否有這 5 項文件;取得設備登記後會自動從清單移除。資料由這台電腦的小幫手每小時更新一次。點案號可看資料夾內的檔案。
+            📋 盤點範圍:已掛表、但「設備登記」尚未取得的潤特/工程案件(12 家 EPC)。檢查各案「07 設備保固及出廠證明」資料夾的檔名是否有這 5 項文件;取得設備登記後會自動從清單移除。資料由這台電腦的小幫手每小時更新一次。點案號可看資料夾內的檔案。
           </div>
         </div>
       </div>
@@ -7533,11 +7533,13 @@ function renderInverterCerts(){
   document.getElementById('invWrap').style.display = isInv ? '' : 'none';
   if(isInv){ renderEquipInventory(); return; }
   const base = INVERTER_CERTS.filter(r => r.equipment === certEquip);
+  const isModule = certEquip === '模組';
+  const unit = list => isModule ? groupModuleCerts(list).length : list.length;
   const counts = {
-    all: base.length,
-    '已歸檔': base.filter(r => r.status === '已歸檔').length,
-    '未歸檔': base.filter(r => r.status === '未歸檔').length,
-    abbr: base.filter(certNeedsAbbrCheck).length,
+    all: unit(base),
+    '已歸檔': unit(base.filter(r => r.status === '已歸檔')),
+    '未歸檔': unit(base.filter(r => r.status === '未歸檔')),
+    abbr: unit(base.filter(certNeedsAbbrCheck)),
   };
   document.getElementById('certFilterBtns').innerHTML = CERT_FILTERS.map(([k, label]) =>
     `<button class="cert-filter-btn ${certFilter === k ? 'active' : ''}" onclick="setCertFilter('${k}')">${label} ${counts[k]}</button>`
@@ -7548,6 +7550,10 @@ function renderInverterCerts(){
   if(certFilter === 'abbr') rows = rows.filter(certNeedsAbbrCheck);
   else if(certFilter !== 'all') rows = rows.filter(r => r.status === certFilter);
   if(kw) rows = rows.filter(r => [r.case_no, r.filed_name, r.src_name].some(v => (v || '').includes(kw)));
+  document.getElementById('certThead').innerHTML = isModule
+    ? '<tr><th>最近歸檔</th><th>案號</th><th>出廠證明</th><th>序號表</th><th>發票</th><th>出廠日期</th><th>放置位置</th></tr>'
+    : '<tr><th>歸檔時間</th><th>案號</th><th>歸檔檔名</th><th>出廠日期</th><th>狀態</th><th>放置位置</th></tr>';
+  if(isModule){ renderModuleCases(rows); return; }
   document.getElementById('certCountTag').textContent = `共 ${rows.length} 筆`;
 
   if(rows.length === 0){
@@ -7583,6 +7589,70 @@ function renderInverterCerts(){
         <td>
           <div class="cert-path">${certEsc(r.path)}</div>
           <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-top:4px;" onclick="copyCertPath('${r.id}')">📋 複製路徑</button>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+// ---- 模組：一案一列（出廠證明／序號表／發票 三欄）----
+const MODULE_DOC_TYPES = ['出廠證明', '序號表', '發票'];
+
+function groupModuleCerts(list){
+  const groups = new Map();
+  list.forEach(r => {
+    const key = r.case_no || ('未歸檔:' + r.id);  // 對不到案件的檔案各自一列
+    if(!groups.has(key)) groups.set(key, {key, case_no: r.case_no, docs: []});
+    groups.get(key).docs.push(r);
+  });
+  return [...groups.values()].map(g => {
+    g.latest = g.docs.map(d => d.filed_at || '').sort().pop();
+    g.ship_date = (g.docs.find(d => d.doc_type === '序號表') || g.docs.find(d => d.ship_date) || {}).ship_date;
+    g.path = g.docs[0].path;
+    return g;
+  }).sort((a, b) => (b.latest || '').localeCompare(a.latest || '') || (a.case_no || '').localeCompare(b.case_no || '', 'zh-Hant'));
+}
+
+function moduleDocCell(docs){
+  if(!docs.length) return '<span style="color:#D64545;font-weight:700;">✗</span> <span class="cert-src" style="display:inline;">尚未收到</span>';
+  return docs.map(d => `
+    <div style="margin-bottom:4px;">
+      <span style="color:var(--success);font-weight:700;">✓</span>
+      <span class="cert-case-link" style="font-size:12.5px;" onclick="openCertModal('${d.id}')" title="預覽／改名">${certEsc(d.filed_name)}</span>
+      ${d.rename_to ? `<div class="cert-src" style="color:#B8720A;">⏳ 改名中 → ${certEsc(d.rename_to)}</div>` : ''}
+    </div>`).join('');
+}
+
+function confirmGroupAbbr(ids){
+  ids.split(',').forEach(id => confirmCertAbbr(id));
+}
+
+function renderModuleCases(rows){
+  const groups = groupModuleCerts(rows);
+  document.getElementById('certCountTag').textContent = `共 ${groups.length} 案`;
+  if(groups.length === 0){
+    document.getElementById('certRows').innerHTML =
+      '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有符合條件的紀錄</td></tr>';
+    return;
+  }
+  document.getElementById('certRows').innerHTML = groups.map(g => {
+    const latest = g.latest ? new Date(g.latest).toLocaleString('sv-SE', {timeZone: 'Asia/Taipei'}).slice(0, 16) : '—';
+    const needAbbr = g.docs.filter(certNeedsAbbrCheck);
+    const unfiled = g.docs.some(d => d.status === '未歸檔');
+    const first = g.docs.find(d => d.doc_type === '出廠證明') || g.docs[0];
+    return `
+      <tr>
+        <td style="white-space:nowrap;">${certEsc(latest)}</td>
+        <td>
+          <div class="case-id cert-case-link" onclick="openCertModal('${first.id}')" title="檢視這案的檔案">${certEsc(g.case_no || '未歸檔')}</div>
+          ${unfiled ? '<span class="ops-status-pill ops-status-pending">未歸檔</span>' : ''}
+          ${needAbbr.length ? `<div style="margin-top:4px;"><span class="ops-status-pill ops-status-pending">⚠ 簡稱推定</span>
+            <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-top:3px;" onclick="confirmGroupAbbr('${needAbbr.map(d => d.id).join(',')}')">✔ 確認簡稱</button></div>` : ''}
+        </td>
+        ${MODULE_DOC_TYPES.map(t => `<td>${moduleDocCell(g.docs.filter(d => d.doc_type === t))}</td>`).join('')}
+        <td style="white-space:nowrap;">${certEsc(fmtDate(g.ship_date) || '—')}</td>
+        <td>
+          <div class="cert-path">${certEsc(g.path)}</div>
+          <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-top:4px;" onclick="copyCertPath('${first.id}')">📋 複製路徑</button>
         </td>
       </tr>`;
   }).join('');
