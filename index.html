@@ -2020,7 +2020,7 @@
           <h1 class="page-title">採購專區</h1>
           <div class="page-sub">變流器(碩天 CPSDrive,每天 09:00)與模組(元晶 Email,每小時)出廠證明自動歸檔到 G 槽案件「07 設備保固及出廠證明」</div>
         </div>
-        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="loadInverterCerts()">🔄 重新整理</button>
+        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="loadInverterCerts(); if(certEquip === '盤點') loadEquipInventory();">🔄 重新整理</button>
       </div>
 
       <div class="panel">
@@ -2029,6 +2029,7 @@
           <span class="module-tag tag-cloud" style="margin-left:6px;" id="certCountTag">共 0 筆</span>
         </div>
         <div class="tabs" id="certEquipTabs" style="margin-bottom:10px;"></div>
+        <div id="certListWrap">
         <div class="pending-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <input type="text" class="quick-mark-input" id="certSearchInput" placeholder="搜尋案號、檔名…" oninput="renderInverterCerts()" style="max-width:240px;">
           <span id="certFilterBtns" style="display:flex;gap:6px;flex-wrap:wrap;"></span>
@@ -2050,6 +2051,37 @@
         </table>
         <div class="login-note">
           📦 變流器:這台電腦上的 Claude 每日排程從碩天 CPSDrive 下載(需要電腦、Claude app、Chrome 開著)。模組:Ina 信箱的 Apps Script 每小時把元晶來信附件存到「01 模組採購\模組出廠證明收件匣」,本機小幫手每 10 分鐘歸檔(發票用 OCR 讀備註欄案名)。「⚠ 簡稱推定」表示該案 07 資料夾原本沒有檔案可參考簡稱(例如 桃81),確認檔名沒問題後按「確認簡稱」。「未歸檔」是對不到案件的檔案(如地址型的變流器銷售),放在 02 料件採購\02 變流器採購\未歸檔變流器出廠證明。
+        </div>
+        </div>
+
+        <!-- 設備資料盤點（2026-10-07） -->
+        <div id="invWrap" style="display:none;">
+          <div class="pending-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input type="text" class="quick-mark-input" id="invSearchInput" placeholder="搜尋案號、別名、廠商…" oninput="renderEquipInventory()" style="max-width:240px;">
+            <span id="invFilterBtns" style="display:flex;gap:6px;flex-wrap:wrap;"></span>
+            <span id="invUpdatedAt" style="font-size:11.5px;color:var(--text-muted);margin-left:auto;"></span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>案號</th>
+                <th>廠商</th>
+                <th>進度</th>
+                <th style="text-align:center;">模組<br>出廠證明</th>
+                <th style="text-align:center;">模組<br>序號表</th>
+                <th style="text-align:center;">模組<br>發票</th>
+                <th style="text-align:center;">變流器<br>出廠證明</th>
+                <th style="text-align:center;">變流器<br>發票</th>
+                <th style="text-align:center;">缺件</th>
+              </tr>
+            </thead>
+            <tbody id="invRows">
+              <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>
+            </tbody>
+          </table>
+          <div class="login-note">
+            📋 盤點範圍:已進場或已掛表、但「設備登記」尚未取得的潤特/工程案件(12 家 EPC)。檢查各案「07 設備保固及出廠證明」資料夾的檔名是否有這 5 項文件;取得設備登記後會自動從清單移除。資料由這台電腦的小幫手每小時更新一次。點案號可看資料夾內的檔案。
+          </div>
         </div>
       </div>
     </section>
@@ -7460,8 +7492,12 @@ async function confirmSlotBooking(){
 let INVERTER_CERTS = [];
 let certFilter = 'all';
 let certEquip = '變流器';
-const CERT_EQUIPS = [['變流器', '🔌 變流器'], ['模組', '🟦 模組']];
-function setCertEquip(e){ certEquip = e; renderInverterCerts(); }
+const CERT_EQUIPS = [['變流器', '🔌 變流器'], ['模組', '🟦 模組'], ['盤點', '📋 設備資料盤點']];
+function setCertEquip(e){
+  certEquip = e;
+  renderInverterCerts();
+  if(e === '盤點' && !EQUIP_INV_LOADED) loadEquipInventory();
+}
 const CERT_FILTERS = [
   ['all', '全部'], ['已歸檔', '已歸檔'], ['未歸檔', '未歸檔'], ['abbr', '待確認簡稱'],
 ];
@@ -7488,9 +7524,14 @@ function setCertFilter(key){ certFilter = key; renderInverterCerts(); }
 function certNeedsAbbrCheck(r){ return r.abbr_guessed && !r.abbr_ok; }
 
 function renderInverterCerts(){
-  document.getElementById('certEquipTabs').innerHTML = CERT_EQUIPS.map(([k, label]) =>
-    `<div class="tab ${certEquip === k ? 'active' : ''}" onclick="setCertEquip('${k}')">${label} ${INVERTER_CERTS.filter(r => r.equipment === k).length}</div>`
-  ).join('');
+  document.getElementById('certEquipTabs').innerHTML = CERT_EQUIPS.map(([k, label]) => {
+    const n = k === '盤點' ? (EQUIP_INV_LOADED ? `${EQUIP_INV.filter(r => r.missing).length}/${EQUIP_INV.length} 缺` : '') : INVERTER_CERTS.filter(r => r.equipment === k).length;
+    return `<div class="tab ${certEquip === k ? 'active' : ''}" onclick="setCertEquip('${k}')">${label} ${n}</div>`;
+  }).join('');
+  const isInv = certEquip === '盤點';
+  document.getElementById('certListWrap').style.display = isInv ? 'none' : '';
+  document.getElementById('invWrap').style.display = isInv ? '' : 'none';
+  if(isInv){ renderEquipInventory(); return; }
   const base = INVERTER_CERTS.filter(r => r.equipment === certEquip);
   const counts = {
     all: base.length,
@@ -7642,6 +7683,87 @@ function startCertPoll(){
       clearInterval(certPollTimer); certPollTimer = null;
     }
   }, 10000);
+}
+
+// ---- 設備資料盤點 ----
+let EQUIP_INV = [];
+let EQUIP_INV_LOADED = false;
+let invFilter = 'missing';
+const INV_CHECKS = [['module_cert', '模組出廠證明'], ['module_serial', '模組序號表'], ['module_invoice', '模組發票'],
+                    ['inverter_cert', '變流器出廠證明'], ['inverter_invoice', '變流器發票']];
+
+async function loadEquipInventory(){
+  try{
+    const res = await fetch(API_BASE + '/api/procurement/equipment-inventory');
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    EQUIP_INV = data.cases || [];
+    EQUIP_INV_LOADED = true;
+    renderInverterCerts();
+  }catch(e){
+    document.getElementById('invRows').innerHTML =
+      '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入失敗,請按「重新整理」再試一次</td></tr>';
+  }
+}
+
+function setInvFilter(k){ invFilter = k; renderEquipInventory(); }
+
+function renderEquipInventory(){
+  if(!EQUIP_INV_LOADED) return;
+  const filters = [['missing', '有缺件', EQUIP_INV.filter(r => r.missing).length],
+                   ['ok', '已齊全', EQUIP_INV.filter(r => !r.missing).length],
+                   ['all', '全部', EQUIP_INV.length]];
+  document.getElementById('invFilterBtns').innerHTML = filters.map(([k, label, n]) =>
+    `<button class="cert-filter-btn ${invFilter === k ? 'active' : ''}" onclick="setInvFilter('${k}')">${label} ${n}</button>`).join('');
+  const upd = EQUIP_INV.map(r => r.updated_at).filter(Boolean).sort().pop();
+  document.getElementById('invUpdatedAt').textContent = upd ? '最後更新 ' + new Date(upd).toLocaleString('sv-SE', {timeZone: 'Asia/Taipei'}).slice(0, 16) : '';
+
+  const kw = (document.getElementById('invSearchInput').value || '').trim();
+  let rows = EQUIP_INV;
+  if(invFilter === 'missing') rows = rows.filter(r => r.missing);
+  else if(invFilter === 'ok') rows = rows.filter(r => !r.missing);
+  if(kw) rows = rows.filter(r => [r.case_no, r.alias, r.vendor].some(v => (v || '').includes(kw)));
+  document.getElementById('certCountTag').textContent = `共 ${rows.length} 案`;
+  if(rows.length === 0){
+    document.getElementById('invRows').innerHTML =
+      '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有符合條件的案件</td></tr>';
+    return;
+  }
+  const mark = ok => ok ? '<span style="color:var(--success);font-weight:700;">✓</span>' : '<span style="color:#D64545;font-weight:700;">✗</span>';
+  document.getElementById('invRows').innerHTML = rows.map(r => {
+    const vendorCls = VENDOR_CLASS[r.vendor] || 'vendor-other';
+    const stageCls = r.stage === '已掛表' ? 'ops-status-done' : 'ops-status-pending';
+    return `
+      <tr>
+        <td>
+          <div class="case-id cert-case-link" onclick="openInvModal('${r.id}')" title="檢視 07 資料夾檔案">${certEsc(r.case_no)}</div>
+          <div class="case-alias">${certEsc(r.alias || '')}</div>
+        </td>
+        <td><span class="vendor-pill ${vendorCls}">${certEsc(r.vendor || '—')}</span></td>
+        <td><span class="ops-status-pill ${stageCls}">${certEsc(r.stage || '')}</span>${r.meter_date ? `<div class="cert-src">掛表 ${certEsc(fmtDate(r.meter_date))}</div>` : ''}</td>
+        ${INV_CHECKS.map(([k]) => `<td style="text-align:center;">${mark(r[k])}</td>`).join('')}
+        <td style="text-align:center;">${r.missing ? `<span class="ops-status-pill ops-status-pending">${r.missing}</span>` : '<span class="ops-status-pill ops-status-done">齊全</span>'}</td>
+      </tr>`;
+  }).join('');
+}
+
+function openInvModal(id){
+  const r = EQUIP_INV.find(x => x.id === id);
+  if(!r) return;
+  certModalId = null;
+  document.getElementById('certModalTitle').textContent = `📋 ${r.case_no}｜${r.alias || ''}｜07 設備保固及出廠證明`;
+  const missing = INV_CHECKS.filter(([k]) => !r[k]).map(([, label]) => label);
+  document.getElementById('certModalBody').innerHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+      ${INV_CHECKS.map(([k, label]) => `<span class="ops-status-pill ${r[k] ? 'ops-status-done' : 'ops-status-pending'}">${r[k] ? '✓' : '✗'} ${label}</span>`).join('')}
+    </div>
+    ${missing.length ? `<div style="font-size:12.5px;margin-bottom:10px;color:#B8720A;">缺:${missing.join('、')}</div>` : '<div style="font-size:12.5px;margin-bottom:10px;color:var(--success);">5 項設備文件齊全</div>'}
+    <div class="cert-side-label" style="margin-top:0;">資料夾內的檔案(${r.files.length})</div>
+    <ul class="cert-file-list">${r.files.length ? r.files.map(n => `<li>${certEsc(n)}</li>`).join('') : '<li style="color:var(--text-muted);">(資料夾是空的)</li>'}</ul>
+    <div class="cert-path" style="margin-top:8px;max-width:none;">${certEsc(r.path || '')}</div>
+    <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-top:4px;" onclick="navigator.clipboard.writeText(${JSON.stringify(r.path || '').replace(/"/g, '&quot;')}).then(() => showToast('已複製路徑'))">📋 複製路徑</button>
+    <div class="login-note" style="margin-top:12px;">判斷依據是檔名關鍵字(例如「模組」+「發票」)。檔名不含關鍵字的文件(例如壓縮檔)會被算成缺件,可以把檔案改成慣用檔名後,下一次更新(每小時)就會變成 ✓。</div>`;
+  document.getElementById('certModalOverlay').classList.add('show');
 }
 
 function copyCertPath(id){
