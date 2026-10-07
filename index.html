@@ -563,6 +563,9 @@
   .cert-file-list li{padding:6px 10px;border-bottom:1px solid var(--border,#E3E6EA);word-break:break-all;}
   .cert-file-list li:last-child{border-bottom:none;}
   .cert-file-list li.current{background:#FFF7E6;font-weight:700;}
+  .cert-file-list li.clickable{cursor:pointer;}
+  .cert-file-list li.clickable:hover{background:#F3F7FF;}
+  .cert-file-list li.previewing{outline:2px solid #1E70C8;outline-offset:-2px;}
   .cert-rename-input{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border,#E3E6EA);border-radius:8px;font-size:13px;}
   @media (max-width: 768px){
     .cert-modal-grid{grid-template-columns:1fr;}
@@ -7692,7 +7695,7 @@ function renderCertModal(){
     : `<div class="cert-pdf-frame" style="display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">
          PDF 預覽還沒上傳<br>(本機小幫手每分鐘同步一次,電腦需開機)</div>`;
   const files = r.folder_files.length
-    ? r.folder_files.map(n => `<li class="${n === r.filed_name ? 'current' : ''}">${n === r.filed_name ? '👉 ' : ''}${certEsc(n)}</li>`).join('')
+    ? r.folder_files.map(n => `<li class="clickable ${n === r.filed_name ? 'current previewing' : ''}" data-name="${certEsc(n)}" onclick="previewFolderFile(this)" title="點一下在左邊預覽">${n === r.filed_name ? '👉 ' : ''}${certEsc(n)}</li>`).join('')
     : '<li style="color:var(--text-muted);">(尚未取得資料夾清單)</li>';
   const pending = r.rename_to
     ? `<div style="margin-top:6px;font-size:12px;color:#B8720A;">⏳ 等待本機套用:${certEsc(r.rename_to)}</div>` : '';
@@ -7700,7 +7703,7 @@ function renderCertModal(){
     ? `<div style="margin-top:6px;font-size:12px;">${certEsc(r.rename_result)}</div>` : '';
   document.getElementById('certModalBody').innerHTML = `
     <div class="cert-modal-grid">
-      <div>${pdf}</div>
+      <div id="certPreviewPane" data-path="${certEsc(r.path)}">${pdf}</div>
       <div>
         <div class="cert-side-label" style="margin-top:0;">目前檔名</div>
         <input type="text" class="cert-rename-input" id="certRenameInput" value="${certEsc(r.filed_name)}"
@@ -7710,13 +7713,57 @@ function renderCertModal(){
           ${r.abbr_guessed && !r.abbr_ok ? `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="confirmCertAbbr('${r.id}')">✔ 檔名沒問題(確認簡稱)</button>` : ''}
         </div>
         ${pending}${result}
-        <div class="cert-side-label">放置資料夾內的檔案(${r.folder_files.length})</div>
+        <div class="cert-side-label">放置資料夾內的檔案(${r.folder_files.length})<span style="font-weight:400;color:var(--text-muted);"> — 點檔名預覽</span></div>
         <ul class="cert-file-list">${files}</ul>
         <div class="cert-path" style="margin-top:8px;max-width:none;">${certEsc(r.path)}</div>
         <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-top:4px;" onclick="copyCertPath('${r.id}')">📋 複製路徑</button>
         <div class="login-note" style="margin-top:12px;">改名會由這台電腦上的小幫手在 1 分鐘內套用到 G 槽(電腦需開機)。檔名不能含 \\ / : * ? " &lt; &gt; |。</div>
       </div>
     </div>`;
+}
+
+// ---- 點資料夾清單的檔名 → 左邊預覽（檔案由本機小幫手同步到「採購-資料夾預覽」）----
+const FOLDER_FILES = {};
+
+async function loadFolderFiles(path){
+  const c = FOLDER_FILES[path];
+  if(c && Date.now() - c.at < 60000) return c;
+  const res = await fetch(API_BASE + '/api/procurement/folder-files?path=' + encodeURIComponent(path));
+  const d = await res.json();
+  if(d.error) throw new Error(d.error);
+  d.at = Date.now();
+  FOLDER_FILES[path] = d;
+  return d;
+}
+
+function filePreviewHtml(name, url, skipped){
+  const box = inner => `<div class="cert-pdf-frame" style="display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;font-size:13px;text-align:center;padding:20px;">${inner}</div>`;
+  if(!url){
+    return box(skipped
+      ? `<div style="font-size:36px;">📦</div><div>${certEsc(name)}</div><div style="color:var(--text-muted);">壓縮檔或超過 5MB 的檔案無法在這裡預覽,請到 G 槽開啟</div>`
+      : `<div style="font-size:36px;">⏳</div><div>${certEsc(name)}</div><div style="color:var(--text-muted);">這個檔案還沒同步到雲端(本機小幫手每 15 分鐘同步一次,電腦需開機)</div>`);
+  }
+  const link = `<div style="margin-top:6px;font-size:12px;"><a href="${certEsc(url)}" target="_blank" rel="noopener">在新分頁開啟 ↗</a></div>`;
+  if(/\.pdf$/i.test(name)) return `<iframe class="cert-pdf-frame" src="${certEsc(url)}#view=FitH"></iframe>${link}`;
+  if(/\.(jpe?g|png)$/i.test(name)) return `<div class="cert-pdf-frame" style="overflow:auto;text-align:center;"><img src="${certEsc(url)}" style="max-width:100%;"></div>${link}`;
+  return box(`<div style="font-size:36px;">📊</div><div>${certEsc(name)}</div>
+    <a class="btn btn-primary" style="padding:6px 14px;font-size:12px;" href="${certEsc(url)}" target="_blank" rel="noopener">下載檔案</a>`);
+}
+
+async function previewFolderFile(li){
+  const pane = document.getElementById('certPreviewPane');
+  if(!pane) return;
+  const name = li.dataset.name;
+  li.parentElement.querySelectorAll('li').forEach(x => x.classList.remove('previewing'));
+  li.classList.add('previewing');
+  pane.innerHTML = `<div class="cert-pdf-frame" style="display:flex;align-items:center;justify-content:center;color:var(--text-muted);">載入中…</div>`;
+  try{
+    const d = await loadFolderFiles(pane.dataset.path);
+    const f = d.files.find(x => x.name === name);
+    pane.innerHTML = filePreviewHtml(name, f && f.url, d.skipped.includes(name));
+  }catch(e){
+    pane.innerHTML = filePreviewHtml(name, '', false);
+  }
 }
 
 async function submitCertRename(){
@@ -7824,15 +7871,24 @@ function openInvModal(id){
   document.getElementById('certModalTitle').textContent = `📋 ${r.case_no}｜${r.alias || ''}｜07 設備保固及出廠證明`;
   const missing = INV_CHECKS.filter(([k]) => !r[k]).map(([, label]) => label);
   document.getElementById('certModalBody').innerHTML = `
+    <div class="cert-modal-grid">
+    <div id="certPreviewPane" data-path="${certEsc(r.path || '')}">
+      <div class="cert-pdf-frame" style="display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;">← 點右邊的檔名在這裡預覽</div>
+    </div>
+    <div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
       ${INV_CHECKS.map(([k, label]) => `<span class="ops-status-pill ${r[k] ? 'ops-status-done' : 'ops-status-pending'}">${r[k] ? '✓' : '✗'} ${label}</span>`).join('')}
     </div>
     ${missing.length ? `<div style="font-size:12.5px;margin-bottom:10px;color:#B8720A;">缺:${missing.join('、')}</div>` : '<div style="font-size:12.5px;margin-bottom:10px;color:var(--success);">5 項設備文件齊全</div>'}
     <div class="cert-side-label" style="margin-top:0;">資料夾內的檔案(${r.files.length})</div>
-    <ul class="cert-file-list">${r.files.length ? r.files.map(n => `<li>${certEsc(n)}</li>`).join('') : '<li style="color:var(--text-muted);">(資料夾是空的)</li>'}</ul>
+    <ul class="cert-file-list">${r.files.length ? r.files.map(n => `<li class="clickable" data-name="${certEsc(n)}" onclick="previewFolderFile(this)" title="點一下在左邊預覽">${certEsc(n)}</li>`).join('') : '<li style="color:var(--text-muted);">(資料夾是空的)</li>'}</ul>
     <div class="cert-path" style="margin-top:8px;max-width:none;">${certEsc(r.path || '')}</div>
     <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-top:4px;" onclick="navigator.clipboard.writeText(${JSON.stringify(r.path || '').replace(/"/g, '&quot;')}).then(() => showToast('已複製路徑'))">📋 複製路徑</button>
-    <div class="login-note" style="margin-top:12px;">判斷依據是檔名關鍵字(例如「模組」+「發票」)。檔名不含關鍵字的文件(例如壓縮檔)會被算成缺件,可以把檔案改成慣用檔名後,下一次更新(每小時)就會變成 ✓。</div>`;
+    <div class="login-note" style="margin-top:12px;">判斷依據是檔名關鍵字(例如「模組」+「發票」)。檔名不含關鍵字的文件(例如壓縮檔)會被算成缺件,可以把檔案改成慣用檔名後,下一次更新(每小時)就會變成 ✓。</div>
+    </div>
+    </div>`;
+  const firstLi = document.querySelector('#certModalBody .cert-file-list li.clickable');
+  if(firstLi) previewFolderFile(firstLi);
   document.getElementById('certModalOverlay').classList.add('show');
 }
 
