@@ -7484,7 +7484,7 @@ function renderInverterCerts(){
   }
   document.getElementById('certRows').innerHTML = rows.map(r => {
     const statusCls = r.status === '已歸檔' ? 'ops-status-done' : (r.status === '未歸檔' ? 'ops-status-pending' : 'ops-status-pdf');
-    const filedAt = r.filed_at ? r.filed_at.replace('T', ' ').slice(0, 16) : '—';
+    const filedAt = r.filed_at ? new Date(r.filed_at).toLocaleString('sv-SE', {timeZone: 'Asia/Taipei'}).slice(0, 16) : '—';
     let abbr = '';
     if(certNeedsAbbrCheck(r)){
       abbr = `<div style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
