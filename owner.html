@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<!-- 屋主版預約頁（2026-10-07 測試版）。業務把 owner.html?t=屋主Token 轉給屋主，屋主自己選時間。
+     刻意跟業務版 book.html 分開：不顯示案號、廠商、地址、回覆期限等內部資訊，沒有 LINE 綁定，
+     只能在 PM 設定的時段內選開始時間，結束時間自動算、不能改。 -->
+<title>陽光伏特家｜施工時間預約</title>
+<style>
+  :root{
+    --bg:#F7F3EC; --surface:#FFFFFF; --text:#1B2333; --text-muted:#6B7280;
+    --border:#E4E8F1; --success:#16A34A; --danger:#D64545; --danger-soft:#FDECEC;
+    --sun-1:#FFB648; --sun-2:#F2790C; --sun-3:#C4530A;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;min-height:100vh;font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;
+    background:radial-gradient(ellipse 900px 500px at 100% 0%, rgba(255,182,72,.18), transparent 60%), var(--bg);color:var(--text);}
+  .wrap{max-width:480px;margin:0 auto;padding:20px 16px 60px;}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
+  .brand-mark{width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,var(--sun-1),var(--sun-2) 65%,var(--sun-3));
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;box-shadow:0 5px 14px rgba(196,83,10,.3);}
+  .brand-name{font-weight:800;font-size:17px;}
+  .brand-sub{font-size:12px;color:var(--text-muted);}
+  .card{background:#FFFCF5;border:1px solid #F0E4CC;border-radius:18px;padding:20px;margin-bottom:16px;box-shadow:0 2px 10px rgba(30,40,70,.06);}
+  h1{font-size:20px;margin:0 0 8px;line-height:1.5;}
+  .lead{font-size:15.5px;line-height:1.8;}
+  .muted{color:var(--text-muted);font-size:13.5px;line-height:1.7;}
+  .step{font-size:16px;font-weight:800;margin:22px 0 10px;display:flex;align-items:center;gap:8px;}
+  .step .n{width:26px;height:26px;border-radius:50%;background:var(--sun-2);color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  .opt{padding:14px 8px;border-radius:14px;border:2px solid var(--border);background:#fff;font-size:16px;font-weight:700;color:var(--text);cursor:pointer;text-align:center;line-height:1.4;}
+  .opt small{display:block;font-size:12.5px;font-weight:500;color:var(--text-muted);}
+  .opt.active{background:linear-gradient(135deg,var(--sun-1),var(--sun-2));border-color:transparent;color:#fff;}
+  .opt.active small{color:#fff;}
+  .opt:disabled{background:#F1F1F3;color:#B0B4BC;border-color:#EEE;cursor:not-allowed;}
+  label{display:block;font-size:14.5px;font-weight:700;margin:14px 0 6px;}
+  input,select,textarea{width:100%;border:1.5px solid var(--border);border-radius:12px;padding:13px 14px;font-size:16px;font-family:inherit;background:#fff;color:var(--text);}
+  textarea{resize:vertical;min-height:70px;}
+  .btn{width:100%;margin-top:18px;padding:16px;border:none;border-radius:14px;background:linear-gradient(135deg,var(--sun-1),var(--sun-2));color:#fff;font-size:17px;font-weight:800;cursor:pointer;}
+  .btn:disabled{opacity:.6;}
+  .btn-ghost{width:100%;margin-top:12px;padding:14px;border:1.5px solid var(--border);border-radius:14px;background:#fff;color:var(--text);font-size:15px;font-weight:700;cursor:pointer;}
+  .err{display:none;background:var(--danger-soft);color:var(--danger);border-radius:12px;padding:12px 14px;font-size:14px;margin-top:14px;line-height:1.6;}
+  .ok-box{text-align:center;padding:26px 6px;}
+  .ok-icon{font-size:54px;}
+  .big-time{font-size:22px;font-weight:800;color:var(--sun-3);margin:12px 0;line-height:1.5;}
+  .help{font-size:13.5px;color:var(--text-muted);text-align:center;margin-top:18px;line-height:1.7;}
+  .alt-row{display:flex;gap:8px;margin-bottom:10px;}
+  .alt-row input{flex:1.3;} .alt-row select{flex:1;}
+  .alt-del{flex:0 0 46px;border:none;border-radius:12px;background:#F1F3F8;font-size:16px;cursor:pointer;}
+  .loading{text-align:center;color:var(--text-muted);padding:50px 10px;font-size:15px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <div class="brand-mark">陽</div>
+    <div><div class="brand-name">陽光伏特家</div><div class="brand-sub">施工時間預約</div></div>
+  </div>
+  <div id="app"><div class="loading">載入中…</div></div>
+</div>
+
+<script>
+const API_BASE = 'https://epc-backend-4aj2.onrender.com';
+const T = new URLSearchParams(location.search).get('t') || '';
+let D = null;          // 後端回傳的預約資料
+let selDate = '', selStart = '';
+let mode = '';         // ''＝依狀態顯示；'pick'＝選時間；'alt'＝提供其他時間
+const WD = ['日','一','二','三','四','五','六'];
+
+const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+const fmtMin = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+function dateLabel(iso){ const d = new Date(iso + 'T00:00:00'); return `${d.getMonth()+1}/${d.getDate()}（週${WD[d.getDay()]}）`; }
+function durLabel(m){ const h = Math.floor(m / 60), r = m % 60; return (h ? h + ' 小時' : '') + (r ? r + ' 分鐘' : '') || m + ' 分鐘'; }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function repHelp(){ return `不會操作、或想改時間的話，直接回覆${D && D.rep_name ? '您的業務 <b>' + esc(D.rep_name) + '</b>' : '您的業務'} 就可以了，謝謝您！`; }
+
+// 某天可以選的開始時間：在屋主可選時段內、作業時間不跟施工團隊其他預約重疊
+function startOptions(date){
+  const dur = D.duration_min, ws = toMin(D.window_start), we = toMin(D.window_end);
+  const busy = (D.busy_slots || []).filter(b => b.date === date).map(b => [toMin(b.start_time), toMin(b.end_time)]);
+  const out = [];
+  for(let s = ws; s + dur <= we; s += 30){
+    out.push({start: fmtMin(s), end: fmtMin(s + dur), ok: !busy.some(([bs, be]) => s < be && bs < s + dur)});
+  }
+  return out;
+}
+
+async function init(){
+  const app = document.getElementById('app');
+  if(!T){ app.innerHTML = '<div class="card"><div class="lead">連結不完整，請直接聯絡您的業務。</div></div>'; return; }
+  try{
+    const res = await fetch(API_BASE + '/api/owner-booking/' + encodeURIComponent(T), {cache: 'no-store'});
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok){ app.innerHTML = `<div class="card"><div class="lead">${esc(data.error || '找不到這個預約，請直接聯絡您的業務。')}</div></div>`; return; }
+    D = data;
+    render();
+  }catch(err){
+    app.innerHTML = '<div class="card"><div class="lead">載入失敗，請檢查網路後重新整理。</div></div>';
+  }
+}
+
+function headerHtml(){
+  return `<div class="card">
+    <h1>您好！我們要為您安排：<br>${D.items.map(esc).join('、')}</h1>
+    <div class="muted">大約需要 <b>${durLabel(D.duration_min)}</b>${D.rep_name ? `｜您的業務：<b>${esc(D.rep_name)}</b>` : ''}</div>
+  </div>`;
+}
+function contactHtml(){
+  return `<div class="step"><span class="n">${mode === 'alt' ? 2 : 3}</span>您的聯絡資料</div>
+    <label for="ownerName">姓名</label><input id="ownerName" autocomplete="name" placeholder="例如：王小明">
+    <label for="ownerPhone">聯絡電話</label><input id="ownerPhone" type="tel" autocomplete="tel" placeholder="例如：0912-345-678">
+    <label for="ownerNote">想告訴我們的事（選填）</label><textarea id="ownerNote" placeholder="例如：下午才在家、請先打電話"></textarea>`;
+}
+
+function render(){
+  const app = document.getElementById('app');
+  if(D.status === 'done'){
+    const b = D.booked || {};
+    app.innerHTML = `<div class="card ok-box"><div class="ok-icon">✅</div><h1>預約完成，謝謝您！</h1>
+      ${b.date ? `<div class="big-time">${dateLabel(b.date)}<br>${esc(b.start_time)}–${esc(b.end_time)}</div>` : ''}
+      <div class="lead">施工團隊會在這個時間到場。</div><div class="help">${repHelp()}</div></div>`;
+    return;
+  }
+  if(D.status === 'wait_confirm' && mode !== 'alt'){
+    const c = D.chosen_slot;
+    app.innerHTML = headerHtml() + `<div class="card"><h1>我們幫您安排在這個時間，可以嗎？</h1>
+      <div class="big-time" style="text-align:center;">${dateLabel(c.date)}<br>${esc(c.start_time)}–${esc(c.end_time)}</div>
+      ${contactHtml()}
+      <button class="btn" id="submitBtn" onclick="submitConfirm()">✅ 可以，確認這個時間</button>
+      <div class="err" id="err"></div>
+      <button class="btn-ghost" onclick="mode='alt';render()">這個時間不方便，我要提供其他時間</button>
+      <div class="help">${repHelp()}</div></div>`;
+    return;
+  }
+  if(D.status === 'wait_pm' && !mode){
+    app.innerHTML = headerHtml() + `<div class="card"><h1>已收到您方便的時間 🙏</h1>
+      <div class="lead">我們會跟施工團隊確認後，再請業務通知您，或請您再打開這個連結確認。</div>
+      <div class="muted" style="margin-top:10px;">您提供的時間：<br>${(D.proposed || []).map(s => `${dateLabel(s.date)} ${esc(s.start_time)}–${esc(s.end_time)}`).join('<br>')}</div>
+      <button class="btn-ghost" onclick="mode='pick';render()">我想重新選擇時間</button>
+      <div class="help">${repHelp()}</div></div>`;
+    return;
+  }
+  if(mode === 'alt'){ renderAlt(); return; }
+  renderPick();
+}
+
+function renderPick(){
+  const app = document.getElementById('app');
+  const dateBtns = D.candidate_dates.map(d => {
+    const any = startOptions(d).some(o => o.ok);
+    return `<button class="opt ${selDate === d ? 'active' : ''}" ${any ? '' : 'disabled'} onclick="pickDate('${d}')">${dateLabel(d)}${any ? '' : '<small>已額滿</small>'}</button>`;
+  }).join('');
+  const times = selDate ? startOptions(selDate) : [];
+  const timeBtns = times.map(o => `<button class="opt ${selStart === o.start ? 'active' : ''}" ${o.ok ? '' : 'disabled'} onclick="pickStart('${o.start}')">${o.start}<small>到 ${o.end}${o.ok ? '' : '（已有安排）'}</small></button>`).join('');
+  app.innerHTML = headerHtml() + `<div class="card">
+    <div class="step" style="margin-top:0;"><span class="n">1</span>請選一天</div>
+    <div class="grid">${dateBtns}</div>
+    <div class="step"><span class="n">2</span>請選開始時間</div>
+    ${selDate ? `<div class="grid">${timeBtns}</div>` : '<div class="muted">請先選上面的日期</div>'}
+    ${contactHtml()}
+    <button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>
+    <div class="err" id="err"></div>
+    <button class="btn-ghost" onclick="mode='alt';render()">以上時間都不方便？告訴我們您方便的時間</button>
+    <div class="help">${repHelp()}</div>
+  </div>`;
+  restoreContact();
+}
+function pickDate(d){ saveContact(); selDate = d; selStart = ''; renderPick(); }
+function pickStart(s){ saveContact(); selStart = s; renderPick(); }
+
+// 重畫畫面時保留已輸入的聯絡資料
+let CONTACT = {name: '', phone: '', note: ''};
+function saveContact(){
+  const n = document.getElementById('ownerName'); if(!n) return;
+  CONTACT = {name: n.value, phone: document.getElementById('ownerPhone').value, note: document.getElementById('ownerNote').value};
+}
+function restoreContact(){
+  const n = document.getElementById('ownerName'); if(!n) return;
+  n.value = CONTACT.name; document.getElementById('ownerPhone').value = CONTACT.phone; document.getElementById('ownerNote').value = CONTACT.note;
+}
+function readContact(){
+  saveContact();
+  const name = CONTACT.name.trim(), phone = CONTACT.phone.trim();
+  if(!name || (phone.match(/\d/g) || []).length < 8) return null;
+  return {owner_name: name, owner_phone: phone, note: CONTACT.note.trim()};
+}
+function showErr(msg){ const e = document.getElementById('err'); e.textContent = msg; e.style.display = 'block'; }
+
+async function post(path, body, btnText){
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.textContent = '送出中…';
+  try{
+    const res = await fetch(API_BASE + '/api/owner-booking/' + encodeURIComponent(T) + path, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(data.error || '送出失敗，請稍後再試');
+    return data;
+  }catch(err){
+    showErr('⚠️ ' + err.message);
+    btn.disabled = false; btn.textContent = btnText;
+    return null;
+  }
+}
+
+async function submitBook(){
+  if(!selDate || !selStart){ showErr('請先選日期和開始時間'); return; }
+  const c = readContact();
+  if(!c){ showErr('請填寫您的姓名和聯絡電話'); return; }
+  const data = await post('/book', {date: selDate, start_time: selStart, ...c}, '確認預約');
+  if(data){ D.status = 'done'; D.booked = {date: selDate, ...data.booked}; mode = ''; render(); }
+}
+async function submitConfirm(){
+  const c = readContact();
+  if(!c){ showErr('請填寫您的姓名和聯絡電話'); return; }
+  const data = await post('/confirm', c, '✅ 可以，確認這個時間');
+  if(data){ D.status = 'done'; D.booked = data.booked; mode = ''; render(); }
+}
+
+// ---- 提供其他時間 ----
+let ALT = [{date: '', start: ''}];
+function altStartOptions(date){
+  const opts = date ? startOptions(date) : startOptions('0000-00-00');
+  return '<option value="">開始時間</option>' + opts.map(o => `<option value="${o.start}" ${o.ok ? '' : 'disabled'}>${o.start}–${o.end}${o.ok ? '' : '（已有安排）'}</option>`).join('');
+}
+function renderAlt(){
+  const app = document.getElementById('app');
+  const tmr = new Date(Date.now() + 86400000);
+  const minDate = tmr.getFullYear() + '-' + String(tmr.getMonth()+1).padStart(2,'0') + '-' + String(tmr.getDate()).padStart(2,'0');
+  app.innerHTML = headerHtml() + `<div class="card">
+    <h1 style="font-size:18px;">告訴我們您方便的時間</h1>
+    <div class="muted">可以填好幾組，時間要在 ${esc(D.window_start)}–${esc(D.window_end)} 之間。我們跟施工團隊確認後會選一個。</div>
+    <div class="step"><span class="n">1</span>您方便的日期和時間</div>
+    ${ALT.map((a, i) => `<div class="alt-row">
+      <input type="date" min="${minDate}" value="${a.date}" onchange="ALT[${i}].date=this.value;ALT[${i}].start='';saveContact();renderAlt()">
+      <select onchange="ALT[${i}].start=this.value">${altStartOptions(a.date)}</select>
+      ${ALT.length > 1 ? `<button class="alt-del" onclick="saveContact();ALT.splice(${i},1);renderAlt()">✕</button>` : ''}
+    </div>`).join('')}
+    <button class="btn-ghost" style="margin-top:0;" onclick="saveContact();ALT.push({date:'',start:''});renderAlt()">＋ 再加一組時間</button>
+    ${contactHtml()}
+    <button class="btn" id="submitBtn" onclick="submitAlt()">送出我方便的時間</button>
+    <div class="err" id="err"></div>
+    <button class="btn-ghost" onclick="saveContact();mode='pick';render()">← 回去選頁面上的日期</button>
+    <div class="help">${repHelp()}</div>
+  </div>`;
+  document.querySelectorAll('.alt-row select').forEach((sel, i) => { sel.value = ALT[i].start; });
+  restoreContact();
+}
+async function submitAlt(){
+  const slots = ALT.filter(a => a.date && a.start).map(a => ({date: a.date, start_time: a.start}));
+  if(!slots.length){ showErr('請至少填一組日期和開始時間'); return; }
+  const c = readContact();
+  if(!c){ showErr('請填寫您的姓名和聯絡電話'); return; }
+  const data = await post('/propose', {slots, ...c}, '送出我方便的時間');
+  if(data){ D.status = 'wait_pm'; D.proposed = data.slots; mode = ''; render(); }
+}
+
+init();
+</script>
+</body>
+</html>

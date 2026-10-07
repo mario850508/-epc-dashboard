@@ -2294,6 +2294,12 @@
             <div style="flex:1.3;"><input type="date" class="quick-mark-input" id="slotTaskDeadlineDate" onchange="slotDeadlineTouched=true"></div>
             <div style="flex:1;"><select class="quick-mark-input" id="slotTaskDeadlineTime" onchange="slotDeadlineTouched=true"></select></div>
           </div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">屋主版可選時段（測試中：業務若改傳「屋主版連結」，屋主只能選這段時間內、且作業要在結束前做完）</label>
+          <div style="display:flex;gap:10px;margin-bottom:18px;align-items:center;">
+            <select class="quick-mark-input" id="slotTaskOwnerWinStart" style="flex:1;"></select>
+            <span style="font-size:12px;color:var(--text-muted);">到</span>
+            <select class="quick-mark-input" id="slotTaskOwnerWinEnd" style="flex:1;"></select>
+          </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">安排人員（業務完成安排、期限快到時，LINE 通知這位同仁；選「不通知」就不發）</label>
           <div style="display:flex;gap:8px;margin-bottom:6px;">
             <select class="quick-mark-input" id="slotTaskCreator" style="flex:1;"></select>
@@ -2315,6 +2321,7 @@
         <div class="modal-body">
           <textarea id="slotSummaryTextarea" readonly style="width:100%;min-height:260px;border:1px solid var(--border);border-radius:10px;padding:14px;font-size:12.5px;font-family:ui-monospace,monospace;line-height:1.7;color:var(--text);background:var(--surface-2);resize:vertical;"></textarea>
           <button class="btn btn-ghost" id="slotSummaryPreviewBtn" style="width:100%;justify-content:center;padding:11px;margin-top:12px;display:none;" onclick="previewSlotTaskLink()">👀 預覽業務填單畫面</button>
+          <button class="btn btn-ghost" id="slotSummaryOwnerBtn" style="width:100%;justify-content:center;padding:11px;margin-top:8px;display:none;" onclick="showOwnerMessage()">🏠 改成「屋主版」訊息（業務轉傳給屋主，測試中）</button>
           <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:8px;" onclick="shareSlotSummaryToLine()">📤 傳送到 LINE</button>
           <button class="btn btn-ghost" style="width:100%;justify-content:center;padding:11px;margin-top:8px;" onclick="copySlotSummaryText()">📎 複製清單</button>
         </div>
@@ -6653,6 +6660,7 @@ function renderSlotTasks(){
       ${t.deadline ? (() => { const over = new Date(t.deadline) < new Date(); return `<span style="font-size:11px;font-weight:700;flex-shrink:0;color:${over ? '#D64545' : '#B45309'};">⏰ ${fmtDeadline(t.deadline)}${over ? '（已逾期）' : ''}</span>`; })() : ''}
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="adjustSlotDeadline('${t.record_id}')">⏰ 期限</button>
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="copySlotTaskMessage('${t.record_id}')">📎 複製訊息</button>
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="openOwnerMessageFor('${t.record_id}')">🏠 屋主版</button>
       <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotTask('${t.record_id}')">刪除</button>
     </div>${stageBlockHtml(t)}`;
   // 需要窗口處理的（業務已回傳備選時段）排最前面
@@ -6763,6 +6771,9 @@ function openSlotTaskModal(){
   slotDeadlineTouched = false;
   populateSlotCreatorSelect();
   loadSlotSchedulers();
+  ['slotTaskOwnerWinStart', 'slotTaskOwnerWinEnd'].forEach(id => { document.getElementById(id).innerHTML = slotTimeOptionsHtml(); });
+  document.getElementById('slotTaskOwnerWinStart').value = '09:00';
+  document.getElementById('slotTaskOwnerWinEnd').value = '17:00';
   document.getElementById('slotTaskCaseResults').classList.remove('show');
   document.getElementById('slotTaskTypeDropdown').classList.remove('show');
   document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = false; });
@@ -6912,12 +6923,13 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: (document.getElementById('slotTaskCreator') || {}).value || '', candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', owner_name: ownerName, owner_phone: ownerPhone, deadline}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: (document.getElementById('slotTaskCreator') || {}).value || '', candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', owner_name: ownerName, owner_phone: ownerPhone, deadline}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
     closeSlotTaskModal();
     loadVendorSlots();
+    window.LAST_SLOT_TASK_RECORD_ID = data.record_id || null;
     showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path, estStart, estEnd, durationMin, estDelegate, deadline);
   }catch(err){
     showToast('建立失敗：' + err.message);
@@ -6946,13 +6958,48 @@ function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, 
   document.getElementById('slotSummaryTextarea').value = text;
   const previewBtn = document.getElementById('slotSummaryPreviewBtn');
   previewBtn.dataset.link = link;
+  previewBtn.textContent = '👀 預覽業務填單畫面';
   previewBtn.style.display = 'block';
+  document.getElementById('slotSummaryOwnerBtn').style.display = window.LAST_SLOT_TASK_RECORD_ID ? 'flex' : 'none';
   document.getElementById('slotSummaryModalOverlay').classList.add('show');
 }
 // 2026-10-02 新增：傳送給業務之前先自己看一眼業務會看到的畫面長什麼樣子。
 // 只有「指派給業務」產生的訊息才有連結可以預覽，複製清單（copySlotSummary）
 // 沒有對應的 book.html 連結，所以按鈕預設隱藏，只有 showSlotTaskMessage
 // 才會打開。
+// 2026-10-07：屋主版連結（測試版）。業務把這段訊息轉給屋主，屋主在 owner.html 自己選時間。
+// 舊任務第一次按時，後端會補上屋主 token 與預設可選時段（09:00–17:00）。
+async function showOwnerMessage(){
+  const id = window.LAST_SLOT_TASK_RECORD_ID;
+  if(!id){ showToast('找不到這個任務，請從任務清單按「🏠 屋主版」'); return; }
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(id) + '/owner-link', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+    });
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    const link = window.location.origin + d.owner_path;
+    const text = `您好，我是陽光伏特家的業務${d.assignee || ''}。\n`
+      + `我們要幫您安排「${(d.items || []).join('、')}」，想請您直接點下面的連結，選一個您方便的時間（大約需要 ${slotDurationLabel(d.duration_min)}）：\n${link}\n\n`
+      + `可選日期：${(d.candidate_dates || []).map(x => fmtDate(x) + '（' + fmtWeekday(x) + '）').join('、')}\n`
+      + `可選時段：${d.window_start}–${d.window_end} 之間\n`
+      + `如果不方便操作，直接回覆我就可以了，謝謝您！`;
+    document.getElementById('slotSummaryTitle').textContent = '🏠 傳給屋主的訊息（請業務轉傳，測試中）';
+    document.getElementById('slotSummaryTextarea').value = text;
+    const previewBtn = document.getElementById('slotSummaryPreviewBtn');
+    previewBtn.dataset.link = link;
+    previewBtn.textContent = '👀 預覽屋主畫面（只看，不要送出）';
+    previewBtn.style.display = 'block';
+    document.getElementById('slotSummaryOwnerBtn').style.display = 'none';
+    document.getElementById('slotSummaryModalOverlay').classList.add('show');
+  }catch(err){
+    showToast('產生屋主版訊息失敗：' + err.message);
+  }
+}
+function openOwnerMessageFor(recordId){
+  window.LAST_SLOT_TASK_RECORD_ID = recordId;
+  showOwnerMessage();
+}
 function previewSlotTaskLink(){
   const link = document.getElementById('slotSummaryPreviewBtn').dataset.link;
   if(link) window.open(link, '_blank');
@@ -6960,6 +7007,7 @@ function previewSlotTaskLink(){
 function copySlotTaskMessage(recordId){
   const t = SLOT_TASKS.find(x => x.record_id === recordId);
   if(!t) return;
+  window.LAST_SLOT_TASK_RECORD_ID = recordId;
   if(t.stage === '待業務確認' && t.chosen_slot){ showSlotChosenMessage(t); return; }
   const path = '/book.html?token=' + t.token;
   let estS = '', estE = '', delegate = !!t.duration_min;
@@ -7167,6 +7215,7 @@ function copySlotSummary(vendor){
   document.getElementById('slotSummaryTitle').textContent = '📋 ' + vendor + ' 時段清單';
   document.getElementById('slotSummaryTextarea').value = text;
   document.getElementById('slotSummaryPreviewBtn').style.display = 'none'; // 複製清單沒有對應的 book.html 連結可以預覽
+  document.getElementById('slotSummaryOwnerBtn').style.display = 'none';
   document.getElementById('slotSummaryModalOverlay').classList.add('show');
 }
 function closeSlotSummaryModal(){
