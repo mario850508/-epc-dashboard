@@ -3092,6 +3092,7 @@ async function loadSlotBookingsQuiet(){
     const next = data.bookings || [];
     if(JSON.stringify(next) === JSON.stringify(SLOT_BOOKINGS)) return; // 沒變動就不重畫各個表格（避免輪詢時干擾正在操作的畫面）
     SLOT_BOOKINGS = next;
+    SLOT_CANCELLED = data.cancelled || [];
     refreshAllVendorFilteredViews();
   }catch(err){ console.error('載入廠商時段失敗（不影響其他頁面）', err); }
 }
@@ -6512,6 +6513,7 @@ async function generateOpsPdf(id, keepModalOpen){
 // 不走背景快取，每次切到這個頁面或按重新整理就直接抓最新的。
 // ===================================================================
 let SLOT_BOOKINGS = [];
+let SLOT_CANCELLED = [];   // 2026-10-08：已取消的預約（只在歷史紀錄顯示，不算佔用時段）
 let SLOT_TASKS = [];
 
 async function loadVendorSlots(){
@@ -6529,6 +6531,7 @@ async function loadVendorSlots(){
     if(!slotsRes.ok) throw new Error('HTTP ' + slotsRes.status);
     const data = await slotsRes.json();
     SLOT_BOOKINGS = data.bookings || [];
+    SLOT_CANCELLED = data.cancelled || [];
     renderVendorSlots();
     refreshAllVendorFilteredViews();
     if(tasksRes.ok){
@@ -7188,7 +7191,7 @@ function renderSlotBookingFilterBars(barId, typeBarId, pool, shownCount){
   openIds.forEach(id => { const x = document.getElementById(id); if(x) x.classList.add('show'); });
 }
 
-function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg){
+function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, canCancel){
   if(!container) return;
   if(poolSize === 0){ container.innerHTML = `<div class="login-note">${emptyMsg}</div>`; return; }
   if(list.length === 0){ container.innerHTML = '<div class="login-note">沒有符合篩選條件的預約。</div>'; return; }
@@ -7213,9 +7216,12 @@ function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg){
               <span style="font-weight:700;font-size:12.5px;flex-shrink:0;">${b.start_time}-${b.end_time}</span>
               <span style="font-size:12.5px;flex:1;min-width:120px;">${b.case||''}${b.alias?('　'+b.alias):''}</span>
               <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">${b.registrant||''}</span>
+              ${b.cancelled ? `<span class="chip" style="flex-shrink:0;background:#FDECEC;color:#B42318;">❌ 已取消</span>` : ''}
               <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="showSlotBookingDetail('${b.record_id}')">📄 查看填單</button>
-              <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;${b.vendor_notified_at ? 'color:#16A34A;border-color:#BFE6CF;' : ''}" onclick="openVendorNotice('${b.record_id}')" title="${b.vendor_notified_at ? '已通知廠商：' + fmtDateTimeTW(b.vendor_notified_at) : '確認屋主資料後，傳卡片到廠商群組'}">${b.vendor_notified_at ? '✓ 已通知廠商' : '📤 通知廠商'}</button>
-              <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotBooking('${b.record_id}')">刪除</button>
+              ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;${b.vendor_notified_at ? 'color:#16A34A;border-color:#BFE6CF;' : ''}" onclick="openVendorNotice('${b.record_id}')" title="${b.vendor_notified_at ? '已通知廠商：' + fmtDateTimeTW(b.vendor_notified_at) : '確認屋主資料後，傳卡片到廠商群組'}">${b.vendor_notified_at ? '✓ 已通知廠商' : '📤 通知廠商'}</button>`}
+              ${canCancel && !b.cancelled ? `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;color:#B42318;" onclick="openCancelBooking('${b.record_id}')">❌ 取消預約</button>` : ''}
+              ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotBooking('${b.record_id}')">刪除</button>`}
+              ${b.cancelled ? `<div style="flex-basis:100%;font-size:11.5px;color:#B42318;padding-left:2px;">取消原因：${escHtml(b.cancel_reason || '（未填）')}${b.cancelled_at ? '　' + fmtDateTimeTW(b.cancelled_at) : ''}</div>` : ''}
               ${(b.owner_name || b.owner_phone || b.note) ? `<div style="flex-basis:100%;font-size:11.5px;color:var(--text-muted);line-height:1.6;padding-left:2px;">
                 ${(b.owner_name || b.owner_phone) ? `👤 屋主：${[b.owner_name, b.owner_phone].filter(Boolean).join('　')}` : ''}
                 ${b.note ? `${(b.owner_name || b.owner_phone) ? '　' : ''}📝 備註：${b.note}` : ''}
@@ -7243,7 +7249,8 @@ function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg){
 function renderVendorSlots(){
   const today = todayStr();
   const upcoming = SLOT_BOOKINGS.filter(b => (b.date || '') >= today);
-  const past = SLOT_BOOKINGS.filter(b => (b.date || '') < today);
+  // 歷史紀錄＝日期已過的預約＋所有已取消的預約
+  const past = SLOT_BOOKINGS.filter(b => (b.date || '') < today).concat(SLOT_CANCELLED || []);
   const shownUp = upcoming.filter(slotBookingFilterMatch);
   const shownPast = past.filter(slotBookingFilterMatch);
   renderSlotBookingFilterBars('slotBookingFilterBar', 'slotTypeFilterBar', upcoming, shownUp.length);
@@ -7251,7 +7258,7 @@ function renderVendorSlots(){
   const histTab = document.querySelector('#view-slots .tab[data-slots-tab="history"]');
   if(histTab) histTab.textContent = '🗂 歷史紀錄' + (past.length ? ' ' + past.length : '');
   renderBookingGroups(document.getElementById('slotsContainer'), shownUp, upcoming.length, false,
-    '目前沒有今天以後的預約，點上面「➕ 預約時段」或「📨 指派給業務」新增一筆。');
+    '目前沒有今天以後的預約，點上面「➕ 預約時段」或「📨 指派給業務」新增一筆。', true);
   renderBookingGroups(document.getElementById('slotsHistoryContainer'), shownPast, past.length, true, '還沒有歷史紀錄。');
 }
 
@@ -7400,6 +7407,66 @@ function copyVnText(text, okMsg){
   document.body.appendChild(ta); ta.select();
   try{ document.execCommand('copy'); showToast(okMsg); }catch(e){ showToast('複製失敗'); }
   ta.remove();
+}
+
+// 2026-10-08：取消預約（例如發現還不能進場）。跟「刪除」不同：保留紀錄（移到歷史紀錄）、
+// 釋放廠商時段、清掉自動寫回的預計日期、屋主頁顯示已取消，並通知業務（附給屋主的取消訊息）。
+function closeCancelBooking(){ const ov = document.getElementById('cancelBookingOverlay'); if(ov) ov.remove(); }
+function openCancelBooking(recordId){
+  const b = SLOT_BOOKINGS.find(x => x.record_id === recordId);
+  if(!b){ showToast('找不到這筆預約，請重新整理'); return; }
+  closeCancelBooking();
+  const p = bookingPeople(b);
+  const ov = document.createElement('div');
+  ov.id = 'cancelBookingOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.onclick = e => { if(e.target === ov) closeCancelBooking(); };
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:22px;max-width:460px;width:100%;color:#1B2333;max-height:92vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:17px;font-weight:800;color:#B42318;">❌ 取消預約</div>
+      <button type="button" onclick="closeCancelBooking()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button>
+    </div>
+    <div style="font-size:13px;color:#6B7280;margin:6px 0 14px;line-height:1.7;">${escHtml(b.vendor)}｜${escHtml((b.type || []).join('＋'))}｜${fmtDate(b.date)}（${fmtWeekday(b.date)}）${escHtml(b.start_time)}–${escHtml(b.end_time)}<br>${escHtml(b.case)} ${escHtml(b.alias || '')}${b.owner_name ? '<br>屋主：' + escHtml(b.owner_name) + ' ' + escHtml(b.owner_phone || '') : ''}</div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px;">取消原因（會寫進給屋主的訊息）</div>
+    <input id="cbReason" class="quick-mark-input" placeholder="例如：現場還有問題需要先處理" value="施工安排需要調整">
+    <div style="font-size:13px;font-weight:700;margin:14px 0 6px;">之後要重新約嗎？</div>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-bottom:6px;cursor:pointer;"><input type="radio" name="cbReopen" value="1" checked style="margin-top:3px;"> 要，任務退回「指派任務」，之後再重新約時間（業務／屋主連結會恢復成可以選時間）</label>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;cursor:pointer;"><input type="radio" name="cbReopen" value="0" style="margin-top:3px;"> 不用，這個任務就結束（連結會顯示已取消）</label>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-top:14px;cursor:pointer;"><input type="checkbox" id="cbNotify" checked> 用 LINE 通知業務${p.rep ? ' ' + escHtml(p.rep) : ''}（附「複製給屋主的取消訊息」按鈕）</label>
+    ${b.vendor_notified_at ? '<div style="font-size:12px;color:#D97706;margin-top:10px;">⚠️ 這筆已經通知過廠商，取消後記得也跟廠商說一聲。</div>' : ''}
+    <button type="button" id="cbSubmit" class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:16px;background:#DC2626;border-color:#DC2626;" onclick="submitCancelBooking('${recordId}')">確定取消這筆預約</button>
+    <div id="cbResult"></div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+async function submitCancelBooking(recordId){
+  const btn = document.getElementById('cbSubmit');
+  const reopen = (document.querySelector('input[name="cbReopen"]:checked') || {}).value === '1';
+  btn.disabled = true; btn.textContent = '取消中…';
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/' + encodeURIComponent(recordId) + '/cancel', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({reason: document.getElementById('cbReason').value.trim(), reopen, notify: document.getElementById('cbNotify').checked}),
+    });
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    window._cbMsg = d.owner_message || '';
+    btn.style.display = 'none';
+    document.getElementById('cbResult').innerHTML = `
+      <div style="margin-top:14px;padding:12px 14px;background:#ECFDF3;border:1px solid #BFE6CF;border-radius:12px;font-size:13px;line-height:1.7;">
+        ✅ 已取消，時段已釋放${d.reopened ? '，任務已退回「指派任務」' : ''}。<br>
+        ${d.rep_notified ? '已用 LINE 通知業務 ' + escHtml(d.rep_name) + '，卡片上有「複製給屋主的取消訊息」按鈕。'
+          : (d.rep_name ? '⚠️ 業務 ' + escHtml(d.rep_name) + ' 沒有綁定 LINE（或推播失敗），請把下面的訊息傳給他或直接傳給屋主。' : '⚠️ 這筆沒有對應的業務，請把下面的訊息直接傳給屋主。')}
+        ${d.vendor_was_notified ? '<br>⚠️ 這筆通知過廠商，記得也跟廠商說取消。' : ''}
+      </div>
+      <div style="font-size:12.5px;font-weight:700;margin:12px 0 6px;">給屋主的取消訊息</div>
+      <textarea readonly class="quick-mark-input" style="min-height:110px;font-size:13px;">${escHtml(d.owner_message || '')}</textarea>
+      <button type="button" class="btn btn-ghost" style="width:100%;justify-content:center;padding:10px;margin-top:8px;" onclick="copyVnText(window._cbMsg, '已複製給屋主的取消訊息')">📋 複製訊息</button>`;
+    loadVendorSlots();
+  }catch(err){
+    showToast('取消失敗：' + err.message);
+    btn.disabled = false; btn.textContent = '確定取消這筆預約';
+  }
 }
 
 async function deleteSlotBooking(recordId){

@@ -154,6 +154,12 @@ function downloadIcs(){
 
 function render(){
   const app = document.getElementById('app');
+  if(D.status === 'cancelled'){
+    app.innerHTML = `<div class="card ok-box"><div class="ok-icon">🗓️</div><h1>這次的預約已經取消了</h1>
+      <div class="lead">很抱歉造成您的不便，我們會再跟您聯絡新的時間。</div>
+      <div class="help">${repHelp()}</div></div>`;
+    return;
+  }
   if(D.status === 'done'){
     const b = D.booked || {};
     app.innerHTML = `<div class="card ok-box"><div class="ok-icon">✅</div><h1>預約完成，謝謝您！</h1>

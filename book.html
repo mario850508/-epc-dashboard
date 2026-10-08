@@ -249,7 +249,7 @@ function renderLineBind(msg){
   }
 }
 async function setupLineBind(data){
-  if(!data.liff_id || !TASK.assignee || TASK.status === '已完成') return;
+  if(!data.liff_id || !TASK.assignee || TASK.status === '已完成' || TASK.status === '已取消') return;
   LINE_BOUND = !!data.line_bound;
   ADD_FRIEND_URL = data.add_friend_url || '';
   LINE_REQUIRED = true;
@@ -461,7 +461,7 @@ async function init(){
     render();
     const tl = document.getElementById('tutLink');
     if(tl) tl.style.display = '';
-    if(TASK.status !== '已完成' && typeof maybeShowTutorial === 'function') maybeShowTutorial();
+    if(TASK.status !== '已完成' && TASK.status !== '已取消' && typeof maybeShowTutorial === 'function') maybeShowTutorial();
     setupLineBind(data);
   }catch(err){
     app.innerHTML = '<div class="not-found">載入失敗：' + err.message + '，請檢查網路連線後重新整理</div>';
@@ -470,6 +470,12 @@ async function init(){
 
 function render(){
   const app = document.getElementById('app');
+  if(TASK.status === '已取消'){
+    app.innerHTML = `<div class="card success-box"><div class="success-icon">❌</div>
+      <div class="success-title">這個預約已經取消了</div>
+      <div class="success-detail">${TASK.vendor}　${TASK.case}${TASK.alias?('（'+TASK.alias+'）'):''}<br>如果要重新安排，請聯絡窗口。</div></div>`;
+    return;
+  }
   if(TASK.status === '已完成'){
     const b = TASK.booked || {};
     app.innerHTML = `
