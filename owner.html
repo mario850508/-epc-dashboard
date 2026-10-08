@@ -113,19 +113,65 @@ function contactHtml(){
     <label for="ownerNote">想告訴我們的事（選填）</label><textarea id="ownerNote" placeholder="例如：下午才在家、請先打電話"></textarea>`;
 }
 
+// 預估時間提醒（選時間、確認時間、預約完成都會顯示）
+const EST_NOTE = '<div class="muted" style="margin-top:10px;background:#FFF7E6;border-radius:10px;padding:10px 12px;">⏱ 以上時間為預估時間，實際到場與完工時間會依現場施工進度調整，施工團隊或業務會再跟您聯絡。</div>';
+
+// ---- 加入行事曆（預約完成後）----
+function calTimes(b){
+  const toUtc = t => new Date(`${b.date}T${t}:00+08:00`).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return {start: toUtc(b.start_time), end: toUtc(b.end_time)};
+}
+function calTitle(){ return '陽光伏特家｜' + (D.items || []).join('、'); }
+function calDetails(){
+  return '施工團隊預計到場時間（預估，實際依現場施工進度調整）。'
+    + (D.rep_name ? '如需更改請聯絡您的業務 ' + D.rep_name + '。' : '如需更改請聯絡您的業務。');
+}
+function googleCalUrl(b){
+  const t = calTimes(b);
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+    + '&text=' + encodeURIComponent(calTitle())
+    + '&dates=' + t.start + '/' + t.end
+    + '&details=' + encodeURIComponent(calDetails())
+    + '&ctz=Asia/Taipei';
+}
+function downloadIcs(){
+  const b = D.booked; if(!b || !b.date) return;
+  const t = calTimes(b);
+  const icsEsc = s => String(s).replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1');
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SunVolt//Booking//ZH', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+    'UID:' + T + '@sunvolt-booking', 'DTSTAMP:' + stamp, 'DTSTART:' + t.start, 'DTEND:' + t.end,
+    'SUMMARY:' + icsEsc(calTitle()), 'DESCRIPTION:' + icsEsc(calDetails()),
+    'BEGIN:VALARM', 'TRIGGER:-P1D', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(calTitle()), 'END:VALARM',
+    'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const url = URL.createObjectURL(new Blob([ics], {type: 'text/calendar;charset=utf-8'}));
+  const a = document.createElement('a');
+  a.href = url; a.download = '陽光伏特家施工預約.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
 function render(){
   const app = document.getElementById('app');
   if(D.status === 'done'){
     const b = D.booked || {};
     app.innerHTML = `<div class="card ok-box"><div class="ok-icon">✅</div><h1>預約完成，謝謝您！</h1>
       ${b.date ? `<div class="big-time">${dateLabel(b.date)}<br>${esc(b.start_time)}–${esc(b.end_time)}</div>` : ''}
-      <div class="lead">施工團隊會在這個時間到場。</div><div class="help">${repHelp()}</div></div>`;
+      <div class="lead">施工團隊預計在這個時間到場。</div>
+      ${EST_NOTE}
+      ${b.date ? `<div style="margin-top:16px;">
+        <a class="btn" style="display:block;text-decoration:none;" href="${googleCalUrl(b)}" target="_blank" rel="noopener">📅 加入 Google 日曆</a>
+        <button class="btn-ghost" onclick="downloadIcs()">📅 加入手機行事曆（iPhone／其他）</button>
+        <div class="muted" style="margin-top:8px;font-size:12.5px;">在 LINE 裡按了沒反應的話，請按右上角「⋯」選「用瀏覽器開啟」後再按一次。</div>
+      </div>` : ''}
+      <div class="help">${repHelp()}</div></div>`;
     return;
   }
   if(D.status === 'wait_confirm' && mode !== 'alt'){
     const c = D.chosen_slot;
     app.innerHTML = headerHtml() + `<div class="card"><h1>我們幫您安排在這個時間，可以嗎？</h1>
       <div class="big-time" style="text-align:center;">${dateLabel(c.date)}<br>${esc(c.start_time)}–${esc(c.end_time)}</div>
+      ${EST_NOTE}
       ${contactHtml()}
       <button class="btn" id="submitBtn" onclick="submitConfirm()">✅ 可以，確認這個時間</button>
       <div class="err" id="err"></div>
@@ -155,12 +201,15 @@ function renderPick(){
     return `<button class="opt ${selDate === d ? 'active' : ''}" ${any ? '' : 'disabled'} onclick="pickDate('${d}')">${dateLabel(d)}${any ? '' : '<small>已額滿</small>'}</button>`;
   }).join('');
   const times = selDate ? startOptions(selDate) : [];
+  // 這天只有一個可選的開始時間：直接幫屋主選好
+  const okTimes = times.filter(o => o.ok);
+  if(okTimes.length === 1 && !selStart) selStart = okTimes[0].start;
   const timeBtns = times.map(o => `<button class="opt ${selStart === o.start ? 'active' : ''}" ${o.ok ? '' : 'disabled'} onclick="pickStart('${o.start}')">${o.start}<small>到 ${o.end}${o.ok ? '' : '（已有安排）'}</small></button>`).join('');
   app.innerHTML = headerHtml() + `<div class="card">
     <div class="step" style="margin-top:0;"><span class="n">1</span>${single ? '預計前往日期' : '請選一天'}</div>
     <div class="grid">${dateBtns}</div>
-    <div class="step"><span class="n">2</span>請選開始時間</div>
-    ${selDate ? `<div class="grid">${timeBtns}</div>` : '<div class="muted">請先選上面的日期</div>'}
+    <div class="step"><span class="n">2</span>${okTimes.length === 1 ? '預計時間' : '請選開始時間'}</div>
+    ${selDate ? `<div class="grid">${timeBtns}</div>${EST_NOTE}` : '<div class="muted">請先選上面的日期</div>'}
     ${contactHtml()}
     <button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>
     <div class="err" id="err"></div>
