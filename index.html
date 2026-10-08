@@ -604,6 +604,65 @@
 
   .ops-section-title{font-weight:700;font-size:13px;margin:18px 0 8px;padding-top:14px;border-top:1px solid var(--border);}
   .ops-section-title:first-child{margin-top:0;padding-top:0;border-top:none;}
+  /* ---- PDF 公文更名（線上版，2026-10-08） ---- */
+  .pdf-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;}
+  .pdf-stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;}
+  .pdf-stat:hover{border-color:var(--sun-2);}
+  .pdf-stat-label{font-size:11.5px;color:var(--text-muted);}
+  .pdf-stat-num{font-size:22px;font-weight:800;margin-top:2px;}
+  .pdf-stat-sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+  .pdf-toggles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px;}
+  .pdf-toggle{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;justify-content:space-between;}
+  .pdf-toggle-title{font-size:13px;font-weight:700;}
+  .pdf-toggle-desc{font-size:11.5px;color:var(--text-muted);margin-top:3px;line-height:1.55;}
+  .pdf-toggle-desc input{width:52px;padding:2px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px;text-align:center;}
+  .pdf-switch{position:relative;width:44px;height:24px;flex-shrink:0;}
+  .pdf-switch input{opacity:0;width:0;height:0;}
+  .pdf-switch span{position:absolute;inset:0;background:#CBD2DE;border-radius:24px;cursor:pointer;transition:.2s;}
+  .pdf-switch span::before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;}
+  .pdf-switch input:checked + span{background:var(--primary);}
+  .pdf-switch input:checked + span::before{transform:translateX(20px);}
+  .pdf-drop{border:2px dashed #E7C98F;border-radius:14px;background:#FFF8EA;padding:22px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:13px;margin-bottom:14px;transition:.15s;}
+  .pdf-drop.drag{background:#FFEFCC;border-color:var(--sun-2);}
+  .pdf-drop b{color:var(--text);font-size:14px;}
+  .pdf-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+  .pdf-chip{font-size:12px;padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface);cursor:pointer;}
+  .pdf-chip.active{background:var(--primary-soft);color:var(--primary-dark);border-color:var(--primary);font-weight:700;}
+  .pdf-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .pdf-table th{text-align:left;font-size:11.5px;color:var(--text-muted);font-weight:600;padding:8px;border-bottom:1px solid var(--border);}
+  .pdf-table td{padding:9px 8px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .pdf-table tr:hover td{background:var(--surface-2);}
+  .pdf-name{font-weight:600;word-break:break-all;}
+  .pdf-sub{font-size:11px;color:var(--text-muted);margin-top:2px;word-break:break-all;}
+  .pdf-conf{font-weight:800;font-size:12px;padding:2px 8px;border-radius:12px;white-space:nowrap;}
+  .pdf-conf-hi{background:var(--success-soft);color:var(--success);}
+  .pdf-conf-mid{background:#FFF0D6;color:#B8720A;}
+  .pdf-conf-lo{background:#FDE4E4;color:#C9383D;}
+  .pdf-st{font-size:10.5px;padding:3px 9px;border-radius:20px;font-weight:700;white-space:nowrap;}
+  .pdf-st-待辨識,.pdf-st-辨識中{background:#E9F3FF;color:#1E70C8;}
+  .pdf-st-待確認{background:#FFF0D6;color:#B8720A;}
+  .pdf-st-已確認{background:var(--success-soft);color:var(--success);}
+  .pdf-st-已歸檔{background:var(--surface-2);color:var(--text-muted);}
+  .pdf-st-辨識失敗{background:#FDE4E4;color:#C9383D;}
+  .pdf-detail{display:grid;grid-template-columns:1.25fr 1fr;gap:16px;}
+  .pdf-detail iframe{width:100%;height:72vh;border:1px solid var(--border);border-radius:10px;background:#f4f4f4;}
+  .pdf-form label{font-size:12px;font-weight:600;display:block;margin:10px 0 5px;}
+  .pdf-form .quick-mark-input{padding:9px 12px;}
+  .pdf-issue{font-size:12px;background:#FFF6E5;border:1px solid #F3DDB0;color:#8A5A06;border-radius:8px;padding:7px 10px;margin-top:6px;}
+  .pdf-cand{font-size:12px;border:1px solid var(--border);border-radius:8px;padding:7px 10px;margin-top:6px;cursor:pointer;background:var(--surface);}
+  .pdf-cand:hover{border-color:var(--primary);}
+  .pdf-cand.strong{border-left:4px solid var(--success);}
+  .pdf-evidence{font-size:12px;white-space:pre-wrap;background:var(--surface-2);border-radius:8px;padding:9px 11px;line-height:1.6;color:var(--text);}
+  .pdf-rules-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .pdf-rules-table td,.pdf-rules-table th{padding:4px;border-bottom:1px solid var(--border);text-align:left;}
+  .pdf-rules-table input{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;}
+  @media (max-width:900px){
+    .pdf-stats{grid-template-columns:repeat(2,1fr);}
+    .pdf-toggles{grid-template-columns:1fr;}
+    .pdf-detail{grid-template-columns:1fr;}
+    .pdf-detail iframe{height:50vh;}
+    .pdf-table .pdf-hide-m{display:none;}
+  }
 </style>
 </head>
 <body>
@@ -689,7 +748,7 @@
         <div class="pipe-arrow">›</div>
         <div class="pipe-step active">
           <div class="pipe-num">2</div>
-          <div><div class="pipe-label">PDF 更名</div><div class="pipe-desc">本機 OCR 辨識</div></div>
+          <div><div class="pipe-label">PDF 更名</div><div class="pipe-desc">線上 AI 背景辨識</div></div>
         </div>
         <div class="pipe-arrow">›</div>
         <div class="pipe-step">
@@ -734,7 +793,7 @@
         <div class="module-left">
           <div class="module-icon pdf">📄</div>
           <div>
-            <div class="module-title">PDF 公文更名 <span class="module-tag tag-local">本機執行</span></div>
+            <div class="module-title">PDF 公文更名 <span class="module-tag tag-cloud">線上執行</span></div>
             <div class="module-desc">掃描待處理資料夾中的 PDF,自動辨識案號、日期與函文類型;內含 LINE 收件紀錄子頁籤。</div>
           </div>
         </div>
@@ -792,7 +851,7 @@
         <div>
           <div class="crumb">功能模組 / PDF 公文更名</div>
           <h1 class="page-title">PDF 公文更名</h1>
-          <div class="page-sub">本機執行；LINE 收件紀錄併入此模組,方便對照來源檔案</div>
+          <div class="page-sub">線上執行：上傳 PDF 後由後端背景 AI 辨識案號、日期與函文類型，人工確認後才正式更名；LINE 收件紀錄併入此模組</div>
         </div>
       </div>
 
@@ -802,9 +861,49 @@
       </div>
 
       <div class="subview active" id="tab-pdf-rename">
-        <div class="panel" style="text-align:center;padding:60px 20px;color:var(--text-muted);">
-          <div style="font-size:32px;margin-bottom:10px;">📄</div>
-          原本機 PDF 更名工具介面會嵌在這裡（沿用現有 V2.15 畫面）
+        <div id="pdfAlert"></div>
+        <div class="pdf-stats" id="pdfStats"></div>
+        <div class="pdf-toggles">
+          <div class="pdf-toggle">
+            <div>
+              <div class="pdf-toggle-title">背景自動辨識</div>
+              <div class="pdf-toggle-desc">每 <input type="number" min="1" max="1440" id="pdfIntervalMin" onchange="savePdfSetting({interval_min: this.value})"> 分鐘檢查一次佇列<br><span id="pdfRunInfo">—</span></div>
+            </div>
+            <label class="pdf-switch"><input type="checkbox" id="pdfEnabled" onchange="savePdfSetting({enabled: this.checked})"><span></span></label>
+          </div>
+          <div class="pdf-toggle">
+            <div>
+              <div class="pdf-toggle-title">高信心自動確認</div>
+              <div class="pdf-toggle-desc">信心 ≥ <input type="number" min="50" max="100" id="pdfThreshold" onchange="savePdfSetting({auto_confirm_threshold: this.value})"> 分、案號有編號精確吻合時直接確認，不用手動按</div>
+            </div>
+            <label class="pdf-switch"><input type="checkbox" id="pdfAutoConfirm" onchange="savePdfSetting({auto_confirm: this.checked})"><span></span></label>
+          </div>
+          <div class="pdf-toggle">
+            <div>
+              <div class="pdf-toggle-title">確認後更新 Airtable</div>
+              <div class="pdf-toggle-desc">把發文日期寫進「進度管理」對應里程碑的完成日期（只填空白，不覆蓋既有日期）</div>
+            </div>
+            <label class="pdf-switch"><input type="checkbox" id="pdfWriteback" onchange="savePdfSetting({writeback: this.checked})"><span></span></label>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+          <button class="btn btn-warm-primary" id="pdfRunBtn" onclick="runPdfRecognizeNow()">▶ 立即辨識</button>
+          <button class="btn btn-ghost" onclick="openPdfRulesModal()">⚙ 命名格式與函文規則</button>
+          <button class="btn btn-ghost" onclick="loadPdfRename()">🔄 重新整理</button>
+        </div>
+        <div class="pdf-drop" id="pdfDrop" onclick="document.getElementById('pdfFileInput').click()">
+          <div style="font-size:26px;">📥</div>
+          <b>把 PDF 拖到這裡，或點一下選擇檔案</b>
+          <div style="margin-top:4px;">可一次多份（每份 5MB 以內）。上傳後放進佇列，背景慢慢辨識，辨識完會出現在「待確認」。</div>
+          <div id="pdfUploadProgress" style="margin-top:8px;font-weight:600;color:var(--text);"></div>
+        </div>
+        <input type="file" id="pdfFileInput" accept="application/pdf,.pdf" multiple style="display:none" onchange="uploadPdfFiles(this.files); this.value='';">
+        <div class="panel">
+          <div class="pdf-chips" id="pdfChips"></div>
+          <div id="pdfList"><div class="login-note">載入中…</div></div>
+        </div>
+        <div class="login-note">
+          🤖 線上辨識流程：AI 先讀完整份 PDF 抽出函文類型、發文日期與所有識別資料（台電受理編號、電號、同意備案編號、地址、申請人…），系統再拿這些資料跟 Airtable「專案細節」全部案件精確比對，最後請 AI 對照候選案件重新確認一次並給信心分數。兩次判讀不一致、編號對不上、日期不合理都會扣分並列出提醒，確認前請看一下。已確認的檔案可以直接用新檔名下載；本機歸檔程式也可以讀取「已確認」清單自動歸檔到 G 槽。
         </div>
       </div>
 
@@ -2097,6 +2196,28 @@
           <button class="modal-close" onclick="closeCertModal()">✕</button>
         </div>
         <div class="modal-body" id="certModalBody"></div>
+      </div>
+    </div>
+
+    <!-- PDF 公文更名：檢視／確認 modal -->
+    <div class="modal-overlay" id="pdfDetailModalOverlay" onclick="if(event.target===this) closePdfDetailModal()">
+      <div class="modal-box" style="max-width:1200px;width:96vw;">
+        <div class="modal-header">
+          <div class="modal-title" id="pdfDetailTitle">公文</div>
+          <button class="modal-close" onclick="closePdfDetailModal()">✕</button>
+        </div>
+        <div class="modal-body" id="pdfDetailBody" style="max-height:none;"></div>
+      </div>
+    </div>
+
+    <!-- PDF 公文更名：命名格式與函文規則 modal -->
+    <div class="modal-overlay" id="pdfRulesModalOverlay" onclick="if(event.target===this) closePdfRulesModal()">
+      <div class="modal-box" style="max-width:900px;">
+        <div class="modal-header">
+          <div class="modal-title">⚙ 命名格式與函文規則</div>
+          <button class="modal-close" onclick="closePdfRulesModal()">✕</button>
+        </div>
+        <div class="modal-body pdf-form" id="pdfRulesBody"></div>
       </div>
     </div>
 
@@ -4379,6 +4500,10 @@ function showView(name){
   document.querySelector('.nav-item[data-view="'+name+'"]').classList.add('active');
   document.querySelectorAll('.nav-sub-item').forEach(n=>n.classList.remove('active'));
   saveNavState({view: name});
+  // PDF 公文更名：等 showPdfTab 切完子頁籤再判斷要不要載入（setTimeout 0）
+  if(name === 'pdf') setTimeout(() => {
+    if(document.getElementById('tab-pdf-rename').classList.contains('active')){ initPdfDrop(); loadPdfRename(); }
+  }, 0);
   closeSidebar(); // 手機版選了頁面後，選單自動收起來，桌面版沒有影響
 }
 // 2026-08-31 新增：側邊選單「PDF 公文更名」「EPC 出貨／進場排程」這兩個
@@ -6066,6 +6191,400 @@ function renderCalendar(){
   }
   renderDayDetail(calSelectedDate);
 }
+// ===================================================================
+// PDF 公文更名（線上版，2026-10-08）
+// 原本是本機工具（V2.15），辨識不準；改成上傳到後端佇列，後端背景用 AI 辨識，
+// 這裡負責上傳、看辨識結果、人工確認／修改檔名、下載。
+// ===================================================================
+const PDF_FILTERS = [
+  ['待確認', '待確認'], ['queue', '待辨識・辨識中'], ['已確認', '已確認'],
+  ['辨識失敗', '辨識失敗'], ['已歸檔', '已歸檔'], ['all', '全部'],
+];
+let PDF_STATE = {items: [], status: null, filter: '待確認', current: null, timer: null};
+
+function pdfEsc(v){ return certEsc(v); }
+function pdfUser(){
+  try{ return localStorage.getItem('slotSchedulerName') || ''; }catch(e){ return ''; }
+}
+function pdfFmtTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d)) return iso;
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function pdfConfBadge(c){
+  if(c === null || c === undefined || c === '') return '';
+  const cls = c >= 90 ? 'pdf-conf-hi' : (c >= 70 ? 'pdf-conf-mid' : 'pdf-conf-lo');
+  return `<span class="pdf-conf ${cls}">${c}</span>`;
+}
+
+async function loadPdfRename(){
+  try{
+    const [sRes, iRes] = await Promise.all([
+      fetch(API_BASE + '/api/pdf-rename/status', {cache: 'no-store'}),
+      fetch(API_BASE + '/api/pdf-rename/items?status=all', {cache: 'no-store'}),
+    ]);
+    const s = await sRes.json();
+    const i = await iRes.json();
+    if(s.error || i.error) throw new Error(s.error || i.error);
+    PDF_STATE.status = s;
+    PDF_STATE.items = i.items || [];
+    renderPdfStatus();
+    renderPdfList();
+  }catch(e){
+    document.getElementById('pdfList').innerHTML = `<div class="login-note">⚠ 讀取失敗：${pdfEsc(e.message)}（後端剛啟動的話等一分鐘再按重新整理）</div>`;
+  }
+  schedulePdfPoll();
+}
+
+// 有檔案在佇列／辨識中時每 20 秒自動更新，沒有就停
+function schedulePdfPoll(){
+  clearTimeout(PDF_STATE.timer);
+  const view = document.getElementById('view-pdf');
+  const busy = PDF_STATE.items.some(x => x.status === '待辨識' || x.status === '辨識中') || (PDF_STATE.status && PDF_STATE.status.running);
+  if(busy && view && view.classList.contains('active')){
+    PDF_STATE.timer = setTimeout(loadPdfRename, 20000);
+  }
+}
+
+function renderPdfStatus(){
+  const s = PDF_STATE.status || {};
+  const c = s.counts || {};
+  const st = s.settings || {};
+  const stat = (label, num, sub, filter) =>
+    `<div class="pdf-stat" onclick="setPdfFilter('${filter}')"><div class="pdf-stat-label">${label}</div><div class="pdf-stat-num">${num} 份</div><div class="pdf-stat-sub">${sub}</div></div>`;
+  document.getElementById('pdfStats').innerHTML =
+    stat('等待辨識', (c['待辨識'] || 0) + (c['辨識中'] || 0), c['辨識中'] ? `辨識中 ${c['辨識中']} 份` : `每輪最多 ${st.batch_size || 5} 份`, 'queue') +
+    stat('待確認', c['待確認'] || 0, '請檢查辨識結果後確認', '待確認') +
+    stat('已確認', c['已確認'] || 0, '可下載／等待本機歸檔', '已確認') +
+    stat('辨識失敗', c['辨識失敗'] || 0, '可重新辨識或手動填寫', '辨識失敗');
+  document.getElementById('pdfEnabled').checked = !!st.enabled;
+  document.getElementById('pdfAutoConfirm').checked = !!st.auto_confirm;
+  document.getElementById('pdfWriteback').checked = !!st.writeback;
+  document.getElementById('pdfIntervalMin').value = st.interval_min || 5;
+  document.getElementById('pdfThreshold').value = st.auto_confirm_threshold || 92;
+  let info = st.enabled ? '已開啟' : '已關閉';
+  if(s.running) info += '｜🔄 辨識中…';
+  else if(s.last_finished_at) info += `｜上次執行：${pdfFmtTime(s.last_finished_at)}`;
+  document.getElementById('pdfRunInfo').textContent = info;
+  let alert = '';
+  if(!s.api_key_configured){
+    alert = '⚠ 後端還沒有設定 ANTHROPIC_API_KEY（Render → Environment），檔案可以先上傳，但不會被辨識。';
+  }else if(s.last_error){
+    alert = '⚠ 上次辨識發生錯誤：' + pdfEsc(s.last_error);
+  }
+  document.getElementById('pdfAlert').innerHTML = alert ? `<div class="pdf-issue" style="margin:0 0 12px;">${alert}</div>` : '';
+}
+
+function setPdfFilter(f){
+  PDF_STATE.filter = f;
+  renderPdfList();
+}
+
+function renderPdfList(){
+  const items = PDF_STATE.items;
+  const match = (x, f) => f === 'all' ? true : (f === 'queue' ? (x.status === '待辨識' || x.status === '辨識中') : x.status === f);
+  document.getElementById('pdfChips').innerHTML = PDF_FILTERS.map(([k, label]) =>
+    `<div class="pdf-chip ${PDF_STATE.filter === k ? 'active' : ''}" onclick="setPdfFilter('${k}')">${label}（${items.filter(x => match(x, k)).length}）</div>`).join('');
+  const rows = items.filter(x => match(x, PDF_STATE.filter));
+  if(!rows.length){
+    document.getElementById('pdfList').innerHTML = '<div class="login-note">這裡目前沒有檔案。</div>';
+    return;
+  }
+  document.getElementById('pdfList').innerHTML = `<div style="overflow-x:auto;"><table class="pdf-table">
+    <thead><tr><th>原檔名</th><th>案號</th><th>函文類型</th><th>發文日期</th><th>信心</th><th class="pdf-hide-m">檔名</th><th>狀態</th><th></th></tr></thead>
+    <tbody>${rows.map(x => `<tr>
+      <td><div class="pdf-name">${pdfEsc(x.src_name)}</div><div class="pdf-sub">${pdfEsc(pdfFmtTime(x.uploaded_at))}${x.uploader ? '・' + pdfEsc(x.uploader) : ''}${x.source && x.source !== '主控台上傳' ? '・' + pdfEsc(x.source) : ''}</div></td>
+      <td>${x.case_no ? `<div class="pdf-name">${pdfEsc(x.case_no)}</div><div class="pdf-sub">${pdfEsc(x.alias)}</div>` : '<span class="pdf-sub">—</span>'}</td>
+      <td>${pdfEsc(x.doc_type) || '<span class="pdf-sub">—</span>'}</td>
+      <td style="white-space:nowrap;">${pdfEsc(x.doc_date) || '<span class="pdf-sub">—</span>'}</td>
+      <td>${pdfConfBadge(x.confidence)}${x.issues.length && x.status === '待確認' ? `<div class="pdf-sub">⚠ ${x.issues.length} 項提醒</div>` : ''}</td>
+      <td class="pdf-hide-m"><div class="pdf-sub" style="color:var(--text);">${pdfEsc(x.final_name || x.suggested_name)}</div>${x.writeback ? `<div class="pdf-sub">${pdfEsc(x.writeback.split('\n')[0])}</div>` : ''}</td>
+      <td><span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span>${x.status === '辨識失敗' || (x.error && x.status === '待辨識') ? `<div class="pdf-sub" title="${pdfEsc(x.error)}">第 ${x.attempts} 次失敗</div>` : ''}</td>
+      <td style="white-space:nowrap;"><button class="btn ${x.status === '待確認' ? 'btn-primary' : 'btn-ghost'}" style="padding:6px 10px;font-size:11.5px;" onclick="openPdfDetail('${x.id}')">${x.status === '待確認' ? '檢查並確認' : '檢視'}</button></td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+// ---- 上傳 ----
+function initPdfDrop(){
+  const drop = document.getElementById('pdfDrop');
+  if(!drop || drop.dataset.ready) return;
+  drop.dataset.ready = '1';
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+  drop.addEventListener('drop', e => uploadPdfFiles(e.dataTransfer.files));
+}
+
+async function uploadPdfFiles(fileList){
+  const files = Array.from(fileList || []).filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+  if(!files.length){ showToast('請選擇 PDF 檔'); return; }
+  const prog = document.getElementById('pdfUploadProgress');
+  const failed = [];
+  let ok = 0;
+  // 一份一份傳，避免單次請求太大；進度也比較好看
+  for(let i = 0; i < files.length; i++){
+    const f = files[i];
+    prog.textContent = `上傳中 ${i + 1} / ${files.length}：${f.name}`;
+    if(f.size > 5 * 1024 * 1024){ failed.push(`${f.name}（超過 5MB）`); continue; }
+    const fd = new FormData();
+    fd.append('files', f, f.name);
+    fd.append('uploader', pdfUser());
+    try{
+      const res = await fetch(API_BASE + '/api/pdf-rename/upload', {method: 'POST', body: fd});
+      const data = await res.json();
+      const r = (data.results || [])[0];
+      if(r && r.ok) ok++;
+      else failed.push(`${f.name}（${(r && r.error) || data.error || '上傳失敗'}）`);
+    }catch(e){
+      failed.push(`${f.name}（${e.message}）`);
+    }
+  }
+  prog.textContent = failed.length ? `✓ ${ok} 份已上傳；✗ 失敗：${failed.join('、')}` : `✓ ${ok} 份已上傳，背景辨識中`;
+  if(ok) showToast(`已上傳 ${ok} 份，背景辨識中`);
+  PDF_STATE.filter = 'queue';
+  loadPdfRename();
+}
+
+// ---- 設定 ----
+async function savePdfSetting(patch){
+  try{
+    const res = await fetch(API_BASE + '/api/pdf-rename/settings', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patch)});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || '儲存失敗');
+    if(PDF_STATE.status) PDF_STATE.status.settings = data.settings;
+    renderPdfStatus();
+    showToast('設定已儲存');
+    return data.settings;
+  }catch(e){
+    showToast('儲存失敗：' + e.message);
+    loadPdfRename();
+    return null;
+  }
+}
+
+async function runPdfRecognizeNow(){
+  const btn = document.getElementById('pdfRunBtn');
+  btn.disabled = true;
+  try{
+    const res = await fetch(API_BASE + '/api/pdf-rename/run', {method: 'POST'});
+    const data = await res.json();
+    showToast(data.message || '已開始辨識，完成後會自動更新');
+  }catch(e){
+    showToast('啟動失敗：' + e.message);
+  }
+  btn.disabled = false;
+  setTimeout(loadPdfRename, 1500);
+}
+
+// ---- 檢視／確認 ----
+function pdfDocTypeOptions(selected){
+  const types = ((PDF_STATE.status && PDF_STATE.status.settings && PDF_STATE.status.settings.doc_types) || []).map(t => t.name);
+  if(!types.includes('其他')) types.push('其他');
+  if(selected && !types.includes(selected)) types.unshift(selected);
+  return types.map(t => `<option value="${pdfEsc(t)}" ${t === selected ? 'selected' : ''}>${pdfEsc(t)}</option>`).join('');
+}
+
+function openPdfDetail(id){
+  const x = PDF_STATE.items.find(i => i.id === id);
+  if(!x) return;
+  PDF_STATE.current = x;
+  document.getElementById('pdfDetailTitle').textContent = x.src_name;
+  const editable = x.status !== '辨識中';
+  const issues = x.issues.map(t => `<div class="pdf-issue">⚠ ${pdfEsc(t)}</div>`).join('');
+  const cands = x.candidates.map(c => `<div class="pdf-cand ${c.strong ? 'strong' : ''}" onclick="pickPdfCase('${pdfEsc(c.case_no)}')">
+      <b>${pdfEsc(c.case_no)}</b> ${pdfEsc(c.alias)} <span class="pdf-sub">（比對分數 ${c.score}）</span>
+      <div class="pdf-sub">${c.why.map(pdfEsc).join('；')}</div></div>`).join('');
+  const meta = [['發文字號', x.doc_number], ['發文機關', x.issuer], ['主旨', x.subject]]
+    .filter(([, v]) => v).map(([k, v]) => `<div class="pdf-sub" style="color:var(--text);margin-top:4px;"><b>${k}：</b>${pdfEsc(v)}</div>`).join('');
+  document.getElementById('pdfDetailBody').innerHTML = `<div class="pdf-detail">
+    <div>${x.file_url ? `<iframe src="${pdfEsc(x.file_url)}#view=FitH"></iframe>` : '<div class="login-note">沒有檔案</div>'}</div>
+    <div class="pdf-form">
+      <div><span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span> ${pdfConfBadge(x.confidence)}
+        ${x.confirmed_by ? `<span class="pdf-sub">　${pdfEsc(x.confirmed_by)}・${pdfEsc(pdfFmtTime(x.confirmed_at))}</span>` : ''}</div>
+      ${x.error ? `<div class="pdf-issue">✗ ${pdfEsc(x.error)}</div>` : ''}
+      ${issues}
+      ${meta}
+      <label>案號</label>
+      <input class="quick-mark-input" id="pdfFormCase" list="pdfCaseList" value="${pdfEsc(x.case_no)}" oninput="searchPdfCase(this.value)" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>
+      <datalist id="pdfCaseList"></datalist>
+      <div class="pdf-sub" id="pdfFormAlias">${pdfEsc(x.alias)}</div>
+      <label>函文類型</label>
+      <select class="quick-mark-input" id="pdfFormType" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>${pdfDocTypeOptions(x.doc_type)}</select>
+      <label>發文日期</label>
+      <input type="date" class="quick-mark-input" id="pdfFormDate" value="${pdfEsc(x.doc_date)}" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>
+      <label>檔名 <a href="javascript:void(0)" style="font-weight:400;font-size:11.5px;" onclick="refreshPdfName(true)">依命名格式重新產生</a></label>
+      <input class="quick-mark-input" id="pdfFormName" value="${pdfEsc(x.final_name || x.suggested_name || x.src_name)}" ${editable ? '' : 'disabled'}>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+        ${x.status !== '已歸檔' && editable ? `<button class="btn btn-primary" onclick="confirmPdf()">✅ ${x.status === '已確認' ? '更新確認內容' : '確認更名'}</button>` : ''}
+        ${x.file_url ? `<button class="btn btn-ghost" onclick="downloadPdf('${x.id}')">⬇ 用新檔名下載</button>` : ''}
+        ${x.status !== '辨識中' ? `<button class="btn btn-ghost" onclick="retryPdf('${x.id}')">🔁 重新辨識</button>` : ''}
+        ${x.status === '已確認' || x.status === '已歸檔' ? `<button class="btn btn-ghost" onclick="reopenPdf('${x.id}')">↩ 改回待確認</button>` : ''}
+        <button class="btn btn-ghost" style="color:#C9383D;" onclick="deletePdf('${x.id}')">🗑 刪除</button>
+      </div>
+      ${x.writeback ? `<label>Airtable 寫回／歸檔紀錄</label><div class="pdf-evidence">${pdfEsc(x.writeback)}</div>` : ''}
+      ${x.evidence ? `<label>辨識依據</label><div class="pdf-evidence">${pdfEsc(x.evidence)}</div>` : ''}
+      ${cands ? `<label>候選案件（點一下套用；綠色＝編號精確吻合）</label>${cands}` : ''}
+    </div></div>`;
+  document.getElementById('pdfDetailModalOverlay').classList.add('show');
+}
+
+function closePdfDetailModal(){
+  document.getElementById('pdfDetailModalOverlay').classList.remove('show');
+  PDF_STATE.current = null;
+}
+
+let pdfCaseSearchTimer = null;
+function searchPdfCase(q){
+  clearTimeout(pdfCaseSearchTimer);
+  if(!q || q.length < 2) return;
+  pdfCaseSearchTimer = setTimeout(async () => {
+    try{
+      const res = await fetch(API_BASE + '/api/case-search?q=' + encodeURIComponent(q));
+      const data = await res.json();
+      document.getElementById('pdfCaseList').innerHTML = (data.results || []).slice(0, 20)
+        .map(r => `<option value="${pdfEsc(r.case)}">${pdfEsc(r.alias || '')}</option>`).join('');
+    }catch(e){}
+  }, 300);
+}
+
+function pickPdfCase(caseNo){
+  document.getElementById('pdfFormCase').value = caseNo;
+  refreshPdfName(true);
+}
+
+// 案號／類型／日期變更時，檔名如果還是系統產生的（沒被手動改過），就跟著更新
+async function refreshPdfName(force){
+  const x = PDF_STATE.current;
+  if(!x) return;
+  const nameEl = document.getElementById('pdfFormName');
+  const auto = force || nameEl.value === (x.final_name || x.suggested_name) || nameEl.dataset.auto === nameEl.value;
+  try{
+    const res = await fetch(API_BASE + '/api/pdf-rename/preview-name', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        case_no: document.getElementById('pdfFormCase').value.trim(),
+        doc_type: document.getElementById('pdfFormType').value,
+        doc_date: document.getElementById('pdfFormDate').value,
+      })});
+    const data = await res.json();
+    document.getElementById('pdfFormAlias').textContent = data.known_case ? data.alias : '⚠ Airtable 查不到這個案號（還是可以確認，但不會寫回進度管理）';
+    if(auto && data.name){ nameEl.value = data.name; nameEl.dataset.auto = data.name; }
+  }catch(e){}
+}
+
+async function confirmPdf(){
+  const x = PDF_STATE.current;
+  const body = {
+    case_no: document.getElementById('pdfFormCase').value.trim(),
+    doc_type: document.getElementById('pdfFormType').value,
+    doc_date: document.getElementById('pdfFormDate').value,
+    final_name: document.getElementById('pdfFormName').value.trim(),
+    user: pdfUser() || '主控台',
+  };
+  if(!body.case_no || !body.doc_type || !body.final_name){ showToast('案號、函文類型、檔名都要填'); return; }
+  try{
+    const res = await fetch(API_BASE + `/api/pdf-rename/${x.id}/confirm`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || '確認失敗');
+    showToast('已確認' + (data.writeback ? '｜' + data.writeback : ''));
+    closePdfDetailModal();
+    loadPdfRename();
+  }catch(e){
+    showToast('確認失敗：' + e.message);
+  }
+}
+
+function downloadPdf(id){
+  window.open(API_BASE + `/api/pdf-rename/${id}/file`, '_blank');
+}
+
+async function pdfPost(url, method, okMsg){
+  try{
+    const res = await fetch(API_BASE + url, {method: method || 'POST'});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || '失敗');
+    showToast(okMsg);
+    closePdfDetailModal();
+    loadPdfRename();
+  }catch(e){
+    showToast('失敗：' + e.message);
+  }
+}
+function retryPdf(id){ pdfPost(`/api/pdf-rename/${id}/retry`, 'POST', '已放回佇列重新辨識'); }
+function reopenPdf(id){ pdfPost(`/api/pdf-rename/${id}/reopen`, 'POST', '已改回待確認'); }
+function deletePdf(id){
+  if(!confirm('確定要刪除這份檔案？（Airtable 裡的紀錄跟檔案都會刪掉）')) return;
+  pdfPost(`/api/pdf-rename/${id}`, 'DELETE', '已刪除');
+}
+
+// ---- 命名格式與函文規則 ----
+function openPdfRulesModal(){
+  const st = (PDF_STATE.status && PDF_STATE.status.settings) || {};
+  document.getElementById('pdfRulesBody').innerHTML = `
+    <label style="margin-top:0;">檔名格式</label>
+    <input class="quick-mark-input" id="pdfRuleTemplate" value="${pdfEsc(st.template || '{案號}_{函文類型}_{日期}')}" oninput="previewPdfTemplate()">
+    <div class="pdf-sub">可用：{案號} {別名} {函文類型} {日期}＝20260908　{西元日期}＝2026-09-08　{民國日期}＝1150908。副檔名 .pdf 會自動加上。</div>
+    <div class="pdf-sub" id="pdfRulePreview" style="color:var(--text);margin-top:4px;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div><label>每輪最多辨識幾份</label><input type="number" min="1" max="30" class="quick-mark-input" id="pdfRuleBatch" value="${st.batch_size || 5}"></div>
+      <div><label>檢查間隔（分鐘）</label><input type="number" min="1" max="1440" class="quick-mark-input" id="pdfRuleInterval" value="${st.interval_min || 5}"></div>
+    </div>
+    <label>規則來源：Google Sheet（選填）</label>
+    <div style="display:flex;gap:8px;">
+      <input class="quick-mark-input" id="pdfRuleCsv" placeholder="Google Sheet → 檔案 → 共用 → 發布到網路 → CSV 的網址" value="${pdfEsc(st.rules_csv_url || '')}">
+      <button class="btn btn-ghost" style="white-space:nowrap;" onclick="reloadPdfRulesCsv()">從 Sheet 載入</button>
+    </div>
+    <div class="pdf-sub">第一列標題要有「函文類型」，可另加「關鍵字」「對應里程碑」「說明」欄。載入後會取代下面的清單。</div>
+    <label>函文類型（AI 只會從這裡選；對應里程碑＝確認後寫回「進度管理」哪一種的完成日期，留空＝不寫回）</label>
+    <table class="pdf-rules-table"><thead><tr><th style="width:18%;">函文類型</th><th>辨識關鍵字／說明給 AI 看</th><th style="width:18%;">對應里程碑</th><th style="width:30px;"></th></tr></thead>
+      <tbody id="pdfRuleRows">${(st.doc_types || []).map(pdfRuleRow).join('')}</tbody></table>
+    <button class="btn btn-ghost" style="margin-top:8px;padding:6px 12px;font-size:12px;" onclick="document.getElementById('pdfRuleRows').insertAdjacentHTML('beforeend', pdfRuleRow({}))">＋ 新增類型</button>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:16px;" onclick="savePdfRules()">儲存</button>`;
+  document.getElementById('pdfRulesModalOverlay').classList.add('show');
+  previewPdfTemplate();
+}
+function closePdfRulesModal(){ document.getElementById('pdfRulesModalOverlay').classList.remove('show'); }
+
+function pdfRuleRow(t){
+  const kw = [t.keywords, t.note].filter(Boolean).join('；');
+  return `<tr><td><input class="r-name" value="${pdfEsc(t.name || '')}"></td>
+    <td><input class="r-kw" value="${pdfEsc(kw)}"></td>
+    <td><input class="r-ms" value="${pdfEsc(t.milestone || '')}"></td>
+    <td><button class="modal-close" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
+}
+
+function previewPdfTemplate(){
+  const t = document.getElementById('pdfRuleTemplate').value;
+  const vals = {'案號': '潤特-桃園081', '別名': '大園王宅', '函文類型': '併聯審查', '日期': '20260908', '西元日期': '2026-09-08', '民國日期': '1150908'};
+  const name = t.replace(/\{(\S+?)\}/g, (m, k) => vals[k] !== undefined ? vals[k] : m);
+  document.getElementById('pdfRulePreview').textContent = '範例：' + name + '.pdf';
+}
+
+async function savePdfRules(){
+  const doc_types = Array.from(document.querySelectorAll('#pdfRuleRows tr')).map(tr => ({
+    name: tr.querySelector('.r-name').value.trim(),
+    keywords: tr.querySelector('.r-kw').value.trim(),
+    milestone: tr.querySelector('.r-ms').value.trim(),
+    note: '',
+  })).filter(t => t.name);
+  const s = await savePdfSetting({
+    template: document.getElementById('pdfRuleTemplate').value.trim(),
+    batch_size: document.getElementById('pdfRuleBatch').value,
+    interval_min: document.getElementById('pdfRuleInterval').value,
+    rules_csv_url: document.getElementById('pdfRuleCsv').value.trim(),
+    doc_types,
+  });
+  if(s) closePdfRulesModal();
+}
+
+async function reloadPdfRulesCsv(){
+  const s = await savePdfSetting({rules_csv_url: document.getElementById('pdfRuleCsv').value.trim(), reload_csv: true});
+  if(s){ showToast(`已從 Google Sheet 載入 ${s.doc_types.length} 種函文類型`); openPdfRulesModal(); }
+}
+
 function showPdfTab(tab){
   showView('pdf');
   document.querySelectorAll('.subview').forEach(v=>v.classList.remove('active'));
