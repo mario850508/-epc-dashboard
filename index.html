@@ -6558,10 +6558,12 @@ function showSlotsTab(tab){
 // 任務的那份清單，完成安排分頁只留時段卡片（結果），任務清單只保留
 // 還沒確認的（過程）。
 function slotAltConflicts(t, s){
+  if(!s.start_time) return false;   // 屋主只給日期的備選，時間還沒定，不檢查
   return SLOT_BOOKINGS.some(b => b.vendor === t.vendor && b.date === s.date && b.start_time < s.end_time && s.start_time < b.end_time);
 }
 function slotLabelText(s){
   const wd = ['日','一','二','三','四','五','六'][new Date(s.date + 'T00:00:00').getDay()];
+  if(!s.start_time) return fmtDate(s.date) + '（' + wd + '）屋主這天可以，時間由你決定';
   return fmtDate(s.date) + '（' + wd + '）' + s.start_time + '-' + s.end_time;
 }
 // 2026-10-04：業務「原時間屋主不行，提供其他時間」的協調流程，主控台這邊的畫面：
@@ -6638,7 +6640,7 @@ function renderSlotTasks(){
   const stageBlockHtml = (t) => {
     if(!t.stage || !(t.alt_slots||[]).length) return '';
     const chosen = t.chosen_slot;
-    const isSame = (a, b) => b && a.date === b.date && a.start_time === b.start_time && a.end_time === b.end_time;
+    const isSame = (a, b) => b && a.date === b.date && (!a.start_time || (a.start_time === b.start_time && a.end_time === b.end_time));
     const head = t.stage === '待窗口確認'
       ? `<div style="font-size:12.5px;font-weight:700;color:#B45309;margin-bottom:6px;">🟡 業務回報：原時間屋主無法配合，以下是屋主可以的其他時間——跟廠商確認後選一個</div>`
       : `<div style="font-size:12.5px;font-weight:700;color:#1E46C4;margin-bottom:6px;">⏳ 已選定 ${slotLabelText(chosen)}，等業務打開連結確認（也可以改選別的）</div>`;
@@ -6713,9 +6715,20 @@ async function adjustSlotDeadline(recordId){
   }
 }
 async function chooseSlotAlt(recordId, idx){
+  // 2026-10-08：屋主只給日期的備選，選的時候要填開始時間（結束時間依作業時長自動算）
+  const tk = SLOT_TASKS.find(x => x.record_id === recordId);
+  const alt = tk && (tk.alt_slots || [])[idx];
+  const body = {index: idx};
+  if(alt && !alt.start_time){
+    const input = prompt(fmtDate(alt.date) + ' 要從幾點開始？（例如 09:00，結束時間會依作業時長自動算）', (tk && tk.est_start) || '09:00');
+    if(input === null) return;
+    const m = input.trim().match(/^(\d{1,2}):(\d{2})$/);
+    if(!m){ showToast('時間格式不對，請輸入像 09:00'); return; }
+    body.start_time = m[1].padStart(2, '0') + ':' + m[2];
+  }
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(recordId) + '/choose', {
-      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({index: idx}),
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
     if(res.status === 409 && data.conflict){

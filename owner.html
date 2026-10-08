@@ -175,14 +175,14 @@ function render(){
       ${contactHtml()}
       <button class="btn" id="submitBtn" onclick="submitConfirm()">✅ 可以，確認這個時間</button>
       <div class="err" id="err"></div>
-      <button class="btn-ghost" onclick="mode='alt';render()">這個時間不方便，我要提供其他時間</button>
+      <button class="btn-ghost" onclick="mode='alt';render()">這個時間不方便，我要提供其他日期</button>
       <div class="help">${repHelp()}</div></div>`;
     return;
   }
   if(D.status === 'wait_pm' && !mode){
-    app.innerHTML = headerHtml() + `<div class="card"><h1>已收到您方便的時間 🙏</h1>
-      <div class="lead">我們會跟施工團隊確認後，再請業務通知您，或請您再打開這個連結確認。</div>
-      <div class="muted" style="margin-top:10px;">您提供的時間：<br>${(D.proposed || []).map(s => `${dateLabel(s.date)} ${esc(s.start_time)}–${esc(s.end_time)}`).join('<br>')}</div>
+    app.innerHTML = headerHtml() + `<div class="card"><h1>已收到您方便的日期 🙏</h1>
+      <div class="lead">我們會跟施工團隊確認後選一天並安排時間，再請業務通知您，或請您再打開這個連結確認。</div>
+      <div class="muted" style="margin-top:10px;">您提供的日期：<br>${(D.proposed || []).map(s => dateLabel(s.date) + (s.start_time ? ` ${esc(s.start_time)}–${esc(s.end_time)}` : '')).join('<br>')}</div>
       <button class="btn-ghost" onclick="mode='pick';render()">我想重新選擇時間</button>
       <div class="help">${repHelp()}</div></div>`;
     return;
@@ -213,7 +213,7 @@ function renderPick(){
     ${contactHtml()}
     <button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>
     <div class="err" id="err"></div>
-    <button class="btn-ghost" onclick="mode='alt';render()">以上時間都不方便？告訴我們您方便的時間</button>
+    <button class="btn-ghost" onclick="mode='alt';render()">以上時間都不方便？告訴我們您方便的日期</button>
     <div class="help">${repHelp()}</div>
   </div>`;
   restoreContact();
@@ -271,7 +271,7 @@ async function submitConfirm(){
 }
 
 // ---- 提供其他時間 ----
-let ALT = [{date: '', start: ''}];
+let ALT = [{date: ''}];
 function altStartOptions(date){
   const opts = date ? startOptions(date) : startOptions('0000-00-00');
   return '<option value="">開始時間</option>' + opts.map(o => `<option value="${o.start}" ${o.ok ? '' : 'disabled'}>${o.start}–${o.end}${o.ok ? '' : '（已有安排）'}</option>`).join('');
@@ -281,30 +281,28 @@ function renderAlt(){
   const tmr = new Date(Date.now() + 86400000);
   const minDate = tmr.getFullYear() + '-' + String(tmr.getMonth()+1).padStart(2,'0') + '-' + String(tmr.getDate()).padStart(2,'0');
   app.innerHTML = headerHtml() + `<div class="card">
-    <h1 style="font-size:18px;">告訴我們您方便的時間</h1>
-    <div class="muted">可以填好幾組，時間要在 ${esc(D.window_start)}–${esc(D.window_end)} 之間。我們跟施工團隊確認後會選一個。</div>
-    <div class="step"><span class="n">1</span>您方便的日期和時間</div>
+    <h1 style="font-size:18px;">告訴我們您方便的日期</h1>
+    <div class="muted">可以選好幾天。我們跟施工團隊確認後，會選其中一天，再告訴您大約幾點到。</div>
+    <div class="step"><span class="n">1</span>您方便的日期</div>
     ${ALT.map((a, i) => `<div class="alt-row">
-      <input type="date" min="${minDate}" value="${a.date}" onchange="ALT[${i}].date=this.value;ALT[${i}].start='';saveContact();renderAlt()">
-      <select onchange="ALT[${i}].start=this.value">${altStartOptions(a.date)}</select>
+      <input type="date" min="${minDate}" value="${a.date}" onchange="ALT[${i}].date=this.value;saveContact();renderAlt()">
       ${ALT.length > 1 ? `<button class="alt-del" onclick="saveContact();ALT.splice(${i},1);renderAlt()">✕</button>` : ''}
     </div>`).join('')}
-    <button class="btn-ghost" style="margin-top:0;" onclick="saveContact();ALT.push({date:'',start:''});renderAlt()">＋ 再加一組時間</button>
+    <button class="btn-ghost" style="margin-top:0;" onclick="saveContact();ALT.push({date:''});renderAlt()">＋ 再加一天</button>
     ${contactHtml()}
-    <button class="btn" id="submitBtn" onclick="submitAlt()">送出我方便的時間</button>
+    <button class="btn" id="submitBtn" onclick="submitAlt()">送出我方便的日期</button>
     <div class="err" id="err"></div>
     <button class="btn-ghost" onclick="saveContact();mode='pick';render()">← 回去選頁面上的日期</button>
     <div class="help">${repHelp()}</div>
   </div>`;
-  document.querySelectorAll('.alt-row select').forEach((sel, i) => { sel.value = ALT[i].start; });
   restoreContact();
 }
 async function submitAlt(){
-  const slots = ALT.filter(a => a.date && a.start).map(a => ({date: a.date, start_time: a.start}));
-  if(!slots.length){ showErr('請至少填一組日期和開始時間'); return; }
+  const slots = ALT.filter(a => a.date).map(a => ({date: a.date}));
+  if(!slots.length){ showErr('請至少選一天您方便的日期'); return; }
   const c = readContact();
   if(!c){ showErr('請填寫您的姓名和聯絡電話'); return; }
-  const data = await post('/propose', {slots, ...c}, '送出我方便的時間');
+  const data = await post('/propose', {slots, ...c}, '送出我方便的日期');
   if(data){ D.status = 'wait_pm'; D.proposed = data.slots; mode = ''; render(); }
 }
 
