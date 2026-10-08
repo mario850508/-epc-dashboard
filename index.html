@@ -6644,13 +6644,22 @@ async function loadBoundNames(force){
     updateAssigneeBindLine();
   }catch(e){ console.error('載入綁定名單失敗', e); }
 }
+// 「林嘉偉(Mika)」也算對得上只綁「Mika」或「林嘉偉」的人（跟後端 _binding_name_candidates 同規則）
+function isBoundName(name){
+  name = (name || '').trim();
+  if(!name) return false;
+  const cands = [name];
+  const m = name.match(/^(.*?)[(（]\s*(.+?)\s*[)）]\s*$/);
+  if(m){ cands.push(m[2].trim(), m[1].trim()); }
+  return cands.some(c => c && BOUND_NAMES.has(c));
+}
 function updateAssigneeBindLine(){
   const el = document.getElementById('slotTaskAssigneeBind');
   const inp = document.getElementById('slotTaskAssignee');
   if(!el || !inp) return;
   const name = inp.value.trim();
   if(!name){ el.innerHTML = ''; return; }
-  el.innerHTML = BOUND_NAMES.has(name)
+  el.innerHTML = isBoundName(name)
     ? '<span style="color:#16A34A;font-weight:700;">✓ ' + escHtml(name) + ' 已綁定 LINE 通知</span>'
     : '<span style="color:#D97706;font-weight:700;">⚠️ ' + escHtml(name) + ' 還沒綁定 LINE，期限前屋主沒填表時他收不到提醒</span>'
       + ` <button type="button" class="btn btn-ghost" style="padding:2px 8px;font-size:11px;" onclick="copyRepBindLink(document.getElementById('slotTaskAssignee').value.trim())">複製綁定連結給業務</button>`;
@@ -6708,7 +6717,7 @@ function renderSlotTasks(){
       ${typeChipsHtml(t.type)}
       <span style="font-size:12.5px;flex:1;min-width:140px;">${t.case||''}${t.alias?('　'+t.alias):''}</span>
       <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">候選：${t.candidate_dates.map(d=>fmtDate(d)).join('、')}</span>
-      ${t.assignee ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">指派：${t.assignee}${BOUND_NAMES.has(t.assignee) ? ' <span style="color:#16A34A;font-weight:700;">✓LINE</span>' : ` <span style="color:#D97706;font-weight:700;cursor:pointer;" title="按一下複製綁定連結給業務" onclick="copyRepBindLink('${t.assignee.replace(/'/g, '')}')">⚠️未綁LINE</span>`}</span>` : ''}
+      ${t.assignee ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">指派：${t.assignee}${isBoundName(t.assignee) ? ' <span style="color:#16A34A;font-weight:700;">✓LINE</span>' : ` <span style="color:#D97706;font-weight:700;cursor:pointer;" title="按一下複製綁定連結給業務" onclick="copyRepBindLink('${t.assignee.replace(/'/g, '')}')">⚠️未綁LINE</span>`}</span>` : ''}
       ${t.deadline ? (() => { const over = new Date(t.deadline) < new Date(); return `<span style="font-size:11px;font-weight:700;flex-shrink:0;color:${over ? '#D64545' : '#B45309'};">⏰ ${fmtDeadline(t.deadline)}${over ? '（已逾期）' : ''}</span>`; })() : ''}
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="adjustSlotDeadline('${t.record_id}')">⏰ 期限</button>
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="copySlotTaskMessage('${t.record_id}')">📎 複製訊息</button>
