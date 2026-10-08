@@ -147,6 +147,9 @@ function render(){
 
 function renderPick(){
   const app = document.getElementById('app');
+  // 只有一個候選日期：直接選好，標題改成「預計前往日期」，屋主只要選時間
+  const single = D.candidate_dates.length === 1;
+  if(single && !selDate && startOptions(D.candidate_dates[0]).some(o => o.ok)) selDate = D.candidate_dates[0];
   const dateBtns = D.candidate_dates.map(d => {
     const any = startOptions(d).some(o => o.ok);
     return `<button class="opt ${selDate === d ? 'active' : ''}" ${any ? '' : 'disabled'} onclick="pickDate('${d}')">${dateLabel(d)}${any ? '' : '<small>已額滿</small>'}</button>`;
@@ -154,7 +157,7 @@ function renderPick(){
   const times = selDate ? startOptions(selDate) : [];
   const timeBtns = times.map(o => `<button class="opt ${selStart === o.start ? 'active' : ''}" ${o.ok ? '' : 'disabled'} onclick="pickStart('${o.start}')">${o.start}<small>到 ${o.end}${o.ok ? '' : '（已有安排）'}</small></button>`).join('');
   app.innerHTML = headerHtml() + `<div class="card">
-    <div class="step" style="margin-top:0;"><span class="n">1</span>請選一天</div>
+    <div class="step" style="margin-top:0;"><span class="n">1</span>${single ? '預計前往日期' : '請選一天'}</div>
     <div class="grid">${dateBtns}</div>
     <div class="step"><span class="n">2</span>請選開始時間</div>
     ${selDate ? `<div class="grid">${timeBtns}</div>` : '<div class="muted">請先選上面的日期</div>'}
