@@ -6551,6 +6551,7 @@ function openPdfRulesModal(){
         <li>左邊「服務」旁邊按 <b>＋</b> → 選 <b>Drive API</b> → 新增。</li>
         <li>右上角 <b>部署 → 新增部署作業</b> → 齒輪選「<b>網頁應用程式</b>」→ 執行身分選「<b>我</b>」、誰可以存取選「<b>所有人</b>」→ 部署，照畫面授權。</li>
         <li>複製「網頁應用程式網址」（https://script.google.com/macros/s/…/exec），貼到上面的欄位，按「測試連線」，成功後按最下面「儲存」。</li>
+        <li><b>之後程式有更新時</b>：貼上新程式碼後，按「部署 → 管理部署作業 → 鉛筆（編輯）→ 版本選『新版本』→ 部署」，網址不會變，不用重貼。測試連線會顯示目前版本（最新是 v2）。</li>
       </ol>
       <textarea readonly id="pdfOcrScript" style="width:100%;height:150px;font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--border);border-radius:8px;padding:8px;">${pdfEsc(PDF_OCR_SCRIPT)}</textarea>
       <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-top:6px;" onclick="navigator.clipboard.writeText(PDF_OCR_SCRIPT).then(() => showToast('已複製'))">📋 複製程式碼</button>
@@ -6594,10 +6595,10 @@ async function testPdfOcr(){
 
 // 使用者貼到自己 Google Apps Script 的免費 OCR 服務（Google 雲端硬碟內建 OCR）
 const PDF_OCR_SCRIPT = [
-  "// 陽光主控台「PDF 公文更名」用的免費 OCR（Google 雲端硬碟內建 OCR）",
+  "// 陽光主控台「PDF 公文更名」用的免費 OCR（Google 雲端硬碟內建 OCR）v2",
   "// 需要在左邊「服務」加入 Drive API。部署成網頁應用程式：執行身分＝我、存取權＝所有人。",
   "function doGet() {",
-  "  return json_({ok: true, message: 'OCR 服務正常'});",
+  "  return json_({ok: true, message: 'OCR 服務正常（v2）'});",
   "}",
   "",
   "function doPost(e) {",
@@ -6605,20 +6606,38 @@ const PDF_OCR_SCRIPT = [
   "  try {",
   "    var body = JSON.parse(e.postData.contents);",
   "    var blob = Utilities.newBlob(Utilities.base64Decode(body.pdf), 'application/pdf', 'ocr-temp.pdf');",
-  "    var file = Drive.Files.create(",
-  "      {name: 'ocr-temp-' + new Date().getTime(), mimeType: 'application/vnd.google-apps.document'},",
-  "      blob, {ocrLanguage: 'zh-TW', fields: 'id'});",
-  "    fileId = file.id;",
+  "    fileId = ocrToDoc_(blob);",
   "    var text = DocumentApp.openById(fileId).getBody().getText();",
   "    return json_({ok: true, text: text});",
   "  } catch (err) {",
   "    return json_({ok: false, error: String(err)});",
   "  } finally {",
   "    if (fileId) {",
-  "      try { Drive.Files.remove(fileId); }",
-  "      catch (e2) { try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e3) {} }",
+  "      try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e2) {}",
   "    }",
   "  }",
+  "}",
+  "",
+  "// 把 PDF 上傳成 Google 文件（Google 會自動 OCR），回傳檔案 ID。",
+  "// 先帶中文提示，不行就讓 Google 自動判斷語言；Drive API 選 v2 或 v3 都可以。",
+  "function ocrToDoc_(blob) {",
+  "  var name = 'ocr-temp-' + new Date().getTime();",
+  "  var lastErr = null;",
+  "  var langs = ['zh', null];",
+  "  for (var i = 0; i < langs.length; i++) {",
+  "    try {",
+  "      if (Drive.Files.create) {",
+  "        var opt3 = langs[i] ? {ocrLanguage: langs[i]} : {};",
+  "        return Drive.Files.create({name: name, mimeType: 'application/vnd.google-apps.document'}, blob, opt3).id;",
+  "      }",
+  "      var opt2 = {ocr: true, convert: true};",
+  "      if (langs[i]) opt2.ocrLanguage = langs[i];",
+  "      return Drive.Files.insert({title: name, mimeType: 'application/pdf'}, blob, opt2).id;",
+  "    } catch (err) {",
+  "      lastErr = err;",
+  "    }",
+  "  }",
+  "  throw lastErr;",
   "}",
   "",
   "function json_(obj) {",
