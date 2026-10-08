@@ -2117,6 +2117,7 @@
       <div class="tabs" style="margin-bottom:14px;">
         <div class="tab active" data-slots-tab="pending" onclick="showSlotsTab('pending')">📋 指派任務</div>
         <div class="tab" data-slots-tab="done" onclick="showSlotsTab('done')">✅ 完成安排</div>
+        <div class="tab" data-slots-tab="history" onclick="showSlotsTab('history')">🗂 歷史紀錄</div>
       </div>
 
       <div class="subview active" id="slots-tab-pending">
@@ -2125,10 +2126,18 @@
       </div>
 
       <div class="subview" id="slots-tab-done">
-        <div id="slotTypeFilterBar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
+        <div id="slotTypeFilterBar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+        <div id="slotBookingFilterBar" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;"></div>
         <div id="slotsContainer">
           <div class="login-note">載入中…</div>
         </div>
+      </div>
+
+      <div class="subview" id="slots-tab-history">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">預約日期已經過去的行程（資料都還保留，只是從「完成安排」移到這裡）。最新的排在最上面。</div>
+        <div id="slotHistoryTypeFilterBar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+        <div id="slotHistoryFilterBar" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;"></div>
+        <div id="slotsHistoryContainer"></div>
       </div>
 
       <div class="login-note">
@@ -7039,49 +7048,90 @@ function fmtWeekday(dateStr){
   return '週' + wdays[d.getDay()];
 }
 
-// 2026-10-05：「完成安排」頁可以依項目類型篩選（例如只看「放樣」排了哪些案件）
+// 2026-10-08：「完成安排」只放今天（含）以後的預約；日期已過的移到「🗂 歷史紀錄」分頁
+// （資料都還在 Airtable，只是分開顯示）。兩頁共用同一組篩選：項目類型按鈕＋
+// 廠商／業務／安排人員下拉（可複選）。業務＝任務的指派對象（沒有任務、直接預約的用登記人），
+// 安排人員＝建立任務的同仁。
 let SLOT_TYPE_FILTER = '';
+let SLOT_BOOKING_FILTER = {vendors: [], reps: [], schedulers: []};
 function setSlotTypeFilter(t){ SLOT_TYPE_FILTER = t; renderVendorSlots(); }
-function renderSlotTypeFilterBar(){
-  const bar = document.getElementById('slotTypeFilterBar');
+function bookingPeople(b){
+  const t = (typeof SLOT_TASKS !== 'undefined' ? SLOT_TASKS : []).find(x => x.booking_id === b.record_id);
+  return {rep: (t && t.assignee) || b.registrant || '', scheduler: (t && t.creator) || ''};
+}
+function slotBookingFilterMatch(b){
+  const f = SLOT_BOOKING_FILTER, p = bookingPeople(b);
+  if(SLOT_TYPE_FILTER && !(b.type || []).includes(SLOT_TYPE_FILTER)) return false;
+  if(f.vendors.length && !f.vendors.includes(b.vendor)) return false;
+  if(f.reps.length && !f.reps.includes(p.rep)) return false;
+  if(f.schedulers.length && !f.schedulers.includes(p.scheduler)) return false;
+  return true;
+}
+function onSlotBookingFilterChange(el){
+  const arr = SLOT_BOOKING_FILTER[el.dataset.kind];
+  const v = el.dataset.val, i = arr.indexOf(v);
+  if(el.checked && i < 0) arr.push(v);
+  if(!el.checked && i >= 0) arr.splice(i, 1);
+  renderVendorSlots();
+}
+function clearSlotBookingFilters(){
+  SLOT_BOOKING_FILTER = {vendors: [], reps: [], schedulers: []};
+  SLOT_TYPE_FILTER = '';
+  renderVendorSlots();
+}
+function renderSlotBookingFilterBars(barId, typeBarId, pool, shownCount){
+  const typeBar = document.getElementById(typeBarId);
+  if(typeBar){
+    typeBar.innerHTML = ['', '掛表', '植筋', '放樣', '場勘', '進場'].map(t => {
+      const n = t ? pool.filter(b => (b.type || []).includes(t)).length : pool.length;
+      return `<button type="button" class="btn ${SLOT_TYPE_FILTER === t ? 'btn-primary' : 'btn-ghost'}" style="padding:4px 12px;font-size:12px;" onclick="setSlotTypeFilter('${t}')">${t || '全部'} ${n}</button>`;
+    }).join('');
+  }
+  const bar = document.getElementById(barId);
   if(!bar) return;
-  const types = ['', '掛表', '植筋', '放樣', '場勘', '進場'];
-  bar.innerHTML = types.map(t => {
-    const n = t ? SLOT_BOOKINGS.filter(b => (b.type||[]).includes(t)).length : SLOT_BOOKINGS.length;
-    const on = SLOT_TYPE_FILTER === t;
-    return `<button type="button" class="btn ${on ? 'btn-primary' : 'btn-ghost'}" style="padding:4px 12px;font-size:12px;" onclick="setSlotTypeFilter('${t}')">${t || '全部'} ${n}</button>`;
-  }).join('');
+  const openIds = [...bar.querySelectorAll('.slot-type-dropdown.show')].map(x => x.id);
+  const f = SLOT_BOOKING_FILTER;
+  const zh = (a, b) => a.localeCompare(b, 'zh-Hant');
+  const uniq = (arr, extra) => [...new Set([...arr, ...extra].filter(Boolean))].sort(zh);
+  const vendors = uniq(pool.map(b => b.vendor), f.vendors);
+  const reps = uniq(pool.map(b => bookingPeople(b).rep), f.reps);
+  const schedulers = uniq(pool.map(b => bookingPeople(b).scheduler), f.schedulers);
+  const dd = (id, emptyLabel, kind, options, selected) => `
+    <div class="quick-mark-input-wrap" style="min-width:170px;max-width:260px;">
+      <div class="quick-mark-input slot-type-trigger" id="${id}Trigger" onclick="toggleSlotTypeDropdown('${id}Panel')">
+        <span style="color:${selected.length ? 'var(--text)' : 'var(--text-muted)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${selected.length ? escHtml(selected.join('、')) : emptyLabel}</span>
+        <span style="color:var(--text-muted);font-size:11px;">▾</span>
+      </div>
+      <div class="quick-mark-results slot-type-dropdown" id="${id}Panel" data-trigger-id="${id}Trigger">
+        ${options.length ? options.map(o => `<label class="slot-type-option"><input type="checkbox" data-kind="${kind}" data-val="${escHtml(o)}" ${selected.includes(o) ? 'checked' : ''} onchange="onSlotBookingFilterChange(this)">${escHtml(o)}</label>`).join('') : '<div style="padding:10px 14px;font-size:12px;color:var(--text-muted);">沒有可選項目</div>'}
+      </div>
+    </div>`;
+  const active = SLOT_TYPE_FILTER || f.vendors.length || f.reps.length || f.schedulers.length;
+  bar.innerHTML = dd(barId + 'Vendor', '全部廠商（可複選）', 'vendors', vendors, f.vendors)
+    + dd(barId + 'Rep', '全部業務（可複選）', 'reps', reps, f.reps)
+    + dd(barId + 'Scheduler', '全部安排人員（可複選）', 'schedulers', schedulers, f.schedulers)
+    + (active ? `<button type="button" class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="clearSlotBookingFilters()">清除篩選</button>
+      <span style="font-size:12px;color:var(--text-muted);">顯示 ${shownCount} / ${pool.length} 筆</span>` : '');
+  openIds.forEach(id => { const x = document.getElementById(id); if(x) x.classList.add('show'); });
 }
 
-function renderVendorSlots(){
-  const container = document.getElementById('slotsContainer');
+function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg){
   if(!container) return;
-  renderSlotTypeFilterBar();
-  const list = SLOT_TYPE_FILTER ? SLOT_BOOKINGS.filter(b => (b.type||[]).includes(SLOT_TYPE_FILTER)) : SLOT_BOOKINGS;
-  if(SLOT_BOOKINGS.length === 0){
-    container.innerHTML = '<div class="login-note">目前還沒有任何已確定的時段，點上面「➕ 預約時段」或「📨 指派給業務」新增一筆。</div>';
-    return;
-  }
-  if(list.length === 0){
-    container.innerHTML = '<div class="login-note">沒有符合「' + SLOT_TYPE_FILTER + '」的預約。</div>';
-    return;
-  }
-  // 依廠商分組，每個廠商底下再依日期分組。2026-10-01 拿掉「開放時段」這個
-  // 中介概念後，這裡單純照已經卡下來的預約組出畫面，不再顯示「還空著的日期」
-  // （候選日期已經改成在任務裡自己帶，不需要另外宣告廠商哪幾天有開）。
+  if(poolSize === 0){ container.innerHTML = `<div class="login-note">${emptyMsg}</div>`; return; }
+  if(list.length === 0){ container.innerHTML = '<div class="login-note">沒有符合篩選條件的預約。</div>'; return; }
+  // 依廠商分組，每個廠商底下再依日期分組
   const byVendor = {};
   list.forEach(b => {
     if(!byVendor[b.vendor]) byVendor[b.vendor] = {};
     if(!byVendor[b.vendor][b.date]) byVendor[b.vendor][b.date] = [];
     byVendor[b.vendor][b.date].push(b);
   });
-
   const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship','進場':'chip-enter'};
   const typeChipsHtml = (types) => (types||[]).map(ty => `<span class="chip ${typeChipClass[ty]||''}" style="flex-shrink:0;">${ty}</span>`).join('');
-
   container.innerHTML = Object.keys(byVendor).sort((a,b)=>a.localeCompare(b,'zh-Hant')).map(vendor => {
     const vendorClass = VENDOR_CLASS[vendor] || 'vendor-other';
     const dates = Object.keys(byVendor[vendor]).sort();
+    if(newestFirst) dates.reverse();
     const dayBlocks = dates.map(date => {
       const sortedBookings = [...byVendor[vendor][date]].sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||''));
       const rows = sortedBookings.map(b => `
@@ -7104,7 +7154,6 @@ function renderVendorSlots(){
           ${rows}
         </div>`;
     }).join('');
-
     return `
       <div class="panel" style="margin-bottom:16px;">
         <div class="panel-title">
@@ -7116,6 +7165,21 @@ function renderVendorSlots(){
         ${dayBlocks}
       </div>`;
   }).join('');
+}
+
+function renderVendorSlots(){
+  const today = todayStr();
+  const upcoming = SLOT_BOOKINGS.filter(b => (b.date || '') >= today);
+  const past = SLOT_BOOKINGS.filter(b => (b.date || '') < today);
+  const shownUp = upcoming.filter(slotBookingFilterMatch);
+  const shownPast = past.filter(slotBookingFilterMatch);
+  renderSlotBookingFilterBars('slotBookingFilterBar', 'slotTypeFilterBar', upcoming, shownUp.length);
+  renderSlotBookingFilterBars('slotHistoryFilterBar', 'slotHistoryTypeFilterBar', past, shownPast.length);
+  const histTab = document.querySelector('#view-slots .tab[data-slots-tab="history"]');
+  if(histTab) histTab.textContent = '🗂 歷史紀錄' + (past.length ? ' ' + past.length : '');
+  renderBookingGroups(document.getElementById('slotsContainer'), shownUp, upcoming.length, false,
+    '目前沒有今天以後的預約，點上面「➕ 預約時段」或「📨 指派給業務」新增一筆。');
+  renderBookingGroups(document.getElementById('slotsHistoryContainer'), shownPast, past.length, true, '還沒有歷史紀錄。');
 }
 
 // 2026-10-05：查看業務當時送出的填單內容（唯讀，排成跟業務填單頁類似的版面）
