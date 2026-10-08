@@ -2297,7 +2297,8 @@
             </div>
           </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">指派給（業務姓名，選填，純提示不影響連結本身）</label>
-          <input type="text" class="quick-mark-input" id="slotTaskAssignee" placeholder="例如：小夫" style="margin-bottom:14px;">
+          <input type="text" class="quick-mark-input" id="slotTaskAssignee" placeholder="例如：小夫" style="margin-bottom:6px;" oninput="updateAssigneeBindLine()">
+          <div id="slotTaskAssigneeBind" style="font-size:12px;margin-bottom:14px;min-height:16px;"></div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">請業務在這個時間前回覆給我（預設隔天 18:00，進場為 2 天後 18:00，可調整；日期留空＝不設期限）</label>
           <div style="display:flex;gap:10px;margin-bottom:18px;">
             <div style="flex:1.3;"><input type="date" class="quick-mark-input" id="slotTaskDeadlineDate" onchange="slotDeadlineTouched=true"></div>
@@ -2328,6 +2329,7 @@
           <button class="modal-close" onclick="closeSlotSummaryModal()">✕</button>
         </div>
         <div class="modal-body">
+          <div id="slotSummaryBindNote"></div>
           <textarea id="slotSummaryTextarea" readonly style="width:100%;min-height:260px;border:1px solid var(--border);border-radius:10px;padding:14px;font-size:12.5px;font-family:ui-monospace,monospace;line-height:1.7;color:var(--text);background:var(--surface-2);resize:vertical;"></textarea>
           <button class="btn btn-ghost" id="slotSummaryPreviewBtn" style="width:100%;justify-content:center;padding:11px;margin-top:12px;display:none;" onclick="previewSlotTaskLink()">👀 預覽業務填單畫面</button>
           <button class="btn btn-ghost" id="slotSummaryOwnerBtn" style="width:100%;justify-content:center;padding:11px;margin-top:8px;display:none;" onclick="showOwnerMessage()">🏠 改成「屋主版」訊息（業務轉傳給屋主，測試中）</button>
@@ -6628,8 +6630,47 @@ function renderSlotTaskFilterBar(pending, shownCount){
       <span style="font-size:12px;color:var(--text-muted);">顯示 ${shownCount} / ${pending.length} 筆</span>` : '');
   openIds.forEach(id => { const p = document.getElementById(id); if(p) p.classList.add('show'); });
 }
+// 2026-10-08：已綁定 LINE 的名字（業務＋安排人員）。指派任務要讓屋主填表時，業務一定要先綁，
+// 屋主在期限前沒填表，業務跟安排人員才收得到提醒。
+let BOUND_NAMES = new Set();
+let BOUND_NAMES_AT = 0;
+async function loadBoundNames(force){
+  if(!force && Date.now() - BOUND_NAMES_AT < 60000) return;
+  BOUND_NAMES_AT = Date.now();
+  try{
+    const d = await (await fetch(API_BASE + '/api/line/bound-names', {cache: 'no-store'})).json();
+    BOUND_NAMES = new Set(d.names || []);
+    renderSlotTasks();
+    updateAssigneeBindLine();
+  }catch(e){ console.error('載入綁定名單失敗', e); }
+}
+function updateAssigneeBindLine(){
+  const el = document.getElementById('slotTaskAssigneeBind');
+  const inp = document.getElementById('slotTaskAssignee');
+  if(!el || !inp) return;
+  const name = inp.value.trim();
+  if(!name){ el.innerHTML = ''; return; }
+  el.innerHTML = BOUND_NAMES.has(name)
+    ? '<span style="color:#16A34A;font-weight:700;">✓ ' + escHtml(name) + ' 已綁定 LINE 通知</span>'
+    : '<span style="color:#D97706;font-weight:700;">⚠️ ' + escHtml(name) + ' 還沒綁定 LINE，期限前屋主沒填表時他收不到提醒</span>'
+      + ` <button type="button" class="btn btn-ghost" style="padding:2px 8px;font-size:11px;" onclick="copyRepBindLink(document.getElementById('slotTaskAssignee').value.trim())">複製綁定連結給業務</button>`;
+}
+async function copyRepBindLink(name){
+  if(!name){ showToast('請先填業務名字'); return; }
+  try{
+    const d = await (await fetch(API_BASE + '/api/line/rep-bind-url?name=' + encodeURIComponent(name), {cache: 'no-store'})).json();
+    if(!d.url){ showToast('LINE 功能尚未設定'); return; }
+    const text = `${name} 您好，請用手機 LINE 打開下面的連結綁定陽光機器人通知（只要一次）：\n${d.url}\n綁定後，屋主還沒填預約表、期限快到時，你會收到 LINE 提醒。`;
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    showToast('已複製「' + name + '」的綁定連結，請傳給他');
+  }catch(e){ showToast('複製失敗：' + e.message); }
+}
+
 function renderSlotTasks(){
   updateSlotTaskBadges();
+  loadBoundNames();
   const pendingContainer = document.getElementById('slotTasksPendingContainer');
   if(!pendingContainer) return;
   const allPending = SLOT_TASKS.filter(t => t.status !== '已完成');
@@ -6667,7 +6708,7 @@ function renderSlotTasks(){
       ${typeChipsHtml(t.type)}
       <span style="font-size:12.5px;flex:1;min-width:140px;">${t.case||''}${t.alias?('　'+t.alias):''}</span>
       <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">候選：${t.candidate_dates.map(d=>fmtDate(d)).join('、')}</span>
-      ${t.assignee ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">指派：${t.assignee}</span>` : ''}
+      ${t.assignee ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">指派：${t.assignee}${BOUND_NAMES.has(t.assignee) ? ' <span style="color:#16A34A;font-weight:700;">✓LINE</span>' : ` <span style="color:#D97706;font-weight:700;cursor:pointer;" title="按一下複製綁定連結給業務" onclick="copyRepBindLink('${t.assignee.replace(/'/g, '')}')">⚠️未綁LINE</span>`}</span>` : ''}
       ${t.deadline ? (() => { const over = new Date(t.deadline) < new Date(); return `<span style="font-size:11px;font-weight:700;flex-shrink:0;color:${over ? '#D64545' : '#B45309'};">⏰ ${fmtDeadline(t.deadline)}${over ? '（已逾期）' : ''}</span>`; })() : ''}
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="adjustSlotDeadline('${t.record_id}')">⏰ 期限</button>
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="copySlotTaskMessage('${t.record_id}')">📎 複製訊息</button>
@@ -6791,6 +6832,8 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskOwnerInfo').style.display = 'none';
   document.getElementById('slotTaskDeadlineTime').innerHTML = deadlineTimeOptionsHtml();
   slotDeadlineTouched = false;
+  updateAssigneeBindLine();
+  loadBoundNames(true);
   populateSlotCreatorSelect();
   loadSlotSchedulers();
   ['slotTaskOwnerWinStart', 'slotTaskOwnerWinEnd'].forEach(id => { document.getElementById(id).innerHTML = slotTimeOptionsHtml(); });
@@ -6977,6 +7020,7 @@ function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, 
   }
   const text = `【${vendor} ${typeLabel}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}${estLine}${deadline ? `\n⏰ 請於 ${fmtDeadline(deadline)} 前回覆給我` : ''}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
   document.getElementById('slotSummaryTitle').textContent = '📨 傳給業務的訊息';
+  const bn = document.getElementById('slotSummaryBindNote'); if(bn) bn.innerHTML = '';
   document.getElementById('slotSummaryTextarea').value = text;
   const previewBtn = document.getElementById('slotSummaryPreviewBtn');
   previewBtn.dataset.link = link;
@@ -7007,6 +7051,13 @@ async function showOwnerMessage(){
       + `可選時段：${d.window_start}–${d.window_end} 之間\n`
       + `如果不方便操作，直接回覆我就可以了，謝謝您！`;
     document.getElementById('slotSummaryTitle').textContent = '🏠 傳給屋主的訊息（請業務轉傳，測試中）';
+    const bindNote = document.getElementById('slotSummaryBindNote');
+    if(bindNote){
+      bindNote.innerHTML = !d.assignee ? '<div style="font-size:12.5px;color:#D97706;margin-bottom:10px;">⚠️ 這個任務沒有填「指派給」業務，期限前屋主沒填表時只有安排人員會收到提醒。</div>'
+        : d.assignee_bound ? `<div style="font-size:12.5px;color:#16A34A;margin-bottom:10px;">✓ 業務 ${escHtml(d.assignee)} 已綁定 LINE。屋主在期限前 1 小時還沒填表，他和安排人員都會收到提醒。</div>`
+        : `<div style="font-size:12.5px;color:#D97706;margin-bottom:10px;line-height:1.7;">⚠️ 業務 ${escHtml(d.assignee)} 還沒綁定 LINE，屋主沒填表時他收不到提醒。<br>
+            <button type="button" class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="copyRepBindLink(${JSON.stringify(d.assignee).replace(/"/g, '&quot;')})">複製綁定連結給 ${escHtml(d.assignee)}</button></div>`;
+    }
     document.getElementById('slotSummaryTextarea').value = text;
     const previewBtn = document.getElementById('slotSummaryPreviewBtn');
     previewBtn.dataset.link = link;
@@ -7373,6 +7424,7 @@ function copySlotSummary(vendor){
   document.getElementById('slotSummaryTitle').textContent = '📋 ' + vendor + ' 時段清單';
   document.getElementById('slotSummaryTextarea').value = text;
   document.getElementById('slotSummaryPreviewBtn').style.display = 'none'; // 複製清單沒有對應的 book.html 連結可以預覽
+  const bn2 = document.getElementById('slotSummaryBindNote'); if(bn2) bn2.innerHTML = '';
   document.getElementById('slotSummaryOwnerBtn').style.display = 'none';
   document.getElementById('slotSummaryModalOverlay').classList.add('show');
 }
@@ -7527,7 +7579,7 @@ function wireSlotCaseAutofill(caseId, aliasId, assigneeId, vendorId){
         }
         if(data.sales_person){
           const assigneeEl = document.getElementById(assigneeId);
-          if(assigneeEl) assigneeEl.value = data.sales_person;
+          if(assigneeEl){ assigneeEl.value = data.sales_person; updateAssigneeBindLine(); }
         }
         if(data.vendor && vendorId){
           const vendorEl = document.getElementById(vendorId);
@@ -7606,14 +7658,14 @@ async function selectSlotCaseCandidate(r, caseId, resultsId, aliasId, assigneeId
       const data = await res.json().catch(() => ({}));
       if(data.found && data.sales_person){
         const assigneeEl = document.getElementById(assigneeId);
-        if(assigneeEl) assigneeEl.value = data.sales_person;
+        if(assigneeEl){ assigneeEl.value = data.sales_person; updateAssigneeBindLine(); }
       }
     }catch(err){ /* 查詢失敗就放棄，不影響已經帶好的案號/別名/廠商 */ }
   } else if(r.sales_person){
     // not_in_airtable 的案件沒有 record_id 可以查，業務姓名是搜尋結果裡
     // 直接帶來的（業務自治區 U 欄），不用再另外查一次。
     const assigneeEl = document.getElementById(assigneeId);
-    if(assigneeEl) assigneeEl.value = r.sales_person;
+    if(assigneeEl){ assigneeEl.value = r.sales_person; updateAssigneeBindLine(); }
   }
   // 2026-10-01 新增：屋主聯絡資訊（姓名/電話，來源是業務自治區 K 欄連結的
   // 租賃合約書，見 OWNER_CONTACT_CACHE）只有「指派給業務」modal 會傳

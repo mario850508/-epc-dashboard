@@ -327,19 +327,30 @@ function readParam(name){
   return qi >= 0 ? (new URLSearchParams(st.slice(qi)).get(name) || '') : '';
 }
 let SCHED_LIFF_ID = '';
+// 2026-10-08：綁定頁有兩種角色：?bind=scheduler（安排人員，自己輸入名字）、
+// ?bind=rep&name=業務名字（業務，名字由主控台帶好、不能改，跟任務「指派給」一致）。
+function bindRole(){ return readParam('bind') === 'rep' ? 'rep' : 'scheduler'; }
 function renderSchedulerBind(msg, ok){
   const app = document.getElementById('app');
+  const role = bindRole();
+  const fixedName = role === 'rep' ? (readParam('name') || '') : '';
   let saved = '';
   try{ saved = localStorage.getItem('schedulerBindName') || ''; }catch(e){}
+  if(fixedName) saved = fixedName;
   const friendBlock = (ok && LINE_FRIEND === false)
     ? ('<div style="margin-top:10px;color:#c0392b;">⚠️ 你還沒加「陽光機器人」為好友，加了才收得到通知</div>' + (ADD_FRIEND_URL ? `<a class="btn-ghost-lg" style="display:block;text-align:center;text-decoration:none;margin-top:6px;" href="${ADD_FRIEND_URL}">➕ 加入陽光機器人好友</a>` : ''))
     : '';
   app.innerHTML = ok
-    ? `<div class="card"><h1>✅ 綁定完成</h1><div class="sub">${msg}<br>之後業務完成安排、回傳其他時間、或期限快到還沒安排時，陽光機器人會傳 LINE 通知你。</div>${friendBlock}</div>`
-    : `<div class="card"><h1>🔔 安排人員 LINE 通知綁定</h1>
-        <div class="sub">輸入你的名字（要跟主控台「安排人員」下拉選到的名字一致），再用 LINE 登入綁定。</div>
+    ? `<div class="card"><h1>✅ 綁定完成</h1><div class="sub">${msg}<br>${role === 'rep'
+        ? '之後屋主還沒填預約表、回覆期限快到，或行程前一天，陽光機器人會傳 LINE 提醒你。'
+        : '之後業務完成安排、回傳其他時間、或期限快到還沒安排時，陽光機器人會傳 LINE 通知你。'}</div>${friendBlock}</div>`
+    : `<div class="card"><h1>${role === 'rep' ? '🔔 業務 LINE 通知綁定' : '🔔 安排人員 LINE 通知綁定'}</h1>
+        <div class="sub">${role === 'rep'
+          ? '綁定後，屋主還沒填預約表、期限快到時，陽光機器人會傳 LINE 提醒你。只要綁一次。<br>請先加「陽光機器人」好友，再按下面的按鈕。'
+          : '輸入你的名字（要跟主控台「安排人員」下拉選到的名字一致），再用 LINE 登入綁定。'}</div>
+        ${role === 'rep' && ADD_FRIEND_URL ? `<a class="btn-line" style="display:block;text-align:center;text-decoration:none;" href="${ADD_FRIEND_URL}">➕ 加入陽光機器人好友</a>` : ''}
         <label>你的名字</label>
-        <input type="text" id="schedName" value="${saved}" placeholder="例如：小夫" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:15px;">
+        <input type="text" id="schedName" value="${saved}" ${fixedName ? 'readonly style="width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:15px;background:#F3F4F6;"' : 'style="width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:15px;"'} placeholder="例如：小夫">
         <button type="button" class="btn-ghost-lg" style="margin-top:12px;" onclick="startSchedulerBind()">綁定 LINE 通知</button>
         ${msg ? `<div style="color:#c0392b;margin-top:8px;">${msg}</div>` : ''}</div>`;
 }
@@ -352,8 +363,10 @@ async function initSchedulerBind(){
     if(!SCHED_LIFF_ID){ renderSchedulerBind('LINE 功能尚未設定，請聯絡管理者'); return; }
     await loadLiffSdk();
     await ensureLiff(SCHED_LIFF_ID);
+    renderSchedulerBind('');   // ADD_FRIEND_URL 載入後重畫（業務版有加好友按鈕）
     let pending = false, name = '';
     try{ pending = sessionStorage.getItem('schedBindPending') === '1'; name = localStorage.getItem('schedulerBindName') || ''; }catch(e){}
+    if(bindRole() === 'rep' && readParam('name')) name = readParam('name');
     if(pending && name && liff.isLoggedIn()) await doSchedulerBind(name);
   }catch(err){ renderSchedulerBind('載入失敗：' + err.message); }
 }
@@ -369,7 +382,7 @@ async function startSchedulerBind(){
 }
 async function doSchedulerBind(name){
   try{ sessionStorage.removeItem('schedBindPending'); }catch(e){}
-  const res = await fetch(API_BASE + '/api/line/bind-scheduler', {
+  const res = await fetch(API_BASE + (bindRole() === 'rep' ? '/api/line/bind-rep' : '/api/line/bind-scheduler'), {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({access_token: liff.getAccessToken(), name}),
   });
@@ -430,9 +443,9 @@ async function startVendorShare(){
 
 async function init(){
   const app = document.getElementById('app');
-  if(!TOKEN && readParam('bind') !== 'scheduler' && !readParam('vshare')) await recoverParamsViaLiff();
+  if(!TOKEN && !['scheduler', 'rep'].includes(readParam('bind')) && !readParam('vshare')) await recoverParamsViaLiff();
   if(readParam('vshare')){ initVendorShare(readParam('vshare')); return; }
-  if(readParam('bind') === 'scheduler'){ initSchedulerBind(); return; }
+  if(['scheduler', 'rep'].includes(readParam('bind'))){ initSchedulerBind(); return; }
   if(!TOKEN){
     app.innerHTML = '<div class="not-found">連結不完整，缺少 token，請跟窗口確認連結是否複製完整。</div>';
     return;
