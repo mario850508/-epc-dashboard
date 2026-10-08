@@ -103,6 +103,7 @@ async function init(){
 function headerHtml(){
   return `<div class="card">
     <h1>您好！我們要為您安排：<br>${D.items.map(esc).join('、')}</h1>
+    ${D.address ? `<div class="lead" style="margin:2px 0 6px;">📍 施工地址：<b>${esc(D.address)}</b></div>` : ''}
     <div class="muted">大約需要 <b>${durLabel(D.duration_min)}</b>${D.rep_name ? `｜您的業務：<b>${esc(D.rep_name)}</b>` : ''}</div>
   </div>`;
 }
