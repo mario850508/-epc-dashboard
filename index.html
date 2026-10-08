@@ -7091,6 +7091,7 @@ function renderVendorSlots(){
               <span style="font-size:12.5px;flex:1;min-width:120px;">${b.case||''}${b.alias?('　'+b.alias):''}</span>
               <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">${b.registrant||''}</span>
               <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="showSlotBookingDetail('${b.record_id}')">📄 查看填單</button>
+              <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;${b.vendor_notified_at ? 'color:#16A34A;border-color:#BFE6CF;' : ''}" onclick="openVendorNotice('${b.record_id}')" title="${b.vendor_notified_at ? '已通知廠商：' + fmtDateTimeTW(b.vendor_notified_at) : '確認屋主資料後，傳卡片到廠商群組'}">${b.vendor_notified_at ? '✓ 已通知廠商' : '📤 通知廠商'}</button>
               <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotBooking('${b.record_id}')">刪除</button>
               ${(b.owner_name || b.owner_phone || b.note) ? `<div style="flex-basis:100%;font-size:11.5px;color:var(--text-muted);line-height:1.6;padding-left:2px;">
                 ${(b.owner_name || b.owner_phone) ? `👤 屋主：${[b.owner_name, b.owner_phone].filter(Boolean).join('　')}` : ''}
@@ -7182,6 +7183,86 @@ async function showSlotBookingDetail(recordId){
   }catch(err){
     ov.firstElementChild.innerHTML = '<div style="color:#B42318;">載入失敗：' + escHtml(err.message) + '</div><button type="button" class="btn btn-ghost" style="margin-top:10px;" onclick="closeSlotDetail()">關閉</button>';
   }
+}
+
+// 2026-10-08：通知廠商。先確認屋主聯絡資料（預設帶公證書／合約上的資料），存回預約，
+// 再產生 LIFF 分享連結；用手機 LINE 打開、選廠商群組，把卡片傳過去。
+function closeVendorNotice(){ const ov = document.getElementById('vendorNoticeOverlay'); if(ov) ov.remove(); }
+async function openVendorNotice(recordId){
+  const b = SLOT_BOOKINGS.find(x => x.record_id === recordId);
+  if(!b){ showToast('找不到這筆預約，請重新整理'); return; }
+  closeVendorNotice();
+  const ov = document.createElement('div');
+  ov.id = 'vendorNoticeOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.onclick = e => { if(e.target === ov) closeVendorNotice(); };
+  ov.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:460px;width:100%;color:#1B2333;max-height:92vh;overflow-y:auto;">載入中…</div>';
+  document.body.appendChild(ov);
+  let contract = null;
+  try{
+    const r = await fetch(API_BASE + '/api/owner-contact?case=' + encodeURIComponent(b.case || ''), {cache: 'no-store'});
+    const d = await r.json();
+    if(d.found) contract = d;
+  }catch(e){}
+  const defName = (contract && contract.name) || b.owner_name || '';
+  const defPhone = (contract && contract.phone) || b.owner_phone || '';
+  const src = (label, n, p) => (n || p) ? `<div style="font-size:12px;color:#6B7280;margin-top:4px;">${label}：${escHtml(n)} ${escHtml(p)}
+      <button type="button" class="btn btn-ghost" style="padding:1px 8px;font-size:11px;margin-left:4px;" onclick="document.getElementById('vnName').value=${JSON.stringify(n || '').replace(/"/g, '&quot;')};document.getElementById('vnPhone').value=${JSON.stringify(p || '').replace(/"/g, '&quot;')}">帶入</button></div>` : '';
+  const wd = b.date ? '（' + fmtWeekday(b.date) + '）' : '';
+  ov.firstElementChild.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:17px;font-weight:800;">📤 通知廠商</div>
+      <button type="button" onclick="closeVendorNotice()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button>
+    </div>
+    <div style="font-size:13px;color:#6B7280;margin:4px 0 12px;">${escHtml(b.vendor)}｜${escHtml((b.type || []).join('＋'))}｜${fmtDate(b.date)}${wd} ${escHtml(b.start_time)}–${escHtml(b.end_time)}<br>${escHtml(b.case)} ${escHtml(b.alias || '')}</div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:6px;">屋主聯絡資訊（會出現在給廠商的卡片上）</div>
+    <div style="display:flex;gap:8px;">
+      <input id="vnName" class="quick-mark-input" placeholder="屋主姓名" value="${escHtml(defName)}" style="flex:1;">
+      <input id="vnPhone" class="quick-mark-input" placeholder="屋主電話" value="${escHtml(defPhone)}" style="flex:1;">
+    </div>
+    ${src('公證書／合約資料', contract && contract.name, contract && contract.phone)}
+    ${src('業務填寫', b.owner_name, b.owner_phone)}
+    ${!contract ? '<div style="font-size:12px;color:#B45309;margin-top:4px;">找不到這案的公證書資料，請手動確認姓名電話。</div>' : ''}
+    <div style="font-size:13px;font-weight:700;margin:14px 0 6px;">給廠商的備註（選填）</div>
+    <textarea id="vnNote" class="quick-mark-input" rows="2" placeholder="例如：請提早 10 分鐘到、屋主下午才在家"></textarea>
+    <button type="button" class="btn btn-primary" id="vnSubmit" style="width:100%;justify-content:center;padding:11px;margin-top:14px;" onclick="submitVendorNotice('${recordId}')">儲存並產生廠商通知</button>
+    <div id="vnResult"></div>`;
+}
+async function submitVendorNotice(recordId){
+  const btn = document.getElementById('vnSubmit');
+  const name = document.getElementById('vnName').value.trim();
+  const phone = document.getElementById('vnPhone').value.trim();
+  if(!name || !phone){ showToast('請先填屋主姓名和電話'); return; }
+  btn.disabled = true; btn.textContent = '儲存中…';
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/' + encodeURIComponent(recordId) + '/vendor-notice', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({owner_name: name, owner_phone: phone, pm_note: document.getElementById('vnNote').value.trim()}),
+    });
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    window._vnPlain = d.plain_text || '';
+    window._vnLink = d.liff_url || '';
+    btn.style.display = 'none';
+    document.getElementById('vnResult').innerHTML = `
+      <div style="margin-top:14px;padding:12px 14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;font-size:13px;line-height:1.7;">
+        ✅ 已儲存屋主資料。<b>下一步：用手機 LINE 開啟下面的連結</b>，按「選擇廠商群組並傳送」，選這家廠商的群組送出卡片。
+      </div>
+      ${d.liff_url ? `<a href="${d.liff_url}" target="_blank" rel="noopener" class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:10px;text-decoration:none;">📱 在 LINE 開啟並選擇群組</a>
+      <button type="button" class="btn btn-ghost" style="width:100%;justify-content:center;padding:10px;margin-top:8px;" onclick="copyVnText(window._vnLink, '已複製連結，可以貼到 LINE 給自己再點開')">複製連結（在電腦上時，傳到自己的 LINE 再點）</button>` : ''}
+      <button type="button" class="btn btn-ghost" style="width:100%;justify-content:center;padding:10px;margin-top:8px;" onclick="copyVnText(window._vnPlain, '已複製文字版通知')">複製文字版（備用）</button>`;
+    loadVendorSlots();
+  }catch(err){
+    showToast('儲存失敗：' + err.message);
+    btn.disabled = false; btn.textContent = '儲存並產生廠商通知';
+  }
+}
+function copyVnText(text, okMsg){
+  const ta = document.createElement('textarea');
+  ta.value = text || ''; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); showToast(okMsg); }catch(e){ showToast('複製失敗'); }
+  ta.remove();
 }
 
 async function deleteSlotBooking(recordId){

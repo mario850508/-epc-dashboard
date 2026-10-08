@@ -379,9 +379,59 @@ async function doSchedulerBind(name){
   renderSchedulerBind('名字：' + name + (d.display_name ? '　LINE：' + d.display_name : ''), true);
 }
 
+// ---- 2026-10-08：通知廠商分享頁（book.html?vshare=token，由 LIFF 連結開啟）----
+// PM 在手機 LINE 打開，預覽卡片後按按鈕，用 shareTargetPicker 選廠商群組，以 PM 本人身分把卡片傳過去。
+let VSHARE = null;
+function renderVendorShare(msg, ok){
+  const app = document.getElementById('app');
+  const c = VSHARE.card;
+  const rows = (c.rows || []).filter(([k, v]) => v).map(([k, v]) => `<div class="info-row"><span class="info-label">${k}</span><span style="white-space:pre-wrap;">${String(v).replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]))}</span></div>`).join('');
+  app.innerHTML = `<div class="card" style="padding:0;overflow:hidden;">
+      <div style="background:${c.color};color:#fff;font-weight:700;font-size:13px;padding:10px 16px;">${c.tag}</div>
+      <div style="padding:16px 18px;"><h1>${c.title}</h1>${rows}</div>
+    </div>
+    ${VSHARE.sent_at ? `<div class="hint" style="margin-bottom:10px;">上次傳送：${VSHARE.sent_at.replace('T', ' ').slice(0, 16)}</div>` : ''}
+    <button class="btn-line" onclick="startVendorShare()">📤 選擇廠商群組並傳送</button>
+    ${msg ? `<div style="margin-top:10px;font-size:13px;color:${ok ? '#16A34A' : '#c0392b'};font-weight:700;">${msg}</div>` : ''}
+    <div class="hint" style="margin-top:12px;">卡片會以你自己的 LINE 帳號傳進你選的群組或聊天室，可以一次選多個。</div>`;
+}
+async function initVendorShare(tok){
+  const app = document.getElementById('app');
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-share/' + encodeURIComponent(tok), {cache: 'no-store'});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok){ app.innerHTML = '<div class="not-found">' + (d.error || '找不到這則通知') + '</div>'; return; }
+    VSHARE = d; VSHARE.token = tok;
+    renderVendorShare('');
+    const cfg = await (await fetch(API_BASE + '/api/line/liff-config', {cache: 'no-store'})).json();
+    if(cfg.liff_id) await ensureLiff(cfg.liff_id);
+  }catch(err){
+    app.innerHTML = '<div class="not-found">載入失敗：' + err.message + '</div>';
+  }
+}
+async function startVendorShare(){
+  try{
+    if(!window.liff || !liff.id){ renderVendorShare('LINE 功能還沒準備好，請稍候再按一次'); return; }
+    if(!liff.isLoggedIn()){ liff.login({redirectUri: window.location.href}); return; }
+    if(!liff.isApiAvailable('shareTargetPicker')){
+      renderVendorShare('這裡不能使用「選擇群組傳送」：請確認 LINE Developers 已開啟 shareTargetPicker，並用手機 LINE 開啟這個連結。');
+      return;
+    }
+    const r = await liff.shareTargetPicker([{type: 'flex', altText: VSHARE.alt, contents: VSHARE.flex}], {isMultiple: true});
+    if(!r){ renderVendorShare('已取消，沒有傳送。'); return; }
+    const res = await fetch(API_BASE + '/api/vendor-share/' + encodeURIComponent(VSHARE.token) + '/sent', {method: 'POST'});
+    const d = await res.json().catch(() => ({}));
+    if(d.sent_at) VSHARE.sent_at = d.sent_at;
+    renderVendorShare('✅ 已傳送給廠商！可以關掉這個畫面了。', true);
+  }catch(err){
+    renderVendorShare('傳送失敗：' + err.message);
+  }
+}
+
 async function init(){
   const app = document.getElementById('app');
-  if(!TOKEN && readParam('bind') !== 'scheduler') await recoverParamsViaLiff();
+  if(!TOKEN && readParam('bind') !== 'scheduler' && !readParam('vshare')) await recoverParamsViaLiff();
+  if(readParam('vshare')){ initVendorShare(readParam('vshare')); return; }
   if(readParam('bind') === 'scheduler'){ initSchedulerBind(); return; }
   if(!TOKEN){
     app.innerHTML = '<div class="not-found">連結不完整，缺少 token，請跟窗口確認連結是否複製完整。</div>';
