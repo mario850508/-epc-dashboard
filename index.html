@@ -748,7 +748,7 @@
         <div class="pipe-arrow">›</div>
         <div class="pipe-step active">
           <div class="pipe-num">2</div>
-          <div><div class="pipe-label">PDF 更名</div><div class="pipe-desc">線上 AI 背景辨識</div></div>
+          <div><div class="pipe-label">PDF 更名</div><div class="pipe-desc">線上背景免費辨識</div></div>
         </div>
         <div class="pipe-arrow">›</div>
         <div class="pipe-step">
@@ -851,7 +851,7 @@
         <div>
           <div class="crumb">功能模組 / PDF 公文更名</div>
           <h1 class="page-title">PDF 公文更名</h1>
-          <div class="page-sub">線上執行：上傳 PDF 後由後端背景 AI 辨識案號、日期與函文類型，人工確認後才正式更名；LINE 收件紀錄併入此模組</div>
+          <div class="page-sub">線上執行：上傳 PDF 後由後端背景免費辨識案號、日期與函文類型，人工確認後才正式更名；LINE 收件紀錄併入此模組</div>
         </div>
       </div>
 
@@ -903,7 +903,7 @@
           <div id="pdfList"><div class="login-note">載入中…</div></div>
         </div>
         <div class="login-note">
-          🤖 線上辨識流程：AI 先讀完整份 PDF 抽出函文類型、發文日期與所有識別資料（台電受理編號、電號、同意備案編號、地址、申請人…），系統再拿這些資料跟 Airtable「專案細節」全部案件精確比對，最後請 AI 對照候選案件重新確認一次並給信心分數。兩次判讀不一致、編號對不上、日期不合理都會扣分並列出提醒，確認前請看一下。已確認的檔案可以直接用新檔名下載；本機歸檔程式也可以讀取「已確認」清單自動歸檔到 G 槽。
+          🔍 免費辨識流程：電子檔直接讀 PDF 裡的文字，掃描檔用 Google 雲端硬碟 OCR 轉成文字；再從文字抓發文日期、發文字號、主旨，用「函文規則」的關鍵字判斷類型，並拿 Airtable「專案細節」每個案件的受理編號、電號、同意備案編號、案號直接在全文裡找——對到編號的案號幾乎不會錯，只靠地址推測的會標提醒。沒把握的都會留在「待確認」並列出原因，確認前請看一下；也可以在設定裡改成「沒把握的才交給 AI」。已確認的檔案可以直接用新檔名下載；本機歸檔程式也可以讀取「已確認」清單自動歸檔到 G 槽。
         </div>
       </div>
 
@@ -6269,10 +6269,16 @@ function renderPdfStatus(){
   else if(s.last_finished_at) info += `｜上次執行：${pdfFmtTime(s.last_finished_at)}`;
   document.getElementById('pdfRunInfo').textContent = info;
   let alert = '';
-  if(!s.api_key_configured){
-    alert = '⚠ 後端還沒有設定 ANTHROPIC_API_KEY（Render → Environment），檔案可以先上傳，但不會被辨識。';
+  const engine = st.engine || 'free';
+  if(engine !== 'free' && !s.api_key_configured){
+    alert = engine === 'ai'
+      ? '⚠ 辨識方式是「全部用 AI」，但後端沒有設定 ANTHROPIC_API_KEY，檔案不會被辨識。可以到「⚙ 命名格式與函文規則」改回「免費辨識」。'
+      : '⚠ 辨識方式是「沒把握的才用 AI」，但後端沒有設定 ANTHROPIC_API_KEY，目前只會用免費辨識。';
   }else if(s.last_error){
     alert = '⚠ 上次辨識發生錯誤：' + pdfEsc(s.last_error);
+  }
+  if(!alert && engine !== 'ai' && !st.ocr_url){
+    alert = 'ℹ 電子檔 PDF 可以直接免費辨識；掃描檔還需要設定一次 Google OCR（免費），請到「⚙ 命名格式與函文規則」照步驟設定。';
   }
   document.getElementById('pdfAlert').innerHTML = alert ? `<div class="pdf-issue" style="margin:0 0 12px;">${alert}</div>` : '';
 }
@@ -6425,6 +6431,7 @@ function openPdfDetail(id){
       </div>
       ${x.writeback ? `<label>Airtable 寫回／歸檔紀錄</label><div class="pdf-evidence">${pdfEsc(x.writeback)}</div>` : ''}
       ${x.evidence ? `<label>辨識依據</label><div class="pdf-evidence">${pdfEsc(x.evidence)}</div>` : ''}
+      ${x.text_excerpt ? `<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:12px;font-weight:600;">辨識出的文字（判斷錯誤時可以看是不是 OCR 認錯字）</summary><div class="pdf-evidence" style="max-height:240px;overflow:auto;margin-top:6px;">${pdfEsc(x.text_excerpt)}</div></details>` : ''}
       ${cands ? `<label>候選案件（點一下套用；綠色＝編號精確吻合）</label>${cands}` : ''}
     </div></div>`;
   document.getElementById('pdfDetailModalOverlay').classList.add('show');
@@ -6523,8 +6530,33 @@ function deletePdf(id){
 // ---- 命名格式與函文規則 ----
 function openPdfRulesModal(){
   const st = (PDF_STATE.status && PDF_STATE.status.settings) || {};
+  const engine = st.engine || 'free';
   document.getElementById('pdfRulesBody').innerHTML = `
-    <label style="margin-top:0;">檔名格式</label>
+    <label style="margin-top:0;">辨識方式</label>
+    <select class="quick-mark-input" id="pdfRuleEngine">
+      <option value="free" ${engine === 'free' ? 'selected' : ''}>免費辨識（PDF 文字＋Google OCR＋規則比對，完全不花錢）</option>
+      <option value="hybrid" ${engine === 'hybrid' ? 'selected' : ''}>免費辨識，信心不夠的才交給 AI（要 API key，少量費用）</option>
+      <option value="ai" ${engine === 'ai' ? 'selected' : ''}>全部用 AI 辨識（最準，要 API key，每份約 NT$1～3）</option>
+    </select>
+    <label>Google OCR 網址（掃描檔用，免費）</label>
+    <div style="display:flex;gap:8px;">
+      <input class="quick-mark-input" id="pdfRuleOcrUrl" placeholder="https://script.google.com/macros/s/…/exec" value="${pdfEsc(st.ocr_url || '')}">
+      <button class="btn btn-ghost" style="white-space:nowrap;" onclick="testPdfOcr()">測試連線</button>
+    </div>
+    <details style="margin-top:6px;font-size:12px;">
+      <summary style="cursor:pointer;color:var(--primary-dark);">第一次設定 Google OCR 的步驟（約 5 分鐘，只要做一次）</summary>
+      <ol style="padding-left:18px;line-height:1.8;margin:8px 0;">
+        <li>用公司的 Google 帳號打開 <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener">script.google.com 新增專案</a>，專案名稱可以取「公文 OCR」。</li>
+        <li>把編輯器裡原本的程式全部刪掉，貼上下面這段（按「複製程式碼」）。</li>
+        <li>左邊「服務」旁邊按 <b>＋</b> → 選 <b>Drive API</b> → 新增。</li>
+        <li>右上角 <b>部署 → 新增部署作業</b> → 齒輪選「<b>網頁應用程式</b>」→ 執行身分選「<b>我</b>」、誰可以存取選「<b>所有人</b>」→ 部署，照畫面授權。</li>
+        <li>複製「網頁應用程式網址」（https://script.google.com/macros/s/…/exec），貼到上面的欄位，按「測試連線」，成功後按最下面「儲存」。</li>
+      </ol>
+      <textarea readonly id="pdfOcrScript" style="width:100%;height:150px;font-family:ui-monospace,monospace;font-size:11px;border:1px solid var(--border);border-radius:8px;padding:8px;">${pdfEsc(PDF_OCR_SCRIPT)}</textarea>
+      <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-top:6px;" onclick="navigator.clipboard.writeText(PDF_OCR_SCRIPT).then(() => showToast('已複製'))">📋 複製程式碼</button>
+      <div class="pdf-sub" style="margin-top:6px;">檔案只會暫時放進你的雲端硬碟做 OCR，辨識完馬上刪除。Google 每天的免費額度對公文量來說綽綽有餘。</div>
+    </details>
+    <label>檔名格式</label>
     <input class="quick-mark-input" id="pdfRuleTemplate" value="${pdfEsc(st.template || '{案號}_{函文類型}_{日期}')}" oninput="previewPdfTemplate()">
     <div class="pdf-sub">可用：{案號} {別名} {函文類型} {日期}＝20260908　{西元日期}＝2026-09-08　{民國日期}＝1150908。副檔名 .pdf 會自動加上。</div>
     <div class="pdf-sub" id="pdfRulePreview" style="color:var(--text);margin-top:4px;"></div>
@@ -6546,6 +6578,54 @@ function openPdfRulesModal(){
   document.getElementById('pdfRulesModalOverlay').classList.add('show');
   previewPdfTemplate();
 }
+async function testPdfOcr(){
+  const url = document.getElementById('pdfRuleOcrUrl').value.trim();
+  if(!url){ showToast('請先貼上 OCR 網址'); return; }
+  try{
+    const res = await fetch(API_BASE + '/api/pdf-rename/test-ocr', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ocr_url: url})});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || '連線失敗');
+    showToast('✓ ' + (data.message || '連線成功') + '，記得按「儲存」');
+  }catch(e){
+    showToast('✗ ' + e.message);
+  }
+}
+
+// 使用者貼到自己 Google Apps Script 的免費 OCR 服務（Google 雲端硬碟內建 OCR）
+const PDF_OCR_SCRIPT = [
+  "// 陽光主控台「PDF 公文更名」用的免費 OCR（Google 雲端硬碟內建 OCR）",
+  "// 需要在左邊「服務」加入 Drive API。部署成網頁應用程式：執行身分＝我、存取權＝所有人。",
+  "function doGet() {",
+  "  return json_({ok: true, message: 'OCR 服務正常'});",
+  "}",
+  "",
+  "function doPost(e) {",
+  "  var fileId = null;",
+  "  try {",
+  "    var body = JSON.parse(e.postData.contents);",
+  "    var blob = Utilities.newBlob(Utilities.base64Decode(body.pdf), 'application/pdf', 'ocr-temp.pdf');",
+  "    var file = Drive.Files.create(",
+  "      {name: 'ocr-temp-' + new Date().getTime(), mimeType: 'application/vnd.google-apps.document'},",
+  "      blob, {ocrLanguage: 'zh-TW', fields: 'id'});",
+  "    fileId = file.id;",
+  "    var text = DocumentApp.openById(fileId).getBody().getText();",
+  "    return json_({ok: true, text: text});",
+  "  } catch (err) {",
+  "    return json_({ok: false, error: String(err)});",
+  "  } finally {",
+  "    if (fileId) {",
+  "      try { Drive.Files.remove(fileId); }",
+  "      catch (e2) { try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e3) {} }",
+  "    }",
+  "  }",
+  "}",
+  "",
+  "function json_(obj) {",
+  "  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);",
+  "}",
+].join('\n');
+
 function closePdfRulesModal(){ document.getElementById('pdfRulesModalOverlay').classList.remove('show'); }
 
 function pdfRuleRow(t){
@@ -6571,6 +6651,8 @@ async function savePdfRules(){
     note: '',
   })).filter(t => t.name);
   const s = await savePdfSetting({
+    engine: document.getElementById('pdfRuleEngine').value,
+    ocr_url: document.getElementById('pdfRuleOcrUrl').value.trim(),
     template: document.getElementById('pdfRuleTemplate').value.trim(),
     batch_size: document.getElementById('pdfRuleBatch').value,
     interval_min: document.getElementById('pdfRuleInterval').value,
