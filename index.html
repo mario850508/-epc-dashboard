@@ -748,6 +748,80 @@
     .pdf-chip{white-space:nowrap;}
     .pdf-hint{display:none;}
   }
+  /* ---- 公文更名：2026-10-09 第二版（字放大、填滿畫面、辨識進度）---- */
+  #view-pdf .pdf-table{font-size:14px;}
+  #view-pdf .pdf-table th{font-size:13px;padding:10px;}
+  #view-pdf .pdf-table td{padding:13px 10px;}
+  #view-pdf .pdf-name{font-size:14px;}
+  #view-pdf .pdf-sub{font-size:12.5px;}
+  #view-pdf .pdf-chip{font-size:13.5px;padding:7px 15px;}
+  #view-pdf .pdf-st{font-size:12px;padding:4px 11px;}
+  #view-pdf .pdf-conf{font-size:13px;padding:3px 10px;}
+  #view-pdf .pdf-row-issue{font-size:12.5px;max-width:340px;}
+  #view-pdf .pdf-search{font-size:14px;padding:9px 14px;}
+  #view-pdf .pdf-bar .pdf-stat{padding:10px 18px;}
+  #view-pdf .pdf-bar .pdf-stat-num{font-size:24px;}
+  #view-pdf .pdf-bar .pdf-stat-label{font-size:14px;}
+  #view-pdf .pdf-bar-actions .btn{font-size:14px;padding:10px 16px;}
+  #view-pdf .pdf-auto-chips{font-size:13px;}
+  #view-pdf .pdf-auto-toggle{font-size:13.5px;}
+  #view-pdf .pdf-toggle-title{font-size:14.5px;}
+  #view-pdf .pdf-toggle-desc{font-size:13px;}
+  #view-pdf .pdf-batch{font-size:13.5px;padding:9px 12px;}
+  #view-pdf .pdf-batch .btn{font-size:13px !important;}
+  #view-pdf .pdf-table .btn{font-size:13px !important;padding:7px 13px !important;}
+  #view-pdf .pdf-hint,#view-pdf .pdf-help{font-size:13px;}
+  #view-pdf .pdf-type{font-size:14px;}
+  .pdf-settings{display:none;}
+  .pdf-settings.open{display:grid;gap:12px;margin-bottom:12px;}
+  .pdf-settings .pdf-toggles{margin:0;}
+  .pdf-layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:14px;align-items:start;}
+  .pdf-main{min-width:0;}
+  .pdf-list-panel{min-height:calc(100vh - 330px);margin-bottom:0;}
+  .pdf-side{display:flex;flex-direction:column;gap:12px;position:sticky;top:12px;}
+  .pdf-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;}
+  .pdf-box-title{font-size:14.5px;font-weight:800;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .pdf-box-title a{font-size:12.5px;font-weight:600;}
+  .pdf-kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .pdf-kpi{background:var(--surface-2);border-radius:10px;padding:9px 11px;}
+  .pdf-kpi b{display:block;font-size:22px;line-height:1.1;}
+  .pdf-kpi span{font-size:12.5px;color:var(--text-muted);}
+  .pdf-side-row{display:flex;align-items:center;gap:8px;font-size:13px;padding:7px 0;border-top:1px solid var(--border);cursor:pointer;}
+  .pdf-side-row:first-of-type{border-top:none;}
+  .pdf-side-row .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pdf-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:#B8C0CC;}
+  .pdf-dot.ok{background:#2FA36B;box-shadow:0 0 0 3px rgba(47,163,107,.15);}
+  .pdf-dot.warn{background:#E0A100;} .pdf-dot.bad{background:#D64545;}
+  /* 辨識進度 */
+  .pdf-progress{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:12px;}
+  .pdf-progress.run{border-color:#9CC3F5;background:linear-gradient(180deg,#F3F8FF,var(--surface));}
+  .pdf-progress-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;font-size:14px;}
+  .pdf-progress-head b{font-size:15px;}
+  .pdf-pbar{height:12px;border-radius:12px;background:#E3EAF4;overflow:hidden;margin:10px 0 8px;position:relative;}
+  .pdf-pbar > i{display:block;height:100%;border-radius:12px;background:linear-gradient(90deg,#3A8DEB,#2F6FD6);transition:width .6s ease;}
+  .pdf-pbar > i.cur{position:absolute;top:0;background:repeating-linear-gradient(45deg,#8FBDF2 0 8px,#B6D4F7 8px 16px);background-size:200% 100%;animation:pdfStripe 1.2s linear infinite;border-radius:0 12px 12px 0;}
+  @keyframes pdfStripe{from{background-position:0 0;}to{background-position:-32px 0;}}
+  .pdf-progress-now{font-size:13px;color:var(--text);display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .pdf-spin{width:14px;height:14px;border:2px solid #9CC3F5;border-top-color:#2F6FD6;border-radius:50%;animation:pdfSpin .8s linear infinite;flex-shrink:0;}
+  @keyframes pdfSpin{to{transform:rotate(360deg);}}
+  .pdf-row-step{font-size:12px;color:#1E70C8;margin-top:4px;display:flex;align-items:center;gap:6px;}
+  #view-pdf .pdf-table td:nth-child(3) .pdf-name{white-space:nowrap;}
+  #pdfDetailModalOverlay .pdf-form label{font-size:13.5px;}
+  #pdfDetailModalOverlay .pdf-form .quick-mark-input{font-size:15px;}
+  #pdfDetailModalOverlay .pdf-issue,#pdfDetailModalOverlay .pdf-evidence,#pdfDetailModalOverlay .pdf-cand{font-size:13px;}
+  #pdfDetailModalOverlay .pdf-sub{font-size:12.5px;}
+  #pdfDetailModalOverlay .pdf-actions .btn{font-size:14px;padding:10px 16px;}
+  #pdfDetailModalOverlay .modal-title{font-size:16px;}
+  @media (max-width:1380px){ #view-pdf .pdf-table .pdf-hide-m{display:none;} }
+  @media (max-width:1440px){
+    .pdf-layout{grid-template-columns:minmax(0,1fr);}
+    .pdf-side{position:static;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));}
+    .pdf-list-panel{min-height:0;}
+  }
+  @media (max-width:760px){
+    #view-pdf .pdf-bar-actions .btn{font-size:12.5px;padding:9px 10px;}
+    #view-pdf .pdf-bar .pdf-stat{padding:9px 12px;}
+  }
 </style>
 </head>
 <body>
@@ -993,23 +1067,19 @@
             <label class="pdf-switch"><input type="checkbox" id="pdfArchiveToggle" onchange="togglePdfArchive(this.checked)"><span></span></label>
           </div>
         </div>
-        <div class="pdf-toggle" style="margin-bottom:14px;align-items:center;">
+        <div class="pdf-toggle" style="align-items:center;">
           <div style="flex:1;">
             <div class="pdf-toggle-title">🧠 自動學習（越用越準）</div>
             <div class="pdf-toggle-desc" id="pdfLearnInfo">—</div>
           </div>
           <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;white-space:nowrap;" id="pdfRetrainBtn" onclick="runPdfRetrain()">立即重新學習</button>
         </div>
-          <div class="pdf-toggle" style="align-items:center;">
-            <div style="flex:1;">
-              <div class="pdf-toggle-title">🧠 自動學習（越用越準）</div>
-              <div class="pdf-toggle-desc" id="pdfLearnInfo">—</div>
-            </div>
-            <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;white-space:nowrap;" id="pdfRetrainBtn" onclick="runPdfRetrain()">立即重新學習</button>
-          </div>
         </div>
         <div id="pdfUploadProgress" class="pdf-upload-progress"></div>
         <input type="file" id="pdfFileInput" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tif,.tiff,.webp,.docx,.xlsx" multiple style="display:none" onchange="uploadPdfFiles(this.files); this.value='';">
+        <div class="pdf-layout">
+        <div class="pdf-main">
+        <div id="pdfProgress"></div>
         <div class="panel pdf-list-panel">
           <div class="pdf-toolbar">
             <div class="pdf-chips" id="pdfChips"></div>
@@ -1017,6 +1087,9 @@
           </div>
           <div id="pdfBatchBar"></div>
           <div id="pdfList"><div class="login-note">載入中…</div></div>
+        </div>
+        </div>
+        <aside class="pdf-side" id="pdfSide"></aside>
         </div>
         <div class="pdf-hint">💡 把檔案直接拖進這個頁面任何地方就會上傳（PDF、照片、Word／Excel；照片自動轉成 PDF）。</div>
         <details class="pdf-help">
@@ -6374,8 +6447,11 @@ async function loadPdfRename(){
     if(s.error || i.error) throw new Error(s.error || i.error);
     PDF_STATE.status = s;
     PDF_STATE.items = i.items || [];
+    PDF_STATE.progress = s.progress || null;
     renderPdfStatus();
     renderPdfList();
+    renderPdfProgress();
+    renderPdfSide();
     if(document.getElementById('tab-pdf-line').classList.contains('active')){ renderPdfLineList(); }
   }catch(e){
     document.getElementById('pdfList').innerHTML = `<div class="login-note">⚠ 讀取失敗：${pdfEsc(e.message)}（後端剛啟動的話等一分鐘再按重新整理）</div>`;
@@ -6383,14 +6459,115 @@ async function loadPdfRename(){
   schedulePdfPoll();
 }
 
-// 有檔案在佇列／辨識中時每 20 秒自動更新，沒有就停
+// 有檔案在佇列／辨識中時自動更新：辨識中每 3 秒問一次進度（不查 Airtable），一份做完或整輪結束才重新載入清單
 function schedulePdfPoll(){
   clearTimeout(PDF_STATE.timer);
   const view = document.getElementById('view-pdf');
-  const busy = PDF_STATE.items.some(x => x.status === '待辨識' || x.status === '辨識中') || (PDF_STATE.status && PDF_STATE.status.running);
-  if(busy && view && view.classList.contains('active')){
-    PDF_STATE.timer = setTimeout(loadPdfRename, 20000);
+  if(!view || !view.classList.contains('active')) return;
+  const pr = PDF_STATE.progress || {};
+  const busy = PDF_STATE.items.some(x => x.status === '待辨識' || x.status === '辨識中') || pr.running;
+  if(!busy) return;
+  PDF_STATE.timer = setTimeout(pr.running ? pollPdfProgress : loadPdfRename, pr.running ? 3000 : 20000);
+}
+
+async function pollPdfProgress(){
+  const before = PDF_STATE.progress || {};
+  try{
+    const res = await fetch(API_BASE + '/api/pdf-rename/progress', {cache: 'no-store'});
+    const pr = await res.json();
+    PDF_STATE.progress = pr;
+    if(!pr.running || pr.done !== before.done){ loadPdfRename(); return; }
+    renderPdfProgress();
+    updatePdfRowSteps();
+  }catch(e){}
+  schedulePdfPoll();
+}
+
+function pdfDur(sec){
+  sec = Math.max(0, Math.round(sec || 0));
+  return sec < 60 ? `${sec} 秒` : `${Math.floor(sec / 60)} 分 ${sec % 60 ? (sec % 60) + ' 秒' : ''}`.trim();
+}
+
+function renderPdfProgress(){
+  const el = document.getElementById('pdfProgress');
+  if(!el) return;
+  const pr = PDF_STATE.progress || {};
+  const c = ((PDF_STATE.status || {}).counts) || {};
+  const waiting = (c['待辨識'] || 0) + (c['辨識中'] || 0);
+  if(pr.running && pr.total){
+    const doneP = pr.done / pr.total * 100;
+    const curP = 100 / pr.total;
+    const avg = pr.avg_sec || 25;
+    const left = Math.max(0, (pr.total - pr.done) * avg - (pr.item_sec || 0));
+    const more = Math.max(0, (pr.queued_total || 0) - pr.total);
+    el.innerHTML = `<div class="pdf-progress run">
+      <div class="pdf-progress-head"><b>🔄 辨識中：第 ${Math.min(pr.done + 1, pr.total)} / ${pr.total} 份</b>
+        <span class="pdf-sub">已花 ${pdfDur(pr.elapsed_sec)}${pr.avg_sec ? `・預估還要約 ${pdfDur(left)}` : ''}${pr.failed ? `・<span style="color:#C9383D;">${pr.failed} 份失敗</span>` : ''}</span></div>
+      <div class="pdf-pbar"><i style="width:${doneP}%"></i><i class="cur" style="left:${doneP}%;width:${curP}%"></i></div>
+      <div class="pdf-progress-now"><span class="pdf-spin"></span><b>${pdfEsc(pr.current_name || '')}</b>
+        <span class="pdf-sub" style="margin:0;">${pdfEsc(pr.step || '')}（${pdfDur(pr.step_sec)}）</span></div>
+      ${more ? `<div class="pdf-sub" style="margin-top:6px;">這一輪做完後還有 ${more} 份排隊，會接著在下一輪辨識</div>` : ''}
+    </div>`;
+  }else if(waiting){
+    const st = (PDF_STATE.status || {}).settings || {};
+    el.innerHTML = `<div class="pdf-progress">
+      <div class="pdf-progress-head"><b>⏳ ${waiting} 份等待辨識</b>
+        <span class="pdf-sub">${st.enabled ? (pr.next_run_at ? `下一輪約 ${pdfFmtTime(pr.next_run_at).slice(11)} 自動開始` : '稍後自動開始') : '背景自動辨識已關閉'}</span></div>
+      <div class="pdf-pbar"><i style="width:0%"></i></div>
+      <div class="pdf-progress-now"><span>不想等可以直接</span><button class="btn btn-primary" style="padding:5px 12px;font-size:13px;" onclick="runPdfRecognizeNow()">▶ 立即辨識</button>
+        ${pr.avg_sec ? `<span class="pdf-sub" style="margin:0;">平均每份約 ${pdfDur(pr.avg_sec)}</span>` : ''}</div>
+    </div>`;
+  }else{
+    el.innerHTML = '';
   }
+}
+
+// 清單裡「辨識中」那一列顯示目前步驟
+function updatePdfRowSteps(){
+  const pr = PDF_STATE.progress || {};
+  document.querySelectorAll('[data-step-for]').forEach(el => {
+    const on = pr.running && el.dataset.stepFor === pr.current_id;
+    el.innerHTML = on ? `<span class="pdf-spin" style="width:11px;height:11px;"></span>${pdfEsc(pr.step || '')}` : (el.dataset.queued ? '排隊中，等這一輪' : '');
+  });
+}
+
+function renderPdfSide(){
+  const el = document.getElementById('pdfSide');
+  if(!el) return;
+  const items = PDF_STATE.items;
+  const today = pdfFmtTime(new Date().toISOString()).slice(0, 10);
+  const isToday = v => v && pdfFmtTime(v).slice(0, 10) === today;
+  const recv = items.filter(x => isToday(x.uploaded_at)).length;
+  const conf = items.filter(x => isToday(x.confirmed_at));
+  const auto = conf.filter(x => (x.confirmed_by || '').startsWith('自動確認')).length;
+  const arch = items.filter(x => x.status === '已歸檔' && isToday(x.confirmed_at)).length;
+  const pending = items.filter(x => x.status === '待確認');
+  const oldest = pending.reduce((m, x) => !m || (x.uploaded_at || '') < (m.uploaded_at || '') ? x : m, null);
+  const days = oldest ? Math.floor((Date.now() - new Date(oldest.uploaded_at)) / 86400000) : 0;
+  const ws = ((PDF_STATE.status || {}).watchers_status) || {};
+  const watchers = (((PDF_STATE.status || {}).settings || {}).watchers || []).map(w => {
+    const h = ws[w.pm] || {};
+    const age = h.at ? (Date.now() - new Date(h.at)) / 60000 : Infinity;
+    const cls = !h.at ? '' : age > 5 ? 'bad' : (h.last_error || h.archive_error ? 'warn' : 'ok');
+    const txt = !h.at ? '還沒連線' : age > 5 ? `最後回報 ${pdfFmtTime(h.at).slice(5)}（電腦可能關機）` : (h.last_error || h.archive_error || `運作中・已送出 ${h.uploaded_total || 0} 份`);
+    return `<div class="pdf-side-row" onclick="showPdfTab('pdf-line')"><span class="pdf-dot ${cls}"></span><b>${pdfEsc(w.pm)}</b><span class="grow pdf-sub" style="margin:0;" title="${pdfEsc(txt)}">${pdfEsc(txt)}</span></div>`;
+  }).join('');
+  const recent = items.filter(x => x.status === '已確認' || x.status === '已歸檔')
+    .sort((a, b) => (b.confirmed_at || '').localeCompare(a.confirmed_at || '')).slice(0, 6)
+    .map(x => `<div class="pdf-side-row" onclick="openPdfDetail('${x.id}')"><span class="pdf-dot ${x.status === '已歸檔' ? 'ok' : 'warn'}" title="${x.status}"></span>
+      <span class="grow">${pdfEsc(x.final_name || x.suggested_name || x.src_name)}</span><span class="pdf-sub" style="margin:0;white-space:nowrap;">${pdfEsc(pdfFmtTime(x.confirmed_at).slice(5, 10))}</span></div>`).join('');
+  el.innerHTML = `
+    <div class="pdf-box"><div class="pdf-box-title">📊 今天</div>
+      <div class="pdf-kpis">
+        <div class="pdf-kpi"><b>${recv}</b><span>收到檔案</span></div>
+        <div class="pdf-kpi"><b>${conf.length}</b><span>已確認${auto ? `（自動 ${auto}）` : ''}</span></div>
+        <div class="pdf-kpi"><b>${arch}</b><span>已歸檔</span></div>
+        <div class="pdf-kpi" style="${days >= 3 ? 'background:#FFF4DF;' : ''}"><b>${pending.length}</b><span>待確認${oldest && days ? `・最久 ${days} 天` : ''}</span></div>
+      </div></div>
+    <div class="pdf-box"><div class="pdf-box-title">📲 LINE 收件電腦 <a href="javascript:void(0)" onclick="showPdfTab('pdf-line')">設定</a></div>
+      ${watchers || '<div class="pdf-sub">還沒設定 PM 的 LINE 收件資料夾。</div>'}</div>
+    <div class="pdf-box"><div class="pdf-box-title">✅ 最近確認 <a href="javascript:void(0)" onclick="setPdfFilter('all')">全部</a></div>
+      ${recent || '<div class="pdf-sub">還沒有確認的檔案。</div>'}</div>`;
 }
 
 function renderPdfStatus(){
@@ -6523,7 +6700,7 @@ function renderPdfList(){
     <thead><tr><th class="pdf-ck"></th><th>原檔名</th><th>案號</th><th>函文類型</th><th>發文日期</th><th>信心</th><th class="pdf-hide-m">新檔名</th><th>狀態</th><th></th></tr></thead>
     <tbody>${rows.map(x => `<tr onclick="openPdfDetail('${x.id}')">
       <td class="pdf-ck">${ck(x)}</td>
-      <td><div class="pdf-name">${pdfEsc(x.src_name)}</div><div class="pdf-sub">${when(x)}</div>${pdfRowIssue(x)}</td>
+      <td><div class="pdf-name">${pdfEsc(x.src_name)}</div><div class="pdf-sub">${when(x)}</div>${pdfRowIssue(x)}${pdfRowStep(x)}</td>
       <td>${x.case_no ? `<div class="pdf-name">${pdfEsc(x.case_no)}</div><div class="pdf-sub">${pdfEsc(x.alias)}</div>` : '<span class="pdf-sub">—</span>'}</td>
       <td>${pdfTypeTag(x)}</td>
       <td style="white-space:nowrap;">${pdfEsc(x.doc_date) || '<span class="pdf-sub">—</span>'}</td>
@@ -6543,10 +6720,15 @@ function renderPdfList(){
         <div class="pdf-card-meta">${pdfTypeTag(x)}<span>${pdfEsc(x.doc_date) || ''}</span></div>
         <div class="pdf-sub" style="color:var(--text);">${pdfEsc(x.final_name || x.suggested_name || x.src_name)}</div>
         <div class="pdf-sub">${pdfEsc(x.src_name)}・${when(x)}</div>
-        ${pdfRowIssue(x)}
+        ${pdfRowIssue(x)}${pdfRowStep(x)}
         ${x.status === '待確認' ? btn(x) : ''}
       </div></div>`).join('')}</div>`;
   document.getElementById('pdfList').innerHTML = table + cards;
+  updatePdfRowSteps();
+}
+function pdfRowStep(x){
+  if(x.status !== '辨識中' && x.status !== '待辨識') return '';
+  return `<div class="pdf-row-step" data-step-for="${x.id}" ${x.status === '待辨識' ? 'data-queued="1"' : ''}></div>`;
 }
 
 function togglePdfSelect(id, on){
