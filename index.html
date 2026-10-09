@@ -6603,6 +6603,9 @@ function renderPdfStatus(){
   const pct = v => v === undefined ? '—' : Math.round(v * 100) + '%';
   let learn = `學習資料：歷史 ${lm.base_docs || lm.trained_on || 0} 份＋你確認過的 <b>${lm.confirmed_docs || 0}</b> 份`
     + `｜模型更新：${lm.trained_at ? pdfFmtTime(lm.trained_at) : '內建版本'}（每天凌晨 2:30 自動重新學習）`;
+  if(lm.base_cases || lm.cv_accuracy) learn += `<br>歷史資料：${lm.base_source === '上傳版' ? `你電腦自動上傳（${pdfFmtTime(lm.base_uploaded_at)}）` : '內建版本'}`
+    + `・${lm.base_cases ? lm.base_cases + ' 個案場・' : ''}沒看過的案場測試正確率 <b>${pct(lm.cv_accuracy)}</b>`
+    + (lm.cv_by_cat ? `（03 ${pct(lm.cv_by_cat['03'])}・04 ${pct(lm.cv_by_cat['04'])}・06 ${pct(lm.cv_by_cat['06'])}・07 ${pct(lm.cv_by_cat['07'])}）` : '');
   if(live.n) learn += `<br>最近 ${live.n} 份確認的真實準確度（系統一開始就判對、不用改的比例）：類型 <b>${pct(live.type)}</b>・日期 <b>${pct(live.date)}</b>・案號 <b>${pct(live.case)}</b>・檔名完全不用改 <b>${pct(live.name)}</b>`;
   else learn += '<br>開始確認檔案後，這裡會顯示真實準確度。你修改過的類型、日期、案號、檔名簡稱都會被學起來。';
   if(s.retrain && s.retrain.running) learn += '<br>🔄 重新學習中…';
