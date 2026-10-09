@@ -410,7 +410,7 @@
 
   .modal-overlay{
     display:none;position:fixed;inset:0;background:rgba(20,25,40,.45);
-    z-index:50;align-items:flex-start;justify-content:center;padding:6vh 20px;
+    z-index:160;align-items:flex-start;justify-content:center;padding:6vh 20px;   /* 高於手機版頂部選單（150），標題才不會被蓋住 */
     overflow-y:auto;
   }
   .modal-overlay.show{display:flex;}
@@ -434,7 +434,7 @@
     position:fixed;top:24px;left:50%;transform:translateX(-50%) translateY(-16px);
     background:#B8720A;color:#fff;padding:13px 22px;border-radius:10px;
     font-size:13px;font-weight:600;box-shadow:0 10px 28px rgba(0,0,0,.22);
-    z-index:100;opacity:0;pointer-events:none;transition:all .2s ease;max-width:90vw;text-align:center;
+    z-index:170;opacity:0;pointer-events:none;transition:all .2s ease;max-width:90vw;text-align:center;
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .quick-mark-results{
@@ -664,6 +664,90 @@
     .pdf-detail iframe{height:50vh;}
     .pdf-table .pdf-hide-m{display:none;}
   }
+  /* ---- 公文更名：2026-10-09 版面重排 ---- */
+  .pdf-bar{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px;}
+  .pdf-bar .pdf-stats{display:flex;gap:8px;flex-wrap:wrap;margin:0;grid-template-columns:none;}
+  .pdf-bar .pdf-stat{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:12px;}
+  .pdf-bar .pdf-stat-num{font-size:20px;margin:0;line-height:1;}
+  .pdf-bar .pdf-stat-label{font-size:12px;color:var(--text);font-weight:600;}
+  .pdf-stat.hot{background:#FFF4DF;border-color:#F0C66E;}
+  .pdf-stat.hot .pdf-stat-num{color:#B8720A;}
+  .pdf-stat.bad .pdf-stat-num{color:#C9383D;}
+  .pdf-stat.sel{box-shadow:0 0 0 2px var(--primary) inset;}
+  .pdf-bar-actions{display:flex;gap:6px;flex-wrap:wrap;}
+  .pdf-bar-actions .btn{padding:8px 14px;font-size:12.5px;}
+  .pdf-icon-btn{padding:8px 11px !important;}
+  .pdf-auto{display:flex;align-items:center;gap:10px;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:8px 12px;margin-bottom:12px;cursor:pointer;}
+  .pdf-auto:hover{border-color:var(--sun-2);}
+  .pdf-auto-chips{display:flex;gap:6px;flex-wrap:wrap;font-size:11.5px;}
+  .pdf-auto-chip{padding:3px 9px;border-radius:20px;background:var(--surface-2);color:var(--text-muted);white-space:nowrap;}
+  .pdf-auto-chip.on{background:var(--success-soft);color:var(--success);font-weight:600;}
+  .pdf-auto-chip.learn{background:#EEF0FF;color:#4B53C8;}
+  .pdf-auto-toggle{font-size:12px;font-weight:700;color:var(--primary-dark);white-space:nowrap;}
+  .pdf-settings{display:none;margin-bottom:12px;}
+  .pdf-settings.open{display:block;}
+  .pdf-settings .pdf-toggles{margin-bottom:10px;}
+  .pdf-upload-progress:empty{display:none;}
+  .pdf-upload-progress{font-size:12.5px;font-weight:600;background:#FFF8EA;border:1px solid #F3DDB0;border-radius:10px;padding:8px 12px;margin-bottom:10px;}
+  .pdf-toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px;}
+  .pdf-toolbar .pdf-chips{margin:0;}
+  .pdf-search{flex:0 1 280px;min-width:180px;padding:7px 12px;border:1px solid var(--border);border-radius:20px;font-size:12.5px;font-family:inherit;background:var(--surface);}
+  .pdf-batch{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;background:var(--primary-soft);border-radius:10px;padding:7px 10px;margin-bottom:8px;}
+  .pdf-table tbody tr{cursor:pointer;}
+  .pdf-table td.pdf-ck,.pdf-table th.pdf-ck{width:26px;padding-right:0;}
+  .pdf-ck input{width:16px;height:16px;cursor:pointer;}
+  .pdf-type{display:inline-flex;align-items:center;gap:5px;font-weight:600;}
+  .pdf-type::before{content:"";width:8px;height:8px;border-radius:50%;background:#B8C0CC;flex-shrink:0;}
+  .pdf-type.c03::before{background:#8E6CD8;} .pdf-type.c04::before{background:#2FA36B;}
+  .pdf-type.c06::before{background:#2F7BE0;} .pdf-type.c07::before{background:#E58A1F;}
+  .pdf-row-issue{font-size:11px;color:#8A5A06;margin-top:3px;max-width:260px;}
+  .pdf-empty{text-align:center;padding:34px 10px;color:var(--text-muted);font-size:13px;}
+  .pdf-empty b{display:block;font-size:30px;margin-bottom:6px;}
+  .pdf-cards{display:none;}
+  .pdf-card{border:1px solid var(--border);border-radius:12px;padding:11px 12px;margin-bottom:8px;background:var(--surface);display:flex;gap:10px;}
+  .pdf-card:active{background:var(--surface-2);}
+  .pdf-card-main{flex:1;min-width:0;}
+  .pdf-card-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;}
+  .pdf-card-title{font-weight:700;font-size:14px;}
+  .pdf-card-meta{font-size:12px;margin-top:4px;display:flex;gap:6px 10px;flex-wrap:wrap;align-items:center;}
+  .pdf-card .btn{width:100%;margin-top:8px;padding:8px;font-size:13px;}
+  .pdf-hint{font-size:12px;color:var(--text-muted);margin:10px 2px;}
+  .pdf-help{font-size:12px;color:var(--text-muted);margin:0 2px 20px;line-height:1.7;}
+  .pdf-help summary{cursor:pointer;font-weight:600;}
+  .pdf-drop-overlay{display:none;position:fixed;inset:0;z-index:900;background:rgba(255,247,230,.88);border:4px dashed var(--sun-2);align-items:center;justify-content:center;text-align:center;font-size:24px;font-weight:800;color:#8A5A06;pointer-events:none;}
+  .pdf-drop-overlay.show{display:flex;}
+  /* 確認視窗 */
+  .pdf-modal-nav{display:flex;gap:6px;align-items:center;margin-left:auto;margin-right:10px;font-size:12px;color:var(--text-muted);}
+  .pdf-modal-nav button{border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:12px;}
+  .pdf-modal-nav button:disabled{opacity:.35;cursor:default;}
+  .pdf-form .pdf-warn{border-color:#E8B54A !important;background:#FFF9EC !important;}
+  .pdf-form .pdf-bad{border-color:#E06C6C !important;background:#FFF3F3 !important;}
+  .pdf-field-tip{font-size:11px;font-weight:600;margin-left:6px;}
+  .pdf-field-tip.warn{color:#B8720A;} .pdf-field-tip.bad{color:#C9383D;}
+  .pdf-actions{position:sticky;bottom:-1px;background:var(--bg);padding:10px 0 6px;margin-top:12px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;z-index:2;}
+  .pdf-actions .btn{padding:9px 14px;font-size:12.5px;}
+  .pdf-ids{margin-top:12px;font-size:12px;}
+  .pdf-ids summary{cursor:pointer;padding:4px 0;}
+  .pdf-kbd{font-size:10.5px;opacity:.75;font-weight:400;margin-left:4px;}
+  .pdf-open-new{font-size:12px;display:inline-block;margin-top:6px;}
+  @media (max-width:760px){
+    .pdf-table-wrap{display:none;}
+    .pdf-cards{display:block;}
+    .pdf-bar{flex-direction:column;align-items:stretch;}
+    .pdf-bar .pdf-stats{display:grid;grid-template-columns:repeat(2,1fr);}
+    .pdf-bar-actions .btn{flex:1;}
+    .pdf-bar-actions .pdf-icon-btn{flex:0;}
+    .pdf-auto{align-items:flex-start;}
+    .pdf-search{flex:1 1 100%;}
+    .pdf-detail .pdf-preview{order:2;}
+    .pdf-modal-nav .pdf-nav-text{display:none;}
+    .pdf-actions .btn{flex:1 1 auto;}
+    .pdf-kbd{display:none;}
+    .pdf-bar-actions .btn{white-space:nowrap;padding:8px 10px;font-size:12px;}
+    .pdf-toolbar .pdf-chips{flex-wrap:nowrap;overflow-x:auto;width:100%;padding-bottom:2px;}
+    .pdf-chip{white-space:nowrap;}
+    .pdf-hint{display:none;}
+  }
 </style>
 </head>
 <body>
@@ -848,6 +932,7 @@
 
     <!-- ============ PDF MODULE (with LINE收件紀錄 sub-tab) ============ -->
     <section class="view" id="view-pdf">
+      <div class="pdf-drop-overlay" id="pdfDropOverlay"><div>📥 放開就上傳<div class="pdf-sub" style="color:inherit;margin-top:6px;">PDF、照片、Word／Excel，可一次多份</div></div></div>
       <div class="topbar">
         <div>
           <div class="crumb">功能模組 / PDF 公文更名</div>
@@ -863,8 +948,22 @@
 
       <div class="subview active" id="tab-pdf-rename">
         <div id="pdfAlert"></div>
-        <div class="pdf-stats" id="pdfStats"></div>
-        <div class="pdf-toggles">
+        <!-- 2026-10-09 版面重排：最常用的「待確認清單」放最上面，設定收進「自動化設定」 -->
+        <div class="pdf-bar">
+          <div class="pdf-stats" id="pdfStats"></div>
+          <div class="pdf-bar-actions">
+            <button class="btn btn-warm-primary" id="pdfDrop" onclick="document.getElementById('pdfFileInput').click()">📥 上傳檔案</button>
+            <button class="btn btn-ghost" id="pdfRunBtn" onclick="runPdfRecognizeNow()">▶ 立即辨識</button>
+            <button class="btn btn-ghost" onclick="openPdfRulesModal()">⚙ 命名與規則</button>
+            <button class="btn btn-ghost pdf-icon-btn" title="重新整理" onclick="loadPdfRename()">🔄</button>
+          </div>
+        </div>
+        <div class="pdf-auto" id="pdfAutoBar" onclick="togglePdfSettings()">
+          <div class="pdf-auto-chips" id="pdfAutoSummary"></div>
+          <span class="pdf-auto-toggle" id="pdfAutoToggleLabel">自動化設定 ▾</span>
+        </div>
+        <div class="pdf-settings" id="pdfSettings">
+          <div class="pdf-toggles">
           <div class="pdf-toggle">
             <div>
               <div class="pdf-toggle-title">背景自動辨識</div>
@@ -901,25 +1000,29 @@
           </div>
           <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;white-space:nowrap;" id="pdfRetrainBtn" onclick="runPdfRetrain()">立即重新學習</button>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
-          <button class="btn btn-warm-primary" id="pdfRunBtn" onclick="runPdfRecognizeNow()">▶ 立即辨識</button>
-          <button class="btn btn-ghost" onclick="openPdfRulesModal()">⚙ 命名格式與函文規則</button>
-          <button class="btn btn-ghost" onclick="loadPdfRename()">🔄 重新整理</button>
+          <div class="pdf-toggle" style="align-items:center;">
+            <div style="flex:1;">
+              <div class="pdf-toggle-title">🧠 自動學習（越用越準）</div>
+              <div class="pdf-toggle-desc" id="pdfLearnInfo">—</div>
+            </div>
+            <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;white-space:nowrap;" id="pdfRetrainBtn" onclick="runPdfRetrain()">立即重新學習</button>
+          </div>
         </div>
-        <div class="pdf-drop" id="pdfDrop" onclick="document.getElementById('pdfFileInput').click()">
-          <div style="font-size:26px;">📥</div>
-          <b>把 PDF、照片、Word／Excel 拖到這裡，或點一下選擇檔案</b>
-          <div style="margin-top:4px;">可一次多份（PDF／Word／Excel 每份 5MB 以內；照片會自動轉成 PDF，20MB 以內）。上傳後放進佇列，背景慢慢辨識，辨識完會出現在「待確認」。</div>
-          <div id="pdfUploadProgress" style="margin-top:8px;font-weight:600;color:var(--text);"></div>
-        </div>
+        <div id="pdfUploadProgress" class="pdf-upload-progress"></div>
         <input type="file" id="pdfFileInput" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tif,.tiff,.webp,.docx,.xlsx" multiple style="display:none" onchange="uploadPdfFiles(this.files); this.value='';">
-        <div class="panel">
-          <div class="pdf-chips" id="pdfChips"></div>
+        <div class="panel pdf-list-panel">
+          <div class="pdf-toolbar">
+            <div class="pdf-chips" id="pdfChips"></div>
+            <input class="pdf-search" id="pdfSearch" type="search" placeholder="🔍 搜尋案號、簡稱、檔名、PM…" oninput="PDF_STATE.q = this.value.trim(); renderPdfList();">
+          </div>
+          <div id="pdfBatchBar"></div>
           <div id="pdfList"><div class="login-note">載入中…</div></div>
         </div>
-        <div class="login-note">
-          🔍 免費辨識流程：電子檔直接讀 PDF 裡的文字，掃描檔用 Google 雲端硬碟 OCR 轉成文字；再從文字抓發文日期、發文字號、主旨，用「函文規則」的關鍵字判斷類型，並拿 Airtable「專案細節」每個案件的受理編號、電號、同意備案編號、案號直接在全文裡找——對到編號的案號幾乎不會錯，只靠地址推測的會標提醒。沒把握的都會留在「待確認」並列出原因，確認前請看一下；也可以在設定裡改成「沒把握的才交給 AI」。已確認的檔案可以直接用新檔名下載；本機歸檔程式也可以讀取「已確認」清單自動歸檔到 G 槽。
-        </div>
+        <div class="pdf-hint">💡 把檔案直接拖進這個頁面任何地方就會上傳（PDF、照片、Word／Excel；照片自動轉成 PDF）。</div>
+        <details class="pdf-help">
+          <summary>❔ 辨識是怎麼做的？</summary>
+          <div>免費辨識流程：電子檔直接讀 PDF 裡的文字，掃描檔用 Google 雲端硬碟 OCR 轉成文字；再從文字抓發文日期、發文字號、主旨，用「函文規則」的關鍵字判斷類型，並拿 Airtable「專案細節」每個案件的受理編號、電號、同意備案編號、案號直接在全文裡找——對到編號的案號幾乎不會錯，只靠地址推測的會標提醒。沒把握的都會留在「待確認」並列出原因，確認前請看一下；也可以在設定裡改成「沒把握的才交給 AI」。已確認的檔案可以直接用新檔名下載；本機歸檔程式也可以讀取「已確認」清單自動歸檔到 G 槽。</div>
+        </details>
       </div>
 
       <div class="subview" id="tab-pdf-line">
@@ -2243,6 +2346,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
       <div class="modal-box" style="max-width:1200px;width:96vw;">
         <div class="modal-header">
           <div class="modal-title" id="pdfDetailTitle">公文</div>
+          <div class="pdf-modal-nav" id="pdfDetailNav"></div>
           <button class="modal-close" onclick="closePdfDetailModal()">✕</button>
         </div>
         <div class="modal-body" id="pdfDetailBody" style="max-height:none;"></div>
@@ -6240,7 +6344,7 @@ const PDF_FILTERS = [
   ['待確認', '待確認'], ['queue', '待辨識・辨識中'], ['已確認', '已確認'],
   ['辨識失敗', '辨識失敗'], ['已歸檔', '已歸檔'], ['all', '全部'],
 ];
-let PDF_STATE = {items: [], status: null, filter: '待確認', current: null, timer: null};
+let PDF_STATE = {items: [], status: null, filter: '待確認', current: null, timer: null, q: '', selected: new Set(), order: []};
 
 function pdfEsc(v){ return certEsc(v); }
 function pdfUser(){
@@ -6293,13 +6397,25 @@ function renderPdfStatus(){
   const s = PDF_STATE.status || {};
   const c = s.counts || {};
   const st = s.settings || {};
-  const stat = (label, num, sub, filter) =>
-    `<div class="pdf-stat" onclick="setPdfFilter('${filter}')"><div class="pdf-stat-label">${label}</div><div class="pdf-stat-num">${num} 份</div><div class="pdf-stat-sub">${sub}</div></div>`;
+  const stat = (label, num, filter, cls) =>
+    `<div class="pdf-stat ${cls || ''} ${PDF_STATE.filter === filter ? 'sel' : ''}" onclick="setPdfFilter('${filter}')"><div class="pdf-stat-num">${num}</div><div class="pdf-stat-label">${label}</div></div>`;
+  const nQueue = (c['待辨識'] || 0) + (c['辨識中'] || 0), nReview = c['待確認'] || 0, nFail = c['辨識失敗'] || 0;
   document.getElementById('pdfStats').innerHTML =
-    stat('等待辨識', (c['待辨識'] || 0) + (c['辨識中'] || 0), c['辨識中'] ? `辨識中 ${c['辨識中']} 份` : `每輪最多 ${st.batch_size || 5} 份`, 'queue') +
-    stat('待確認', c['待確認'] || 0, '請檢查辨識結果後確認', '待確認') +
-    stat('已確認', c['已確認'] || 0, '可下載／等待本機歸檔', '已確認') +
-    stat('辨識失敗', c['辨識失敗'] || 0, '可重新辨識或手動填寫', '辨識失敗');
+    stat('待確認', nReview, '待確認', nReview ? 'hot' : '') +
+    stat(c['辨識中'] ? '辨識中…' : '等待辨識', nQueue, 'queue') +
+    stat('已確認', c['已確認'] || 0, '已確認') +
+    stat('辨識失敗', nFail, '辨識失敗', nFail ? 'bad' : '');
+  // 自動化設定摘要（點開才看到開關）
+  const arcS = st.archive || {};
+  const lmS = (s.learn_model || {}).live || {};
+  const chip = (on, text, cls) => `<span class="pdf-auto-chip ${on ? 'on' : ''} ${cls || ''}">${on ? '●' : '○'} ${text}</span>`;
+  document.getElementById('pdfAutoSummary').innerHTML =
+    chip(st.enabled, `背景辨識${st.enabled ? `・每 ${st.interval_min || 5} 分` : ' 關'}`) +
+    chip(st.auto_confirm, `自動確認${st.auto_confirm ? ` ≥${st.auto_confirm_threshold || 92}` : ' 關'}`) +
+    chip(st.writeback, `更新 Airtable${st.writeback ? '' : ' 關'}`) +
+    chip(arcS.enabled, `自動歸檔 G 槽${arcS.enabled ? '' : ' 關'}`) +
+    (lmS.n ? `<span class="pdf-auto-chip learn">🧠 最近 ${lmS.n} 份：類型 ${Math.round((lmS.type || 0) * 100)}%・案號 ${Math.round((lmS.case || 0) * 100)}%</span>` : '');
+  applyPdfSettingsOpen();
   document.getElementById('pdfEnabled').checked = !!st.enabled;
   document.getElementById('pdfAutoConfirm').checked = !!st.auto_confirm;
   document.getElementById('pdfWriteback').checked = !!st.writeback;
@@ -6341,41 +6457,164 @@ function renderPdfStatus(){
 
 function setPdfFilter(f){
   PDF_STATE.filter = f;
+  PDF_STATE.selected.clear();
   renderPdfList();
+  renderPdfStatus();
+}
+
+function applyPdfSettingsOpen(){
+  if(PDF_STATE.settingsOpen === undefined){
+    try{ PDF_STATE.settingsOpen = localStorage.getItem('pdfSettingsOpen') === '1'; }catch(e){ PDF_STATE.settingsOpen = false; }
+  }
+  document.getElementById('pdfSettings').classList.toggle('open', PDF_STATE.settingsOpen);
+  document.getElementById('pdfAutoToggleLabel').textContent = PDF_STATE.settingsOpen ? '收起設定 ▴' : '自動化設定 ▾';
+}
+function togglePdfSettings(){
+  PDF_STATE.settingsOpen = !PDF_STATE.settingsOpen;
+  try{ localStorage.setItem('pdfSettingsOpen', PDF_STATE.settingsOpen ? '1' : '0'); }catch(e){}
+  applyPdfSettingsOpen();
+}
+
+const PDF_EMPTY = {
+  '待確認': ['🎉', '都確認完了！新的檔案辨識好會出現在這裡。'],
+  'queue': ['☕', '目前沒有等待辨識的檔案。'],
+  '辨識失敗': ['👍', '沒有辨識失敗的檔案。'],
+};
+
+function pdfMatch(x, f){
+  return f === 'all' ? true : (f === 'queue' ? (x.status === '待辨識' || x.status === '辨識中') : x.status === f);
+}
+function pdfSearchHit(x, q){
+  if(!q) return true;
+  const hay = [x.src_name, x.case_no, x.alias, x.final_name, x.suggested_name, x.doc_type, x.uploader, x.source].join(' ').toLowerCase();
+  return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
+}
+// 可以一次確認：案號、類型、日期都有
+function pdfReady(x){ return x.status === '待確認' && x.case_no && x.doc_type && x.doc_type !== '其他' && x.doc_date; }
+function pdfTypeTag(x){
+  return x.doc_type ? `<span class="pdf-type c${pdfEsc(x.category || '')}">${pdfEsc(x.doc_type)}</span>` : '<span class="pdf-sub">—</span>';
+}
+function pdfRowIssue(x){
+  if(x.status === '待確認' && x.issues.length) return `<div class="pdf-row-issue">⚠ ${pdfEsc(x.issues[0])}${x.issues.length > 1 ? `（還有 ${x.issues.length - 1} 項）` : ''}</div>`;
+  if(x.status === '辨識失敗' || (x.error && x.status === '待辨識')) return `<div class="pdf-row-issue" style="color:#C9383D;">✗ ${pdfEsc((x.error || '').slice(0, 60))}</div>`;
+  if(/⚠ 同類型已存在|歸檔失敗/.test(x.writeback || '')) return `<div class="pdf-row-issue">📂 ${pdfEsc((x.writeback.split('\n').find(l => /⚠/.test(l)) || '').slice(0, 60))}</div>`;
+  return '';
 }
 
 function renderPdfList(){
   const items = PDF_STATE.items;
-  const match = (x, f) => f === 'all' ? true : (f === 'queue' ? (x.status === '待辨識' || x.status === '辨識中') : x.status === f);
+  const q = PDF_STATE.q || '';
   document.getElementById('pdfChips').innerHTML = PDF_FILTERS.map(([k, label]) =>
-    `<div class="pdf-chip ${PDF_STATE.filter === k ? 'active' : ''}" onclick="setPdfFilter('${k}')">${label}（${items.filter(x => match(x, k)).length}）</div>`).join('');
-  const rows = items.filter(x => match(x, PDF_STATE.filter));
+    `<div class="pdf-chip ${PDF_STATE.filter === k ? 'active' : ''}" onclick="setPdfFilter('${k}')">${label}（${items.filter(x => pdfMatch(x, k)).length}）</div>`).join('');
+  const rows = items.filter(x => pdfMatch(x, PDF_STATE.filter) && pdfSearchHit(x, q));
+  // 確認視窗「下一份」用的順序：目前畫面上的待確認
+  PDF_STATE.order = rows.filter(x => x.status === '待確認').map(x => x.id);
+  for(const id of [...PDF_STATE.selected]) if(!rows.some(x => x.id === id && pdfReady(x))) PDF_STATE.selected.delete(id);
+  renderPdfBatchBar(rows);
   if(!rows.length){
-    document.getElementById('pdfList').innerHTML = '<div class="login-note">這裡目前沒有檔案。</div>';
+    const [icon, msg] = q ? ['🔍', `找不到符合「${pdfEsc(q)}」的檔案。`] : (PDF_EMPTY[PDF_STATE.filter] || ['📭', '這裡目前沒有檔案。']);
+    document.getElementById('pdfList').innerHTML = `<div class="pdf-empty"><b>${icon}</b>${msg}</div>`;
     return;
   }
-  document.getElementById('pdfList').innerHTML = `<div style="overflow-x:auto;"><table class="pdf-table">
-    <thead><tr><th>原檔名</th><th>案號</th><th>函文類型</th><th>發文日期</th><th>信心</th><th class="pdf-hide-m">檔名</th><th>狀態</th><th></th></tr></thead>
-    <tbody>${rows.map(x => `<tr>
-      <td><div class="pdf-name">${pdfEsc(x.src_name)}</div><div class="pdf-sub">${pdfEsc(pdfFmtTime(x.uploaded_at))}${x.uploader ? '・' + pdfEsc(x.uploader) : ''}${x.source && x.source !== '主控台上傳' ? '・' + pdfEsc(x.source) : ''}</div></td>
+  const ck = x => pdfReady(x) ? `<input type="checkbox" data-id="${x.id}" ${PDF_STATE.selected.has(x.id) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="togglePdfSelect('${x.id}', this.checked)">` : '';
+  const btn = x => `<button class="btn ${x.status === '待確認' ? 'btn-primary' : 'btn-ghost'}" style="padding:6px 10px;font-size:11.5px;" onclick="event.stopPropagation();openPdfDetail('${x.id}')">${x.status === '待確認' ? '檢查並確認' : '檢視'}</button>`;
+  const when = x => `${pdfEsc(pdfFmtTime(x.uploaded_at))}${x.uploader ? '・' + pdfEsc(x.uploader) : ''}${x.source && x.source !== '主控台上傳' ? '・' + pdfEsc(x.source) : ''}`;
+  const table = `<div class="pdf-table-wrap" style="overflow-x:auto;"><table class="pdf-table">
+    <thead><tr><th class="pdf-ck"></th><th>原檔名</th><th>案號</th><th>函文類型</th><th>發文日期</th><th>信心</th><th class="pdf-hide-m">新檔名</th><th>狀態</th><th></th></tr></thead>
+    <tbody>${rows.map(x => `<tr onclick="openPdfDetail('${x.id}')">
+      <td class="pdf-ck">${ck(x)}</td>
+      <td><div class="pdf-name">${pdfEsc(x.src_name)}</div><div class="pdf-sub">${when(x)}</div>${pdfRowIssue(x)}</td>
       <td>${x.case_no ? `<div class="pdf-name">${pdfEsc(x.case_no)}</div><div class="pdf-sub">${pdfEsc(x.alias)}</div>` : '<span class="pdf-sub">—</span>'}</td>
-      <td>${pdfEsc(x.doc_type) || '<span class="pdf-sub">—</span>'}</td>
+      <td>${pdfTypeTag(x)}</td>
       <td style="white-space:nowrap;">${pdfEsc(x.doc_date) || '<span class="pdf-sub">—</span>'}</td>
-      <td>${pdfConfBadge(x.confidence)}${x.issues.length && x.status === '待確認' ? `<div class="pdf-sub">⚠ ${x.issues.length} 項提醒</div>` : ''}</td>
-      <td class="pdf-hide-m"><div class="pdf-sub" style="color:var(--text);">${pdfEsc(x.final_name || x.suggested_name)}</div>${x.writeback ? `<div class="pdf-sub">${pdfEsc(x.writeback.split('\n')[0])}</div>` : ''}</td>
-      <td><span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span>${x.status === '辨識失敗' || (x.error && x.status === '待辨識') ? `<div class="pdf-sub" title="${pdfEsc(x.error)}">第 ${x.attempts} 次失敗</div>` : ''}</td>
-      <td style="white-space:nowrap;"><button class="btn ${x.status === '待確認' ? 'btn-primary' : 'btn-ghost'}" style="padding:6px 10px;font-size:11.5px;" onclick="openPdfDetail('${x.id}')">${x.status === '待確認' ? '檢查並確認' : '檢視'}</button></td>
+      <td>${pdfConfBadge(x.confidence)}</td>
+      <td class="pdf-hide-m"><div class="pdf-sub" style="color:var(--text);">${pdfEsc(x.final_name || x.suggested_name)}</div></td>
+      <td><span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span></td>
+      <td style="white-space:nowrap;">${btn(x)}</td>
     </tr>`).join('')}</tbody></table></div>`;
+  // 手機：卡片
+  const cards = `<div class="pdf-cards">${rows.map(x => `<div class="pdf-card" onclick="openPdfDetail('${x.id}')">
+      ${pdfReady(x) ? `<div class="pdf-ck" style="padding-top:2px;">${ck(x)}</div>` : ''}
+      <div class="pdf-card-main">
+        <div class="pdf-card-top">
+          <div class="pdf-card-title">${x.case_no ? pdfEsc(x.case_no) : '<span style="color:#C9383D;">案號待選</span>'}</div>
+          <div style="display:flex;gap:4px;align-items:center;">${pdfConfBadge(x.confidence)}<span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span></div>
+        </div>
+        <div class="pdf-card-meta">${pdfTypeTag(x)}<span>${pdfEsc(x.doc_date) || ''}</span></div>
+        <div class="pdf-sub" style="color:var(--text);">${pdfEsc(x.final_name || x.suggested_name || x.src_name)}</div>
+        <div class="pdf-sub">${pdfEsc(x.src_name)}・${when(x)}</div>
+        ${pdfRowIssue(x)}
+        ${x.status === '待確認' ? btn(x) : ''}
+      </div></div>`).join('')}</div>`;
+  document.getElementById('pdfList').innerHTML = table + cards;
+}
+
+function togglePdfSelect(id, on){
+  if(on) PDF_STATE.selected.add(id); else PDF_STATE.selected.delete(id);
+  document.querySelectorAll(`#pdfList input[data-id="${id}"]`).forEach(el => { el.checked = on; });
+  renderPdfBatchBar(PDF_STATE.items.filter(x => pdfMatch(x, PDF_STATE.filter) && pdfSearchHit(x, PDF_STATE.q || '')));
+}
+function selectPdfHigh(min){
+  PDF_STATE.items.filter(x => pdfMatch(x, PDF_STATE.filter) && pdfSearchHit(x, PDF_STATE.q || '') && pdfReady(x) && (x.confidence || 0) >= min && !x.same_type.length)
+    .forEach(x => PDF_STATE.selected.add(x.id));
+  renderPdfList();
+}
+function renderPdfBatchBar(rows){
+  const el = document.getElementById('pdfBatchBar');
+  const ready = rows.filter(pdfReady);
+  if(!ready.length){ el.innerHTML = ''; return; }
+  const n = PDF_STATE.selected.size;
+  const hi = ready.filter(x => (x.confidence || 0) >= 80 && !x.same_type.length).length;
+  el.innerHTML = `<div class="pdf-batch">
+    ${n ? `<b>已勾選 ${n} 份</b>
+      <button class="btn btn-primary" style="padding:5px 12px;font-size:12px;" onclick="confirmPdfBatch()">✅ 一次確認 ${n} 份</button>
+      <a href="javascript:void(0)" onclick="PDF_STATE.selected.clear();renderPdfList();">取消勾選</a>`
+    : `<span>勾選左邊的方框可以一次確認多份（會用系統產生的檔名）</span>
+      ${hi ? `<a href="javascript:void(0)" onclick="selectPdfHigh(80)">勾選信心 80 以上的 ${hi} 份</a>` : ''}`}
+  </div>`;
+}
+
+async function confirmPdfBatch(){
+  const list = PDF_STATE.items.filter(x => PDF_STATE.selected.has(x.id) && pdfReady(x));
+  if(!list.length) return;
+  const arcOn = !!(((PDF_STATE.status || {}).settings || {}).archive || {}).enabled;
+  if(!confirm(`一次確認 ${list.length} 份？\n會用畫面上的案號、類型、日期與檔名` + (arcOn ? '，並自動歸檔到 G 槽。' : '。'))) return;
+  let ok = 0; const failed = [];
+  for(let i = 0; i < list.length; i++){
+    const x = list[i];
+    showToast(`確認中 ${i + 1} / ${list.length}…`);
+    try{
+      const res = await fetch(API_BASE + `/api/pdf-rename/${x.id}/confirm`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({case_no: x.case_no, doc_type: x.doc_type, doc_date: x.doc_date, final_name: x.final_name || x.suggested_name,
+                              archive: arcOn, user: pdfUser() || '主控台'})});
+      const data = await res.json();
+      if(!res.ok) throw new Error(data.error || '失敗');
+      ok++;
+    }catch(e){ failed.push(`${x.src_name}（${e.message}）`); }
+  }
+  PDF_STATE.selected.clear();
+  showToast(failed.length ? `已確認 ${ok} 份；失敗：${failed.join('、')}` : `已確認 ${ok} 份` + (arcOn ? '，背景程式會自動歸檔' : '，可以到「已確認」下載'));
+  loadPdfRename();
 }
 
 // ---- 上傳 ----
 function initPdfDrop(){
-  const drop = document.getElementById('pdfDrop');
-  if(!drop || drop.dataset.ready) return;
-  drop.dataset.ready = '1';
-  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
-  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
-  drop.addEventListener('drop', e => uploadPdfFiles(e.dataTransfer.files));
+  // 整個「PDF 公文更名」頁面都可以拖檔案進來
+  const view = document.getElementById('view-pdf');
+  const overlay = document.getElementById('pdfDropOverlay');
+  if(!view || view.dataset.dropReady) return;
+  view.dataset.dropReady = '1';
+  let depth = 0;
+  const hasFiles = e => Array.from((e.dataTransfer || {}).types || []).includes('Files');
+  view.addEventListener('dragenter', e => { if(!hasFiles(e)) return; e.preventDefault(); depth++; overlay.classList.add('show'); });
+  view.addEventListener('dragover', e => { if(hasFiles(e)) e.preventDefault(); });
+  view.addEventListener('dragleave', e => { if(!hasFiles(e)) return; depth = Math.max(0, depth - 1); if(!depth) overlay.classList.remove('show'); });
+  view.addEventListener('drop', e => {
+    if(!hasFiles(e)) return;
+    e.preventDefault(); depth = 0; overlay.classList.remove('show');
+    if(!document.getElementById('tab-pdf-rename').classList.contains('active')) showPdfTab('pdf-rename');
+    uploadPdfFiles(e.dataTransfer.files);
+  });
 }
 
 const PDF_IMAGE_RE = /\.(jpe?g|png|bmp|tiff?|webp)$/i;
@@ -6410,6 +6649,7 @@ async function uploadPdfFiles(fileList){
     }
   }
   prog.textContent = failed.length ? `✓ ${ok} 份已上傳；✗ 失敗：${failed.join('、')}` : `✓ ${ok} 份已上傳，背景辨識中`;
+  if(!failed.length) setTimeout(() => { if(prog.textContent.startsWith('✓')) prog.textContent = ''; }, 6000);
   if(ok) showToast(`已上傳 ${ok} 份，背景辨識中`);
   PDF_STATE.filter = 'queue';
   loadPdfRename();
@@ -6481,8 +6721,25 @@ function openPdfDetail(id){
   const x = PDF_STATE.items.find(i => i.id === id);
   if(!x) return;
   PDF_STATE.current = x;
+  const ovl = document.getElementById('pdfDetailModalOverlay');
+  ovl.scrollTop = 0;
+  ovl.querySelectorAll('.modal-box, .modal-body').forEach(el => { el.scrollTop = 0; });
   document.getElementById('pdfDetailTitle').textContent = x.src_name;
+  const order = PDF_STATE.order || [];
+  const pos = order.indexOf(x.id);
+  document.getElementById('pdfDetailNav').innerHTML = pos >= 0 && order.length > 1 ? `
+    <button onclick="openPdfDetail('${order[pos - 1] || ''}')" ${pos > 0 ? '' : 'disabled'} title="上一份（←）">‹</button>
+    <span class="pdf-nav-text">待確認 ${pos + 1} / ${order.length}</span>
+    <button onclick="openPdfDetail('${order[pos + 1] || ''}')" ${pos < order.length - 1 ? '' : 'disabled'} title="下一份（→）">›</button>` : '';
   const editable = x.status !== '辨識中';
+  // 要特別看的欄位標色：沒有值＝紅、信心不到 80＝黃（只在待確認時）
+  const parts = x.conf_parts || [];
+  const fieldCls = (i, val) => x.status !== '待確認' ? '' : (!val ? 'pdf-bad' : ((parts[i] ?? 100) < 80 ? 'pdf-warn' : ''));
+  const fieldTip = (i, val, what) => {
+    const c = fieldCls(i, val);
+    if(!c) return '';
+    return `<span class="pdf-field-tip ${c === 'pdf-bad' ? 'bad' : 'warn'}">${c === 'pdf-bad' ? '← 請' + (i === 0 ? '選' : '填') + what : '← 不太確定，請看一下'}</span>`;
+  };
   const issues = x.issues.map(t => `<div class="pdf-issue">⚠ ${pdfEsc(t)}</div>`).join('');
   const cands = x.candidates.map(c => `<div class="pdf-cand ${c.strong ? 'strong' : ''}" onclick="pickPdfCase('${pdfEsc(c.case_no)}')">
       <b>${pdfEsc(c.case_no)}</b> ${pdfEsc(c.alias)} <span class="pdf-sub">（比對分數 ${c.score}）</span>
@@ -6490,9 +6747,9 @@ function openPdfDetail(id){
   const meta = [['發文字號', x.doc_number], ['發文機關', x.issuer], ['主旨', x.subject]]
     .filter(([, v]) => v).map(([k, v]) => `<div class="pdf-sub" style="color:var(--text);margin-top:4px;"><b>${k}：</b>${pdfEsc(v)}</div>`).join('');
   document.getElementById('pdfDetailBody').innerHTML = `<div class="pdf-detail">
-    <div>${!x.file_url ? '<div class="login-note">沒有檔案</div>'
+    <div class="pdf-preview">${!x.file_url ? '<div class="login-note">沒有檔案</div>'
       : (x.file_ext && x.file_ext !== '.pdf') ? `<div class="login-note">${x.file_ext === '.docx' ? 'Word' : 'Excel'} 檔無法在這裡預覽，<a href="javascript:void(0)" onclick="downloadPdf('${x.id}')">下載來看</a>。<br>右邊「辨識出的文字」是從檔案讀到的內容。</div>`
-      : `<iframe src="${pdfEsc(x.file_url)}#view=FitH"></iframe>`}</div>
+      : `<iframe src="${pdfEsc(x.file_url)}#view=FitH"></iframe><a class="pdf-open-new" href="${pdfEsc(x.file_url)}" target="_blank" rel="noopener">↗ 在新分頁開啟（可以放大看）</a>`}</div>
     <div class="pdf-form">
       <div><span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span> ${pdfConfBadge(x.confidence)}
         ${x.confirmed_by ? `<span class="pdf-sub">　${pdfEsc(x.confirmed_by)}・${pdfEsc(pdfFmtTime(x.confirmed_at))}</span>` : ''}</div>
@@ -6510,14 +6767,14 @@ function openPdfDetail(id){
       })()}
       <div id="pdfSameType"></div>
       ${meta}
-      <label>案號</label>
-      <input class="quick-mark-input" id="pdfFormCase" list="pdfCaseList" value="${pdfEsc(x.case_no)}" oninput="searchPdfCase(this.value)" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>
+      <label>案號${fieldTip(0, x.case_no, '案號')}</label>
+      <input class="quick-mark-input ${fieldCls(0, x.case_no)}" id="pdfFormCase" list="pdfCaseList" value="${pdfEsc(x.case_no)}" oninput="searchPdfCase(this.value)" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>
       <datalist id="pdfCaseList"></datalist>
       <div class="pdf-sub" id="pdfFormAlias">${pdfEsc(x.alias)}</div>
-      <label>函文類型</label>
-      <select class="quick-mark-input" id="pdfFormType" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>${pdfDocTypeOptions(x.doc_type)}</select>
-      <label>發文日期</label>
-      <input type="date" class="quick-mark-input" id="pdfFormDate" value="${pdfEsc(x.doc_date)}" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>
+      <label>函文類型${fieldTip(1, x.doc_type && x.doc_type !== '其他' ? x.doc_type : '', '類型')}</label>
+      <select class="quick-mark-input ${fieldCls(1, x.doc_type && x.doc_type !== '其他' ? x.doc_type : '')}" id="pdfFormType" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>${pdfDocTypeOptions(x.doc_type)}</select>
+      <label>發文日期${fieldTip(2, x.doc_date, '日期')}</label>
+      <input type="date" class="quick-mark-input ${fieldCls(2, x.doc_date)}" id="pdfFormDate" value="${pdfEsc(x.doc_date)}" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>
       ${(() => {
         const arcOn = !!(((PDF_STATE.status || {}).settings || {}).archive || {}).enabled;
         if(!arcOn || x.status === '已歸檔' || !editable) return '';
@@ -6526,17 +6783,22 @@ function openPdfDetail(id){
           這份自動歸檔到 G 槽${x.category ? `（${pdfEsc(x.case_no || '案號')} → ${pdfEsc(x.category)} 資料夾）` : ''}</label>
           <div class="pdf-sub">取消勾選＝只改名，按確認後直接用新檔名下載到你的電腦</div>`;
       })()}
-      <label>文件上的編號 <span class="pdf-sub" style="font-weight:400;">確認後自動填進 Airtable 專案細節「空白」的欄位，已有的不覆蓋；讀錯可以直接改，清空就不寫</span></label>
+      <details class="pdf-ids" ${Object.keys(x.ids || {}).length ? 'open' : ''}>
+      <summary><b>文件上的編號</b>${Object.keys(x.ids || {}).length ? `（讀到 ${Object.keys(x.ids).length} 種）` : '（沒有讀到，要補可以點開填）'}</summary>
+      <div class="pdf-sub" style="margin:2px 0 6px;">確認後自動填進 Airtable 專案細節「空白」的欄位，已有的不覆蓋；讀錯可以直接改，清空就不寫</div>
       <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;">
         ${PDF_ID_FIELDS.map(k => `<span class="pdf-sub" style="color:var(--text);">${k}${PDF_ID_HINT[k] ? `<br><span style="font-size:10.5px;">（${PDF_ID_HINT[k]}）</span>` : ''}</span>
           <input class="quick-mark-input pdf-id-input" data-field="${k}" style="margin:0;padding:5px 8px;" value="${pdfEsc((x.ids_writable || {})[k] || '')}"
             placeholder="${(x.ids_writable || {})[k] ? '' : ((x.ids || {})[k] || []).length ? '文件裡有 ' + pdfEsc(x.ids[k].join('、')) + '（可能是別的案場／屋主的，沒自動帶入；確定是這案的可以填上）' : '—'}" ${editable && x.status !== '已歸檔' ? '' : 'disabled'}>`).join('')}
       </div>
+      </details>
       <label>檔名 <a href="javascript:void(0)" style="font-weight:400;font-size:11.5px;" onclick="refreshPdfName(true)">依命名格式重新產生</a></label>
       <input class="quick-mark-input" id="pdfFormName" value="${pdfEsc(x.final_name || x.suggested_name || x.src_name)}" ${editable ? '' : 'disabled'}>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
-        ${x.status !== '已歸檔' && editable ? `<button class="btn btn-primary" onclick="confirmPdf()">✅ ${x.status === '已確認' ? '更新確認內容' : '確認更名'}</button>` : ''}
-        ${x.file_url ? `<button class="btn btn-ghost" onclick="downloadPdf('${x.id}')">⬇ 用新檔名下載</button>` : ''}
+      <div class="pdf-actions">
+        ${x.status === '待確認' && editable && order.length > 1 ? `<button class="btn btn-primary" onclick="confirmPdf(true)">✅ 確認並看下一份<span class="pdf-kbd">Ctrl+Enter</span></button>
+          <button class="btn btn-ghost" onclick="confirmPdf()">只確認這份</button>`
+          : x.status !== '已歸檔' && editable ? `<button class="btn btn-primary" onclick="confirmPdf()">✅ ${x.status === '已確認' ? '更新確認內容' : '確認更名'}<span class="pdf-kbd">Ctrl+Enter</span></button>` : ''}
+        ${x.file_url ? `<button class="btn btn-ghost" onclick="downloadPdf('${x.id}')">⬇ 下載</button>` : ''}
         ${x.status !== '辨識中' ? `<button class="btn btn-ghost" onclick="retryPdf('${x.id}')">🔁 重新辨識</button>` : ''}
         ${x.status === '已確認' || x.status === '已歸檔' ? `<button class="btn btn-ghost" onclick="reopenPdf('${x.id}')">↩ 改回待確認</button>` : ''}
         <button class="btn btn-ghost" style="color:#C9383D;" onclick="deletePdf('${x.id}')">🗑 刪除</button>
@@ -6559,6 +6821,24 @@ function renderPdfSameType(list){
 }
 
 function forcePdfArchive(id){ pdfPost(`/api/pdf-rename/${id}/archive-force`, 'POST', '已設定仍要歸檔，背景程式下一輪會放進資料夾'); }
+
+document.addEventListener('keydown', e => {
+  const ov = document.getElementById('pdfDetailModalOverlay');
+  if(!ov || !ov.classList.contains('show') || !PDF_STATE.current) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  const typing = tag === 'input' || tag === 'select' || tag === 'textarea';
+  if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)){
+    e.preventDefault();
+    const x = PDF_STATE.current;
+    if(x.status === '待確認' || x.status === '已確認') confirmPdf(x.status === '待確認' && (PDF_STATE.order || []).length > 1);
+  }else if(e.key === 'Escape'){
+    closePdfDetailModal();
+  }else if(!typing && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')){
+    const order = PDF_STATE.order || [];
+    const id = order[order.indexOf(PDF_STATE.current.id) + (e.key === 'ArrowRight' ? 1 : -1)];
+    if(id) openPdfDetail(id);
+  }
+});
 
 function closePdfDetailModal(){
   document.getElementById('pdfDetailModalOverlay').classList.remove('show');
@@ -6606,8 +6886,12 @@ async function refreshPdfName(force){
   }catch(e){}
 }
 
-async function confirmPdf(){
+async function confirmPdf(goNext){
   const x = PDF_STATE.current;
+  if(!x) return;
+  const order = PDF_STATE.order || [];
+  const pos = order.indexOf(x.id);
+  const nextId = goNext ? (order[pos + 1] || order.find(id => id !== x.id) || '') : '';
   const body = {
     case_no: document.getElementById('pdfFormCase').value.trim(),
     doc_type: document.getElementById('pdfFormType').value,
@@ -6628,6 +6912,14 @@ async function confirmPdf(){
     if(!res.ok) throw new Error(data.error || '確認失敗');
     showToast('已確認' + (data.writeback ? '｜' + data.writeback : ''));
     if(downloadAfter) downloadPdf(x.id);   // 沒有要自動歸檔的，直接用新檔名下載
+    if(nextId){
+      // 先在畫面上標成已確認，直接開下一份（清單在背景更新）
+      x.status = '已確認';
+      PDF_STATE.order = order.filter(id => id !== x.id);
+      openPdfDetail(nextId);
+      loadPdfRename();
+      return;
+    }
     closePdfDetailModal();
     loadPdfRename();
   }catch(e){
