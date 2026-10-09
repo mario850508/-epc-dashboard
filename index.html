@@ -912,6 +912,9 @@
         <div class="page-sub">整合本機工具與雲端 EPC 排程,一個入口管理所有案件流程</div>
       </div>
 
+      <div class="grid" id="homeStats"></div>
+      <div id="homeTodo"><div class="panel" style="margin-bottom:16px;"><div class="panel-title">🔔 今日待辦</div><div style="padding:14px;color:var(--text-muted);font-size:13px;">載入中…</div></div></div>
+
       <div class="pipeline">
         <div class="pipe-step done">
           <div class="pipe-num">✓</div>
@@ -931,33 +934,6 @@
         <div class="pipe-step">
           <div class="pipe-num">4</div>
           <div><div class="pipe-label">案件完成</div><div class="pipe-desc">回填 Airtable</div></div>
-        </div>
-      </div>
-
-      <div class="grid">
-        <div class="stat-card">
-          <div class="stat-icon icon-blue">📄</div>
-          <div>
-            <div class="stat-label">待處理 PDF</div>
-            <div class="stat-value">1 份</div>
-            <div class="stat-sub">來自本機資料夾</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon">🗓️</div>
-          <div>
-            <div class="stat-label">本週排程項目</div>
-            <div class="stat-value">7 件</div>
-            <div class="stat-sub">出貨/植筋/進場/掛表 合計</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon icon-green">✅</div>
-          <div>
-            <div class="stat-label">今日待辦</div>
-            <div class="stat-value">2 件</div>
-            <div class="stat-sub">EPC 排程模組</div>
-          </div>
         </div>
       </div>
 
@@ -8467,6 +8443,7 @@ async function confirmCertAbbr(id){
   }
 })();
 </script>
+<script src="home-todo.js?v=1"></script>
 
 </body>
 </html>
