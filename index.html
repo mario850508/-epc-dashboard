@@ -894,6 +894,13 @@
             <label class="pdf-switch"><input type="checkbox" id="pdfArchiveToggle" onchange="togglePdfArchive(this.checked)"><span></span></label>
           </div>
         </div>
+        <div class="pdf-toggle" style="margin-bottom:14px;align-items:center;">
+          <div style="flex:1;">
+            <div class="pdf-toggle-title">🧠 自動學習（越用越準）</div>
+            <div class="pdf-toggle-desc" id="pdfLearnInfo">—</div>
+          </div>
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;white-space:nowrap;" id="pdfRetrainBtn" onclick="runPdfRetrain()">立即重新學習</button>
+        </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
           <button class="btn btn-warm-primary" id="pdfRunBtn" onclick="runPdfRecognizeNow()">▶ 立即辨識</button>
           <button class="btn btn-ghost" onclick="openPdfRulesModal()">⚙ 命名格式與函文規則</button>
@@ -6307,6 +6314,16 @@ function renderPdfStatus(){
   if(s.running) info += '｜🔄 辨識中…';
   else if(s.last_finished_at) info += `｜上次執行：${pdfFmtTime(s.last_finished_at)}`;
   document.getElementById('pdfRunInfo').textContent = info;
+  const lm = s.learn_model || {};
+  const live = lm.live || {};
+  const pct = v => v === undefined ? '—' : Math.round(v * 100) + '%';
+  let learn = `學習資料：歷史 ${lm.base_docs || lm.trained_on || 0} 份＋你確認過的 <b>${lm.confirmed_docs || 0}</b> 份`
+    + `｜模型更新：${lm.trained_at ? pdfFmtTime(lm.trained_at) : '內建版本'}（每天凌晨 2:30 自動重新學習）`;
+  if(live.n) learn += `<br>最近 ${live.n} 份確認的真實準確度（系統一開始就判對、不用改的比例）：類型 <b>${pct(live.type)}</b>・日期 <b>${pct(live.date)}</b>・案號 <b>${pct(live.case)}</b>・檔名完全不用改 <b>${pct(live.name)}</b>`;
+  else learn += '<br>開始確認檔案後，這裡會顯示真實準確度。你修改過的類型、日期、案號、檔名簡稱都會被學起來。';
+  if(s.retrain && s.retrain.running) learn += '<br>🔄 重新學習中…';
+  else if(s.retrain && s.retrain.last_error) learn += `<br><span style="color:#C9383D;">上次重新學習失敗：${pdfEsc(s.retrain.last_error)}</span>`;
+  document.getElementById('pdfLearnInfo').innerHTML = learn;
   let alert = '';
   const engine = st.engine || 'free';
   if(engine !== 'free' && !s.api_key_configured){
@@ -6416,6 +6433,19 @@ async function togglePdfArchive(on){
     arc.roots = 'G:\\共用雲端硬碟\\永續電力處\\02 專案\\01 已上架電廠';
   }
   await savePdfSetting({archive: {enabled: on, pm: arc.pm || '', roots: arc.roots || ''}});
+}
+
+async function runPdfRetrain(){
+  const btn = document.getElementById('pdfRetrainBtn');
+  btn.disabled = true;
+  try{
+    const res = await fetch(API_BASE + '/api/pdf-rename/retrain', {method: 'POST'});
+    const data = await res.json();
+    showToast(data.message || '開始重新學習');
+  }catch(e){
+    showToast('啟動失敗：' + e.message);
+  }
+  setTimeout(() => { btn.disabled = false; loadPdfRename(); }, 60000);
 }
 
 async function runPdfRecognizeNow(){
