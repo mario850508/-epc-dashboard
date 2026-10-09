@@ -748,6 +748,11 @@
     .pdf-chip{white-space:nowrap;}
     .pdf-hint{display:none;}
   }
+  .pdf-dup{font-size:11.5px;font-weight:700;color:#C9383D;margin-top:4px;white-space:nowrap;}
+  .pdf-dup.keep{color:#B8720A;}
+  .pdf-del{border:none;background:none;cursor:pointer;font-size:15px;opacity:.45;padding:4px 6px;margin-left:2px;vertical-align:middle;}
+  .pdf-del:hover{opacity:1;}
+  .pdf-card .pdf-del{display:none;}
   /* ---- 公文更名：2026-10-09 第二版（字放大、填滿畫面、辨識進度）---- */
   #view-pdf .pdf-table{font-size:14px;}
   #view-pdf .pdf-table th{font-size:13px;padding:10px;}
@@ -6667,6 +6672,23 @@ function pdfSearchHit(x, q){
   return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
 }
 // 可以一次確認：案號、類型、日期都有
+function pdfSelectable(x){ return x.status !== '辨識中'; }
+// 重複：同案號＋同類型＋同日期的其他檔案（辨識失敗的不算）。每組保留一份：已歸檔＞已確認＞待確認，同狀態留最早收到的
+function pdfDupGroups(){
+  const groups = {};
+  for(const x of PDF_STATE.items){
+    if(!x.case_no || !x.doc_type || x.status === '辨識失敗' || x.status === '辨識中' || x.status === '待辨識') continue;
+    (groups[`${x.case_no}|${x.doc_type}|${x.doc_date}`] ||= []).push(x);
+  }
+  const rank = {'已歸檔': 0, '已確認': 1, '待確認': 2};
+  const keepOf = {}, extra = [];
+  for(const g of Object.values(groups)){
+    if(g.length < 2) continue;
+    g.sort((a, b) => (rank[a.status] ?? 3) - (rank[b.status] ?? 3) || (a.uploaded_at || '').localeCompare(b.uploaded_at || ''));
+    g.forEach((x, i) => { keepOf[x.id] = {n: g.length, keep: i === 0}; if(i) extra.push(x); });
+  }
+  return {keepOf, extra};
+}
 function pdfReady(x){ return x.status === '待確認' && x.case_no && x.doc_type && x.doc_type !== '其他' && x.doc_date; }
 function pdfTypeTag(x){
   return x.doc_type ? `<span class="pdf-type c${pdfEsc(x.category || '')}">${pdfEsc(x.doc_type)}</span>` : '<span class="pdf-sub">—</span>';
@@ -6686,14 +6708,15 @@ function renderPdfList(){
   const rows = items.filter(x => pdfMatch(x, PDF_STATE.filter) && pdfSearchHit(x, q));
   // 確認視窗「下一份」用的順序：目前畫面上的待確認
   PDF_STATE.order = rows.filter(x => x.status === '待確認').map(x => x.id);
-  for(const id of [...PDF_STATE.selected]) if(!rows.some(x => x.id === id && pdfReady(x))) PDF_STATE.selected.delete(id);
+  for(const id of [...PDF_STATE.selected]) if(!rows.some(x => x.id === id && pdfSelectable(x))) PDF_STATE.selected.delete(id);
+  PDF_STATE.dups = pdfDupGroups();
   renderPdfBatchBar(rows);
   if(!rows.length){
     const [icon, msg] = q ? ['🔍', `找不到符合「${pdfEsc(q)}」的檔案。`] : (PDF_EMPTY[PDF_STATE.filter] || ['📭', '這裡目前沒有檔案。']);
     document.getElementById('pdfList').innerHTML = `<div class="pdf-empty"><b>${icon}</b>${msg}</div>`;
     return;
   }
-  const ck = x => pdfReady(x) ? `<input type="checkbox" data-id="${x.id}" ${PDF_STATE.selected.has(x.id) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="togglePdfSelect('${x.id}', this.checked)">` : '';
+  const ck = x => pdfSelectable(x) ? `<input type="checkbox" data-id="${x.id}" ${PDF_STATE.selected.has(x.id) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="togglePdfSelect('${x.id}', this.checked)">` : '';
   const btn = x => `<button class="btn ${x.status === '待確認' ? 'btn-primary' : 'btn-ghost'}" style="padding:6px 10px;font-size:11.5px;" onclick="event.stopPropagation();openPdfDetail('${x.id}')">${x.status === '待確認' ? '檢查並確認' : '檢視'}</button>`;
   const when = x => `${pdfEsc(pdfFmtTime(x.uploaded_at))}${x.uploader ? '・' + pdfEsc(x.uploader) : ''}${x.source && x.source !== '主控台上傳' ? '・' + pdfEsc(x.source) : ''}`;
   const table = `<div class="pdf-table-wrap" style="overflow-x:auto;"><table class="pdf-table">
@@ -6706,16 +6729,16 @@ function renderPdfList(){
       <td style="white-space:nowrap;">${pdfEsc(x.doc_date) || '<span class="pdf-sub">—</span>'}</td>
       <td>${pdfConfBadge(x.confidence)}</td>
       <td class="pdf-hide-m"><div class="pdf-sub" style="color:var(--text);">${pdfEsc(x.final_name || x.suggested_name)}</div></td>
-      <td><span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span></td>
-      <td style="white-space:nowrap;">${btn(x)}</td>
+      <td><span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span>${pdfDupTag(x)}</td>
+      <td style="white-space:nowrap;">${btn(x)}<button class="pdf-del" title="刪除" onclick="event.stopPropagation();deletePdf('${x.id}')">🗑</button></td>
     </tr>`).join('')}</tbody></table></div>`;
   // 手機：卡片
   const cards = `<div class="pdf-cards">${rows.map(x => `<div class="pdf-card" onclick="openPdfDetail('${x.id}')">
-      ${pdfReady(x) ? `<div class="pdf-ck" style="padding-top:2px;">${ck(x)}</div>` : ''}
+      ${pdfSelectable(x) ? `<div class="pdf-ck" style="padding-top:2px;">${ck(x)}</div>` : ''}
       <div class="pdf-card-main">
         <div class="pdf-card-top">
           <div class="pdf-card-title">${x.case_no ? pdfEsc(x.case_no) : '<span style="color:#C9383D;">案號待選</span>'}</div>
-          <div style="display:flex;gap:4px;align-items:center;">${pdfConfBadge(x.confidence)}<span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span></div>
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">${pdfConfBadge(x.confidence)}<span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span>${pdfDupTag(x)}</div>
         </div>
         <div class="pdf-card-meta">${pdfTypeTag(x)}<span>${pdfEsc(x.doc_date) || ''}</span></div>
         <div class="pdf-sub" style="color:var(--text);">${pdfEsc(x.final_name || x.suggested_name || x.src_name)}</div>
@@ -6731,6 +6754,36 @@ function pdfRowStep(x){
   return `<div class="pdf-row-step" data-step-for="${x.id}" ${x.status === '待辨識' ? 'data-queued="1"' : ''}></div>`;
 }
 
+function pdfDupTag(x){
+  const d = ((PDF_STATE.dups || {}).keepOf || {})[x.id];
+  if(!d) return '';
+  return `<div class="pdf-dup ${d.keep ? 'keep' : ''}" title="同案號、同類型、同日期的檔案共 ${d.n} 份">${d.keep ? `重複 ${d.n} 份・建議保留` : '重複・可刪除'}</div>`;
+}
+function selectPdfDups(){
+  for(const x of (PDF_STATE.dups || {}).extra || []) if(x.status !== '已歸檔') PDF_STATE.selected.add(x.id);
+  if(PDF_STATE.filter !== 'all' && [...PDF_STATE.selected].some(id => !PDF_STATE.items.find(x => x.id === id && pdfMatch(x, PDF_STATE.filter)))){
+    PDF_STATE.filter = 'all';
+  }
+  renderPdfList();
+}
+async function deletePdfBatch(){
+  const ids = [...PDF_STATE.selected];
+  if(!ids.length) return;
+  const names = PDF_STATE.items.filter(x => PDF_STATE.selected.has(x.id)).map(x => x.src_name);
+  if(!confirm(`確定要刪除這 ${ids.length} 份？（Airtable 裡的紀錄跟檔案都會刪掉，G 槽已歸檔的檔案不受影響）\n\n` + names.slice(0, 10).join('\n') + (names.length > 10 ? `\n…還有 ${names.length - 10} 份` : ''))) return;
+  let ok = 0;
+  for(let i = 0; i < ids.length; i++){
+    showToast(`刪除中 ${i + 1} / ${ids.length}…`);
+    try{
+      const res = await fetch(API_BASE + `/api/pdf-rename/${ids[i]}`, {method: 'DELETE'});
+      if(res.ok) ok++;
+    }catch(e){}
+  }
+  PDF_STATE.selected.clear();
+  showToast(ok === ids.length ? `已刪除 ${ok} 份` : `已刪除 ${ok} 份，${ids.length - ok} 份失敗`);
+  loadPdfRename();
+}
+
 function togglePdfSelect(id, on){
   if(on) PDF_STATE.selected.add(id); else PDF_STATE.selected.delete(id);
   document.querySelectorAll(`#pdfList input[data-id="${id}"]`).forEach(el => { el.checked = on; });
@@ -6738,22 +6791,27 @@ function togglePdfSelect(id, on){
 }
 function selectPdfHigh(min){
   PDF_STATE.items.filter(x => pdfMatch(x, PDF_STATE.filter) && pdfSearchHit(x, PDF_STATE.q || '') && pdfReady(x) && (x.confidence || 0) >= min && !x.same_type.length)
+    .filter(x => !(((PDF_STATE.dups || {}).keepOf || {})[x.id]))
     .forEach(x => PDF_STATE.selected.add(x.id));
   renderPdfList();
 }
 function renderPdfBatchBar(rows){
   const el = document.getElementById('pdfBatchBar');
+  const sel = PDF_STATE.items.filter(x => PDF_STATE.selected.has(x.id));
+  const readySel = sel.filter(x => pdfReady(x) && ((((PDF_STATE.dups || {}).keepOf || {})[x.id]) || {keep: true}).keep);
   const ready = rows.filter(pdfReady);
-  if(!ready.length){ el.innerHTML = ''; return; }
-  const n = PDF_STATE.selected.size;
-  const hi = ready.filter(x => (x.confidence || 0) >= 80 && !x.same_type.length).length;
+  const hi = ready.filter(x => (x.confidence || 0) >= 80 && !x.same_type.length && !(((PDF_STATE.dups || {}).keepOf || {})[x.id])).length;
+  const dupN = (((PDF_STATE.dups || {}).extra) || []).filter(x => x.status !== '已歸檔').length;
+  if(!sel.length && !ready.length && !dupN){ el.innerHTML = ''; return; }
   el.innerHTML = `<div class="pdf-batch">
-    ${n ? `<b>已勾選 ${n} 份</b>
-      <button class="btn btn-primary" style="padding:5px 12px;font-size:12px;" onclick="confirmPdfBatch()">✅ 一次確認 ${n} 份</button>
-      <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="retryPdfBatch()">🔁 重新辨識 ${n} 份</button>
+    ${sel.length ? `<b>已勾選 ${sel.length} 份</b>
+      ${readySel.length ? `<button class="btn btn-primary" style="padding:5px 12px;font-size:12px;" onclick="confirmPdfBatch()">✅ 一次確認 ${readySel.length} 份</button>` : ''}
+      <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="retryPdfBatch()">🔁 重新辨識</button>
+      <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;color:#C9383D;" onclick="deletePdfBatch()">🗑 刪除 ${sel.length} 份</button>
       <a href="javascript:void(0)" onclick="PDF_STATE.selected.clear();renderPdfList();">取消勾選</a>`
-    : `<span>勾選左邊的方框可以一次確認多份（會用系統產生的檔名）</span>
-      ${hi ? `<a href="javascript:void(0)" onclick="selectPdfHigh(80)">勾選信心 80 以上的 ${hi} 份</a>` : ''}`}
+    : `<span>勾選左邊的方框可以一次確認、重新辨識或刪除</span>
+      ${hi ? `<a href="javascript:void(0)" onclick="selectPdfHigh(80)">勾選信心 80 以上的 ${hi} 份</a>` : ''}
+      ${dupN ? `<a href="javascript:void(0)" style="color:#C9383D;font-weight:700;" onclick="selectPdfDups()">⚠ 有 ${dupN} 份重複，勾選起來（每組保留一份）</a>` : ''}`}
   </div>`;
 }
 
@@ -6770,7 +6828,7 @@ async function retryPdfBatch(){
 }
 
 async function confirmPdfBatch(){
-  const list = PDF_STATE.items.filter(x => PDF_STATE.selected.has(x.id) && pdfReady(x));
+  const list = PDF_STATE.items.filter(x => PDF_STATE.selected.has(x.id) && pdfReady(x) && ((((PDF_STATE.dups || {}).keepOf || {})[x.id]) || {keep: true}).keep);   // 重複的只確認建議保留的那份
   if(!list.length) return;
   const arcOn = !!(((PDF_STATE.status || {}).settings || {}).archive || {}).enabled;
   if(!confirm(`一次確認 ${list.length} 份？\n會用畫面上的案號、類型、日期與檔名` + (arcOn ? '，並自動歸檔到 G 槽。' : '。'))) return;
