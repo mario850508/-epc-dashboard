@@ -2088,8 +2088,8 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         </div>
 
         <div class="cal-grid" id="calGrid">
-          <div class="cal-dow">一</div><div class="cal-dow">二</div><div class="cal-dow">三</div>
-          <div class="cal-dow">四</div><div class="cal-dow">五</div><div class="cal-dow">六</div><div class="cal-dow">日</div>
+          <div class="cal-dow">日</div><div class="cal-dow">一</div><div class="cal-dow">二</div><div class="cal-dow">三</div>
+          <div class="cal-dow">四</div><div class="cal-dow">五</div><div class="cal-dow">六</div>
         </div>
       </div>
 
@@ -6277,7 +6277,7 @@ function renderCalendar(){
   events.forEach(e => { (eventsByDate[e.date] = eventsByDate[e.date] || []).push(e); });
 
   const firstOfMonth = new Date(calYear, calMonth, 1);
-  const startWeekday = (firstOfMonth.getDay() + 6) % 7; // 週一為 0
+  const startWeekday = firstOfMonth.getDay(); // 週日為 0
   const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
   const daysInPrevMonth = new Date(calYear, calMonth, 0).getDate();
   const todayIso = todayStr();
@@ -6321,8 +6321,8 @@ function renderCalendar(){
   }
 
   grid.innerHTML = `
-    <div class="cal-dow">一</div><div class="cal-dow">二</div><div class="cal-dow">三</div>
-    <div class="cal-dow">四</div><div class="cal-dow">五</div><div class="cal-dow">六</div><div class="cal-dow">日</div>
+    <div class="cal-dow">日</div><div class="cal-dow">一</div><div class="cal-dow">二</div><div class="cal-dow">三</div>
+    <div class="cal-dow">四</div><div class="cal-dow">五</div><div class="cal-dow">六</div>
     ${cellsHtml}
   `;
 
