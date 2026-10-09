@@ -6559,7 +6559,10 @@ function openPdfRulesModal(){
     </details>
     <label>檔名格式</label>
     <input class="quick-mark-input" id="pdfRuleTemplate" value="${pdfEsc(st.template || '{案號}_{函文類型}_{日期}')}" oninput="previewPdfTemplate()">
-    <div class="pdf-sub">可用：{案號} {別名} {函文類型} {日期}＝20260908　{西元日期}＝2026-09-08　{民國日期}＝1150908。副檔名 .pdf 會自動加上。</div>
+    <div class="pdf-sub">可用：{簡稱}＝桃1　{案號}　{別名}　{函文類型}　{日期}＝20260908　{西元日期}＝2026-09-08　{民國日期}＝1150908。副檔名 .pdf 會自動加上。</div>
+    <div class="pdf-sub">案場簡稱對照：目前 <b>${(PDF_STATE.status && PDF_STATE.status.alias_count) || 0}</b> 個案場（對照表沒有的，會用同區規則推，例如 潤特桃園95號 → 桃95）。
+      <a href="javascript:void(0)" onclick="document.getElementById('pdfLearnFile').click()">匯入學習報告（report.json）</a>
+      <input type="file" id="pdfLearnFile" accept=".json,application/json" style="display:none" onchange="importPdfLearnReport(this.files[0]); this.value='';"></div>
     <div class="pdf-sub" id="pdfRulePreview" style="color:var(--text);margin-top:4px;"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
       <div><label>每輪最多辨識幾份</label><input type="number" min="1" max="30" class="quick-mark-input" id="pdfRuleBatch" value="${st.batch_size || 5}"></div>
@@ -6571,8 +6574,10 @@ function openPdfRulesModal(){
       <button class="btn btn-ghost" style="white-space:nowrap;" onclick="reloadPdfRulesCsv()">從 Sheet 載入</button>
     </div>
     <div class="pdf-sub">第一列標題要有「函文類型」，可另加「關鍵字」「對應里程碑」「說明」欄。載入後會取代下面的清單。</div>
-    <label>函文類型（AI 只會從這裡選；對應里程碑＝確認後寫回「進度管理」哪一種的完成日期，留空＝不寫回）</label>
-    <table class="pdf-rules-table"><thead><tr><th style="width:18%;">函文類型</th><th>辨識關鍵字／說明給 AI 看</th><th style="width:18%;">對應里程碑</th><th style="width:30px;"></th></tr></thead>
+    <label>文件類型（系統只會從這裡選；對應里程碑＝確認後寫回「進度管理」哪一種的完成日期，留空＝不寫回）</label>
+    <div class="pdf-sub" style="margin-bottom:6px;">類型名稱就是檔名裡的類型。依你 G 槽 7,000 多份已改名檔案整理過（03 契約／04 設計圖／06 函文／07 設備）。
+      <a href="javascript:void(0)" onclick="resetPdfDocTypes()">重設為最新的預設清單</a></div>
+    <table class="pdf-rules-table"><thead><tr><th style="width:6%;">分類</th><th style="width:18%;">類型</th><th>辨識關鍵字（頓號分隔）</th><th style="width:16%;">對應里程碑</th><th style="width:30px;"></th></tr></thead>
       <tbody id="pdfRuleRows">${(st.doc_types || []).map(pdfRuleRow).join('')}</tbody></table>
     <button class="btn btn-ghost" style="margin-top:8px;padding:6px 12px;font-size:12px;" onclick="document.getElementById('pdfRuleRows').insertAdjacentHTML('beforeend', pdfRuleRow({}))">＋ 新增類型</button>
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:16px;" onclick="savePdfRules()">儲存</button>`;
@@ -6649,7 +6654,10 @@ function closePdfRulesModal(){ document.getElementById('pdfRulesModalOverlay').c
 
 function pdfRuleRow(t){
   const kw = [t.keywords, t.note].filter(Boolean).join('；');
-  return `<tr><td><input class="r-name" value="${pdfEsc(t.name || '')}"></td>
+  // 分類、檔名其他寫法、日期規則不在表格上編輯，存在 data-extra 裡，儲存時原樣帶回
+  const extra = pdfEsc(JSON.stringify({synonyms: t.synonyms || '', date_keys: t.date_keys || ''}));
+  return `<tr data-extra="${extra}"><td><input class="r-cat" value="${pdfEsc(t.category || '')}" placeholder="06"></td>
+    <td><input class="r-name" value="${pdfEsc(t.name || '')}"></td>
     <td><input class="r-kw" value="${pdfEsc(kw)}"></td>
     <td><input class="r-ms" value="${pdfEsc(t.milestone || '')}"></td>
     <td><button class="modal-close" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
@@ -6657,18 +6665,24 @@ function pdfRuleRow(t){
 
 function previewPdfTemplate(){
   const t = document.getElementById('pdfRuleTemplate').value;
-  const vals = {'案號': '潤特-桃園081', '別名': '大園王宅', '函文類型': '併聯審查', '日期': '20260908', '西元日期': '2026-09-08', '民國日期': '1150908'};
+  const vals = {'簡稱': '桃1', '案號': '潤特桃園1號', '別名': '中壢聖溪', '函文類型': '併聯審查', '日期': '20260908', '西元日期': '2026-09-08', '民國日期': '1150908'};
   const name = t.replace(/\{(\S+?)\}/g, (m, k) => vals[k] !== undefined ? vals[k] : m);
   document.getElementById('pdfRulePreview').textContent = '範例：' + name + '.pdf';
 }
 
 async function savePdfRules(){
-  const doc_types = Array.from(document.querySelectorAll('#pdfRuleRows tr')).map(tr => ({
-    name: tr.querySelector('.r-name').value.trim(),
-    keywords: tr.querySelector('.r-kw').value.trim(),
-    milestone: tr.querySelector('.r-ms').value.trim(),
-    note: '',
-  })).filter(t => t.name);
+  const doc_types = Array.from(document.querySelectorAll('#pdfRuleRows tr')).map(tr => {
+    let extra = {};
+    try{ extra = JSON.parse(tr.dataset.extra || '{}'); }catch(e){}
+    return {
+      ...extra,
+      category: tr.querySelector('.r-cat').value.trim(),
+      name: tr.querySelector('.r-name').value.trim(),
+      keywords: tr.querySelector('.r-kw').value.trim(),
+      milestone: tr.querySelector('.r-ms').value.trim(),
+      note: '',
+    };
+  }).filter(t => t.name);
   const s = await savePdfSetting({
     engine: document.getElementById('pdfRuleEngine').value,
     ocr_url: document.getElementById('pdfRuleOcrUrl').value.trim(),
@@ -6679,6 +6693,28 @@ async function savePdfRules(){
     doc_types,
   });
   if(s) closePdfRulesModal();
+}
+
+async function importPdfLearnReport(file){
+  if(!file) return;
+  try{
+    const report = JSON.parse(await file.text());
+    const res = await fetch(API_BASE + '/api/pdf-rename/import-learn', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(report)});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || '匯入失敗');
+    showToast(`已匯入 ${data.count} 個案場的簡稱`);
+    if(PDF_STATE.status) PDF_STATE.status.alias_count = data.count;
+    openPdfRulesModal();
+  }catch(e){
+    showToast('匯入失敗：' + e.message);
+  }
+}
+
+async function resetPdfDocTypes(){
+  if(!confirm('把文件類型清單換成最新的預設清單？（你自己改過的關鍵字會被覆蓋）')) return;
+  const s = await savePdfSetting({reset_doc_types: true});
+  if(s) openPdfRulesModal();
 }
 
 async function reloadPdfRulesCsv(){
