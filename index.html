@@ -908,11 +908,11 @@
         </div>
         <div class="pdf-drop" id="pdfDrop" onclick="document.getElementById('pdfFileInput').click()">
           <div style="font-size:26px;">📥</div>
-          <b>把 PDF 拖到這裡，或點一下選擇檔案</b>
-          <div style="margin-top:4px;">可一次多份（每份 5MB 以內）。上傳後放進佇列，背景慢慢辨識，辨識完會出現在「待確認」。</div>
+          <b>把 PDF、照片、Word／Excel 拖到這裡，或點一下選擇檔案</b>
+          <div style="margin-top:4px;">可一次多份（PDF／Word／Excel 每份 5MB 以內；照片會自動轉成 PDF，20MB 以內）。上傳後放進佇列，背景慢慢辨識，辨識完會出現在「待確認」。</div>
           <div id="pdfUploadProgress" style="margin-top:8px;font-weight:600;color:var(--text);"></div>
         </div>
-        <input type="file" id="pdfFileInput" accept="application/pdf,.pdf" multiple style="display:none" onchange="uploadPdfFiles(this.files); this.value='';">
+        <input type="file" id="pdfFileInput" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tif,.tiff,.webp,.docx,.xlsx" multiple style="display:none" onchange="uploadPdfFiles(this.files); this.value='';">
         <div class="panel">
           <div class="pdf-chips" id="pdfChips"></div>
           <div id="pdfList"><div class="login-note">載入中…</div></div>
@@ -925,7 +925,7 @@
       <div class="subview" id="tab-pdf-line">
         <div class="panel" style="margin-bottom:14px;">
           <div class="panel-title">📂 LINE 收件資料夾（每位 PM 一個，背景自動辨識）</div>
-          <div class="pdf-sub" style="margin-bottom:10px;">LINE 官方帳號把廠商群組的檔案下載到每位 PM 自己的資料夾。在這裡設定資料夾路徑，PM 電腦上的背景程式每分鐘檢查一次，有新的 PDF 就自動送去辨識（重複的檔案不會重複辨識）。路徑隨時可以在這裡改，不用重裝。</div>
+          <div class="pdf-sub" style="margin-bottom:10px;">LINE 官方帳號把廠商群組的檔案下載到每位 PM 自己的資料夾。在這裡設定資料夾路徑，PM 電腦上的背景程式每分鐘檢查一次，有新的 PDF、照片（JPG/PNG，自動轉成 PDF）、Word／Excel 就自動送去辨識（重複的檔案不會重複辨識）。路徑隨時可以在這裡改，不用重裝。</div>
           <div style="overflow-x:auto;"><table class="pdf-rules-table" style="min-width:720px;">
             <thead><tr><th style="width:13%;">PM</th><th>資料夾路徑（PM 電腦上的完整路徑）</th><th style="width:7%;">啟用</th><th style="width:30%;">這台電腦的狀態</th><th style="width:30px;"></th></tr></thead>
             <tbody id="pdfWatcherRows"></tbody>
@@ -6378,9 +6378,15 @@ function initPdfDrop(){
   drop.addEventListener('drop', e => uploadPdfFiles(e.dataTransfer.files));
 }
 
+const PDF_IMAGE_RE = /\.(jpe?g|png|bmp|tiff?|webp)$/i;
+const PDF_UPLOAD_RE = /\.(pdf|jpe?g|png|bmp|tiff?|webp|docx|xlsx)$/i;
+// 文件上的編號（確認時填進 Airtable 專案細節空白欄位）
+const PDF_ID_FIELDS = ['同意備案編號', '設備登記編號', '臺電受理編號', '台電契約編號', '電表租約編號', '電號'];
+const PDF_ID_HINT = {'臺電受理編號': '併聯審查編號', '電表租約編號': '契約登記編號'};
+
 async function uploadPdfFiles(fileList){
-  const files = Array.from(fileList || []).filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
-  if(!files.length){ showToast('請選擇 PDF 檔'); return; }
+  const files = Array.from(fileList || []).filter(f => PDF_UPLOAD_RE.test(f.name) || f.type === 'application/pdf');
+  if(!files.length){ showToast('請選擇 PDF、照片（JPG/PNG）或 Word／Excel（.docx／.xlsx）檔'); return; }
   const prog = document.getElementById('pdfUploadProgress');
   const failed = [];
   let ok = 0;
@@ -6388,7 +6394,8 @@ async function uploadPdfFiles(fileList){
   for(let i = 0; i < files.length; i++){
     const f = files[i];
     prog.textContent = `上傳中 ${i + 1} / ${files.length}：${f.name}`;
-    if(f.size > 5 * 1024 * 1024){ failed.push(`${f.name}（超過 5MB）`); continue; }
+    const isImg = PDF_IMAGE_RE.test(f.name);
+    if(f.size > (isImg ? 20 : 5) * 1024 * 1024){ failed.push(`${f.name}（超過 ${isImg ? 20 : 5}MB）`); continue; }
     const fd = new FormData();
     fd.append('files', f, f.name);
     fd.append('uploader', pdfUser());
@@ -6483,12 +6490,25 @@ function openPdfDetail(id){
   const meta = [['發文字號', x.doc_number], ['發文機關', x.issuer], ['主旨', x.subject]]
     .filter(([, v]) => v).map(([k, v]) => `<div class="pdf-sub" style="color:var(--text);margin-top:4px;"><b>${k}：</b>${pdfEsc(v)}</div>`).join('');
   document.getElementById('pdfDetailBody').innerHTML = `<div class="pdf-detail">
-    <div>${x.file_url ? `<iframe src="${pdfEsc(x.file_url)}#view=FitH"></iframe>` : '<div class="login-note">沒有檔案</div>'}</div>
+    <div>${!x.file_url ? '<div class="login-note">沒有檔案</div>'
+      : (x.file_ext && x.file_ext !== '.pdf') ? `<div class="login-note">${x.file_ext === '.docx' ? 'Word' : 'Excel'} 檔無法在這裡預覽，<a href="javascript:void(0)" onclick="downloadPdf('${x.id}')">下載來看</a>。<br>右邊「辨識出的文字」是從檔案讀到的內容。</div>`
+      : `<iframe src="${pdfEsc(x.file_url)}#view=FitH"></iframe>`}</div>
     <div class="pdf-form">
       <div><span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span> ${pdfConfBadge(x.confidence)}
         ${x.confirmed_by ? `<span class="pdf-sub">　${pdfEsc(x.confirmed_by)}・${pdfEsc(pdfFmtTime(x.confirmed_at))}</span>` : ''}</div>
       ${x.error ? `<div class="pdf-issue">✗ ${pdfEsc(x.error)}</div>` : ''}
       ${issues}
+      ${(() => {
+        // 案場資料夾已經有同類型檔案，背景程式暫停歸檔，等這裡決定
+        if(x.status !== '已確認' || !/⚠ 同類型已存在/.test(x.writeback || '')) return '';
+        const line = (x.writeback || '').split('\n').find(l => l.startsWith('⚠ 同類型已存在')) || '';
+        return `<div class="pdf-issue" style="border-color:#E0A100;">📂 ${pdfEsc(line.replace('⚠ 同類型已存在：', ''))}
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">
+            <button class="btn btn-primary" style="padding:5px 10px;font-size:11.5px;" onclick="forcePdfArchive('${x.id}')">仍要歸檔（兩份都留）</button>
+            <button class="btn btn-ghost" style="padding:5px 10px;font-size:11.5px;" onclick="downloadPdf('${x.id}')">不歸檔，下載就好</button>
+          </div></div>`;
+      })()}
+      <div id="pdfSameType"></div>
       ${meta}
       <label>案號</label>
       <input class="quick-mark-input" id="pdfFormCase" list="pdfCaseList" value="${pdfEsc(x.case_no)}" oninput="searchPdfCase(this.value)" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>
@@ -6506,6 +6526,12 @@ function openPdfDetail(id){
           這份自動歸檔到 G 槽${x.category ? `（${pdfEsc(x.case_no || '案號')} → ${pdfEsc(x.category)} 資料夾）` : ''}</label>
           <div class="pdf-sub">取消勾選＝只改名，按確認後直接用新檔名下載到你的電腦</div>`;
       })()}
+      <label>文件上的編號 <span class="pdf-sub" style="font-weight:400;">確認後自動填進 Airtable 專案細節「空白」的欄位，已有的不覆蓋；讀錯可以直接改，清空就不寫</span></label>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;">
+        ${PDF_ID_FIELDS.map(k => `<span class="pdf-sub" style="color:var(--text);">${k}${PDF_ID_HINT[k] ? `<br><span style="font-size:10.5px;">（${PDF_ID_HINT[k]}）</span>` : ''}</span>
+          <input class="quick-mark-input pdf-id-input" data-field="${k}" style="margin:0;padding:5px 8px;" value="${pdfEsc((x.ids_writable || {})[k] || '')}"
+            placeholder="${(x.ids_writable || {})[k] ? '' : ((x.ids || {})[k] || []).length ? '文件裡有 ' + pdfEsc(x.ids[k].join('、')) + '（可能是別的案場／屋主的，沒自動帶入；確定是這案的可以填上）' : '—'}" ${editable && x.status !== '已歸檔' ? '' : 'disabled'}>`).join('')}
+      </div>
       <label>檔名 <a href="javascript:void(0)" style="font-weight:400;font-size:11.5px;" onclick="refreshPdfName(true)">依命名格式重新產生</a></label>
       <input class="quick-mark-input" id="pdfFormName" value="${pdfEsc(x.final_name || x.suggested_name || x.src_name)}" ${editable ? '' : 'disabled'}>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
@@ -6521,7 +6547,18 @@ function openPdfDetail(id){
       ${cands ? `<label>候選案件（點一下套用；綠色＝編號精確吻合）</label>${cands}` : ''}
     </div></div>`;
   document.getElementById('pdfDetailModalOverlay').classList.add('show');
+  renderPdfSameType(x.status === '待確認' ? (x.same_type || []) : []);
 }
+
+function renderPdfSameType(list){
+  const el = document.getElementById('pdfSameType');
+  if(!el) return;
+  el.innerHTML = list.length ? `<div class="pdf-issue">📑 同案場已經有同類型的文件：${list.slice(0, 4).map(s =>
+    `<a href="javascript:void(0)" onclick="openPdfDetail('${pdfEsc(s.id)}')">${pdfEsc(s.name || '（未命名）')}</a>（${pdfEsc(s.status)}）`).join('、')}
+    <div class="pdf-sub">可能是重複收到或新版。重複的話可以直接刪除這份；新版就照常確認，歸檔時會再問你要不要兩份都留。</div></div>` : '';
+}
+
+function forcePdfArchive(id){ pdfPost(`/api/pdf-rename/${id}/archive-force`, 'POST', '已設定仍要歸檔，背景程式下一輪會放進資料夾'); }
 
 function closePdfDetailModal(){
   document.getElementById('pdfDetailModalOverlay').classList.remove('show');
@@ -6560,8 +6597,10 @@ async function refreshPdfName(force){
         case_no: document.getElementById('pdfFormCase').value.trim(),
         doc_type: document.getElementById('pdfFormType').value,
         doc_date: document.getElementById('pdfFormDate').value,
+        ext: x.file_ext || '.pdf', id: x.id,
       })});
     const data = await res.json();
+    if(x.status === '待確認') renderPdfSameType(data.same_type || []);
     document.getElementById('pdfFormAlias').textContent = data.known_case ? data.alias : '⚠ Airtable 查不到這個案號（還是可以確認，但不會寫回進度管理）';
     if(auto && data.name){ nameEl.value = data.name; nameEl.dataset.auto = data.name; }
   }catch(e){}
@@ -6576,6 +6615,8 @@ async function confirmPdf(){
     final_name: document.getElementById('pdfFormName').value.trim(),
     user: pdfUser() || '主控台',
   };
+  body.ids = {};
+  document.querySelectorAll('.pdf-id-input').forEach(el => { if(el.value.trim()) body.ids[el.dataset.field] = [el.value.trim()]; });
   const arcBox = document.getElementById('pdfFormArchive');
   body.archive = arcBox ? arcBox.checked : true;
   const downloadAfter = !arcBox || !arcBox.checked;
@@ -6916,7 +6957,9 @@ async function importPdfLearnReport(file){
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(report)});
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || '匯入失敗');
-    showToast(`已匯入 ${data.count} 個案場的簡稱`);
+    const ids = data.ids || {};
+    showToast(`已匯入 ${data.count} 個案場的簡稱` + (ids.error ? `；編號寫入失敗：${ids.error}`
+      : ids.cases ? `；從歷史文件補了 ${ids.filled_cases} 個案場、${ids.filled} 個編號到 Airtable` + (ids.conflicts && ids.conflicts.length ? `（${ids.conflicts.length} 個跟 Airtable 不同，沒覆蓋）` : '') : ''));
     if(PDF_STATE.status) PDF_STATE.status.alias_count = data.count;
     openPdfRulesModal();
   }catch(e){
