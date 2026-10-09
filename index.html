@@ -750,6 +750,11 @@
   }
   .pdf-note{font-size:13px;background:#F1F6FD;border:1px solid #D6E4F7;color:#2D4E78;border-radius:8px;padding:7px 10px;margin-top:6px;}
   .pdf-row-note{font-size:12.5px;color:#4A6A93;margin-top:3px;max-width:340px;}
+  .pdf-newname{font-size:14.5px;font-weight:700;color:var(--text);word-break:normal;overflow-wrap:anywhere;line-height:1.4;}
+  #view-pdf .pdf-table td:nth-child(2){min-width:250px;}
+  .pdf-newname.pending{font-weight:500;color:var(--text-muted);font-size:13px;}
+  .pdf-card-btns{display:flex;gap:6px;margin-top:8px;}
+  .pdf-card-btns .btn{flex:1;margin:0 !important;padding:9px !important;font-size:13px !important;}
   .pdf-dup{font-size:11.5px;font-weight:700;color:#C9383D;margin-top:4px;white-space:nowrap;}
   .pdf-dup.keep{color:#B8720A;}
   .pdf-del{border:none;background:none;cursor:pointer;font-size:15px;opacity:.45;padding:4px 6px;margin-left:2px;vertical-align:middle;}
@@ -6556,7 +6561,7 @@ function renderPdfSide(){
     const h = ws[w.pm] || {};
     const age = h.at ? (Date.now() - new Date(h.at)) / 60000 : Infinity;
     const cls = !h.at ? '' : age > 5 ? 'bad' : (h.last_error || h.archive_error ? 'warn' : 'ok');
-    const txt = !h.at ? '還沒連線' : age > 5 ? `最後回報 ${pdfFmtTime(h.at).slice(5)}（電腦可能關機）` : (h.last_error || h.archive_error || `運作中・已送出 ${h.uploaded_total || 0} 份`);
+    const txt = !h.at ? '還沒連線' : age > 5 ? `最後回報 ${pdfFmtTime(h.at).slice(5)}（電腦可能關機）` : (h.last_error || h.archive_error || (h.archive_only ? `只負責歸檔・已歸檔 ${h.archived_total || 0} 份` : `運作中・已送出 ${h.uploaded_total || 0} 份`));
     return `<div class="pdf-side-row" onclick="showPdfTab('pdf-line')"><span class="pdf-dot ${cls}"></span><b>${pdfEsc(w.pm)}</b><span class="grow pdf-sub" style="margin:0;" title="${pdfEsc(txt)}">${pdfEsc(txt)}</span></div>`;
   }).join('');
   const recent = items.filter(x => x.status === '已確認' || x.status === '已歸檔')
@@ -6734,18 +6739,24 @@ function renderPdfList(){
     return;
   }
   const ck = x => pdfSelectable(x) ? `<input type="checkbox" data-id="${x.id}" ${PDF_STATE.selected.has(x.id) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="togglePdfSelect('${x.id}', this.checked)">` : '';
-  const btn = x => `<button class="btn ${x.status === '待確認' ? 'btn-primary' : 'btn-ghost'}" style="padding:6px 10px;font-size:11.5px;" onclick="event.stopPropagation();openPdfDetail('${x.id}')">${x.status === '待確認' ? '檢查並確認' : '檢視'}</button>`;
+  // 待確認而且案號、類型、日期都有 → 清單上直接「確認」，要看細節再按「詳細」
+  const quickOk = x => pdfReady(x) && ((((PDF_STATE.dups || {}).keepOf || {})[x.id]) || {keep: true}).keep;
+  const btn = x => quickOk(x)
+    ? `<button class="btn btn-primary" style="padding:6px 12px;font-size:11.5px;" onclick="event.stopPropagation();quickConfirmPdf('${x.id}', this)">✅ 確認</button><button class="btn btn-ghost" style="padding:6px 10px;font-size:11.5px;margin-left:4px;" onclick="event.stopPropagation();openPdfDetail('${x.id}')">詳細</button>`
+    : `<button class="btn ${x.status === '待確認' ? 'btn-primary' : 'btn-ghost'}" style="padding:6px 10px;font-size:11.5px;" onclick="event.stopPropagation();openPdfDetail('${x.id}')">${x.status === '待確認' ? '檢查並確認' : '檢視'}</button>`;
+  const newName = x => (x.final_name || x.suggested_name)
+    ? `<div class="pdf-newname">${pdfEsc(x.final_name || x.suggested_name)}</div>`
+    : `<div class="pdf-newname pending">${x.status === '待辨識' || x.status === '辨識中' ? '辨識完會產生新檔名' : '確認案號後產生新檔名'}</div>`;
   const when = x => `${pdfEsc(pdfFmtTime(x.uploaded_at))}${x.uploader ? '・' + pdfEsc(x.uploader) : ''}${x.source && x.source !== '主控台上傳' ? '・' + pdfEsc(x.source) : ''}`;
   const table = `<div class="pdf-table-wrap" style="overflow-x:auto;"><table class="pdf-table">
-    <thead><tr><th class="pdf-ck"></th><th>原檔名</th><th>案號</th><th>函文類型</th><th>發文日期</th><th>信心</th><th class="pdf-hide-m">新檔名</th><th>狀態</th><th></th></tr></thead>
+    <thead><tr><th class="pdf-ck"></th><th>新檔名／原檔名</th><th>案號</th><th>函文類型</th><th>發文日期</th><th>信心</th><th>狀態</th><th></th></tr></thead>
     <tbody>${rows.map(x => `<tr onclick="openPdfDetail('${x.id}')">
       <td class="pdf-ck">${ck(x)}</td>
-      <td><div class="pdf-name">${pdfEsc(x.src_name)}</div><div class="pdf-sub">${when(x)}</div>${pdfRowIssue(x)}${pdfRowStep(x)}</td>
+      <td>${newName(x)}<div class="pdf-sub">原檔：${pdfEsc(x.src_name)}・${when(x)}</div>${pdfRowIssue(x)}${pdfRowStep(x)}</td>
       <td>${x.case_no ? `<div class="pdf-name">${pdfEsc(x.case_no)}</div><div class="pdf-sub">${pdfEsc(x.alias)}</div>` : '<span class="pdf-sub">—</span>'}</td>
       <td>${pdfTypeTag(x)}</td>
       <td style="white-space:nowrap;">${pdfEsc(x.doc_date) || '<span class="pdf-sub">—</span>'}</td>
       <td>${pdfConfBadge(x.confidence)}</td>
-      <td class="pdf-hide-m"><div class="pdf-sub" style="color:var(--text);">${pdfEsc(x.final_name || x.suggested_name)}</div></td>
       <td><span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span>${pdfDupTag(x)}</td>
       <td style="white-space:nowrap;">${btn(x)}<button class="pdf-del" title="刪除" onclick="event.stopPropagation();deletePdf('${x.id}')">🗑</button></td>
     </tr>`).join('')}</tbody></table></div>`;
@@ -6758,10 +6769,10 @@ function renderPdfList(){
           <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">${pdfConfBadge(x.confidence)}<span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span>${pdfDupTag(x)}</div>
         </div>
         <div class="pdf-card-meta">${pdfTypeTag(x)}<span>${pdfEsc(x.doc_date) || ''}</span></div>
-        <div class="pdf-sub" style="color:var(--text);">${pdfEsc(x.final_name || x.suggested_name || x.src_name)}</div>
-        <div class="pdf-sub">${pdfEsc(x.src_name)}・${when(x)}</div>
+        ${newName(x)}
+        <div class="pdf-sub">原檔：${pdfEsc(x.src_name)}・${when(x)}</div>
         ${pdfRowIssue(x)}${pdfRowStep(x)}
-        ${x.status === '待確認' ? btn(x) : ''}
+        ${x.status === '待確認' ? `<div class="pdf-card-btns">${btn(x)}</div>` : ''}
       </div></div>`).join('')}</div>`;
   document.getElementById('pdfList').innerHTML = table + cards;
   updatePdfRowSteps();
@@ -6830,6 +6841,29 @@ function renderPdfBatchBar(rows){
       ${hi ? `<a href="javascript:void(0)" onclick="selectPdfHigh(80)">勾選信心 80 以上的 ${hi} 份</a>` : ''}
       ${dupN ? `<a href="javascript:void(0)" style="color:#C9383D;font-weight:700;" onclick="selectPdfDups()">⚠ 有 ${dupN} 份重複，勾選起來（每組保留一份）</a>` : ''}`}
   </div>`;
+}
+
+async function quickConfirmPdf(id, btnEl){
+  const x = PDF_STATE.items.find(i => i.id === id);
+  if(!x) return;
+  const arcOn = !!(((PDF_STATE.status || {}).settings || {}).archive || {}).enabled;
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = '確認中…'; }
+  try{
+    const res = await fetch(API_BASE + `/api/pdf-rename/${id}/confirm`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({case_no: x.case_no, doc_type: x.doc_type, doc_date: x.doc_date, final_name: x.final_name || x.suggested_name,
+                            archive: arcOn, user: pdfUser() || '主控台'})});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || '確認失敗');
+    showToast(`已確認：${data.final_name}` + (arcOn ? '，會自動歸檔' : '') + (data.writeback ? '｜' + data.writeback.split('\n').filter(l => l.startsWith('✓')).join('、') : ''));
+    if(!arcOn) downloadPdf(id);   // 沒開自動歸檔：直接用新檔名下載
+    // 畫面先拿掉這一列，清單在背景更新
+    x.status = '已確認';
+    renderPdfList();
+    loadPdfRename();
+  }catch(e){
+    showToast('確認失敗：' + e.message);
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = '✅ 確認'; }
+  }
 }
 
 async function retryPdfBatch(){
@@ -7421,7 +7455,8 @@ function pdfWatcherStatus(pm){
   const mins = Math.round((Date.now() - new Date(st.at).getTime()) / 60000);
   const alive = mins <= 3;
   const head = alive
-    ? (st.folder_ok ? '<span style="color:var(--success);font-weight:700;">✓ 運作中</span>' : '<span style="color:#C9383D;font-weight:700;">⚠ 找不到資料夾</span>')
+    ? (st.archive_only ? '<span style="color:var(--success);font-weight:700;">✓ 運作中（只負責歸檔）</span>'
+       : st.folder_ok ? '<span style="color:var(--success);font-weight:700;">✓ 運作中</span>' : '<span style="color:#C9383D;font-weight:700;">⚠ 找不到資料夾</span>')
     : `<span style="color:var(--text-muted);font-weight:700;">● ${mins < 60 ? mins + ' 分鐘' : Math.round(mins / 60) + ' 小時'}前回報（電腦可能關機）</span>`;
   const bits = [st.host && `電腦：${pdfEsc(st.host)}`, `這次開機已送 ${st.uploaded_total || 0} 份`, st.last_upload && `最近：${pdfEsc(st.last_upload)}`].filter(Boolean);
   return `${head}<div class="pdf-sub">${bits.join('・')}</div>${st.last_error ? `<div class="pdf-sub" style="color:#C9383D;">${pdfEsc(st.last_error)}</div>` : ''}`;
@@ -7429,7 +7464,7 @@ function pdfWatcherStatus(pm){
 
 function pdfWatcherRow(w){
   return `<tr><td><input class="w-pm" value="${pdfEsc(w.pm || '')}" placeholder="名字"></td>
-    <td><input class="w-folder" value="${pdfEsc(w.folder || '')}" placeholder="G:\\…\\LINE收件\\名字"></td>
+    <td><input class="w-folder" value="${pdfEsc(w.folder || '')}" placeholder="LINE 下載資料夾；留空＝這台只負責歸檔（例如家裡電腦）"></td>
     <td style="text-align:center;"><input type="checkbox" class="w-on" ${w.enabled !== false ? 'checked' : ''} style="width:auto;"></td>
     <td>${w.pm ? pdfWatcherStatus(w.pm) : ''}</td>
     <td><button class="modal-close" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
