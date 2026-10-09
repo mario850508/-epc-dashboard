@@ -938,7 +938,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         </div>
         <div class="panel" style="margin-bottom:14px;">
           <div class="panel-title">🗂 自動歸檔到 G 槽</div>
-          <div class="pdf-sub" style="margin-bottom:10px;">按「確認更名」後，指定的那台電腦會自動把檔案用新檔名放進「案場資料夾 → 03 契約／04 電廠設計圖／06 政府函文／07 設備保固」，主控台狀態改成「已歸檔」。資料夾裡已有同名檔案時不覆蓋，會在檔案上標示「歸檔失敗」讓你處理。</div>
+          <div class="pdf-sub" style="margin-bottom:10px;">按「確認更名」後，任何一台開著、有裝背景程式的 PM 電腦，會自動把檔案用新檔名放進「案場資料夾 → 03 契約／04 電廠設計圖／06 政府函文／07 設備保固」，主控台狀態改成「已歸檔」。資料夾裡已有同名檔案時不覆蓋，會在檔案上標示「歸檔失敗」讓你處理。</div>
           <div style="display:grid;grid-template-columns:auto 200px 1fr;gap:10px;align-items:start;">
             <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600;margin-top:8px;"><input type="checkbox" id="pdfArchiveOn" style="width:auto;"> 啟用</label>
             <div><div class="pdf-sub">由哪台電腦歸檔</div><select class="quick-mark-input" id="pdfArchivePm" style="padding:8px 10px;"></select></div>
@@ -6750,7 +6750,7 @@ function pdfWatcherStatus(pm){
   const head = alive
     ? (st.folder_ok ? '<span style="color:var(--success);font-weight:700;">✓ 運作中</span>' : '<span style="color:#C9383D;font-weight:700;">⚠ 找不到資料夾</span>')
     : `<span style="color:var(--text-muted);font-weight:700;">● ${mins < 60 ? mins + ' 分鐘' : Math.round(mins / 60) + ' 小時'}前回報（電腦可能關機）</span>`;
-  const bits = [st.host && `電腦：${pdfEsc(st.host)}`, `這次開機已送 ${st.uploaded_total} 份`, st.last_upload && `最近：${pdfEsc(st.last_upload)}`].filter(Boolean);
+  const bits = [st.host && `電腦：${pdfEsc(st.host)}`, `這次開機已送 ${st.uploaded_total || 0} 份`, st.last_upload && `最近：${pdfEsc(st.last_upload)}`].filter(Boolean);
   return `${head}<div class="pdf-sub">${bits.join('・')}</div>${st.last_error ? `<div class="pdf-sub" style="color:#C9383D;">${pdfEsc(st.last_error)}</div>` : ''}`;
 }
 
@@ -6767,10 +6767,18 @@ function renderPdfArchive(){
   const arc = st.archive || {};
   const pms = (st.watchers || []).map(w => w.pm).filter(Boolean);
   document.getElementById('pdfArchiveOn').checked = !!arc.enabled;
-  document.getElementById('pdfArchivePm').innerHTML = (pms.length ? '' : '<option value="">（先在上面新增 PM）</option>')
-    + pms.map(p => `<option value="${pdfEsc(p)}" ${p === arc.pm ? 'selected' : ''}>${pdfEsc(p)} 的電腦</option>`).join('');
+  // 大家都存同一個公司雲端，預設任何開著的電腦都能歸檔（後端會讓同一份只給一台處理）
+  document.getElementById('pdfArchivePm').innerHTML = `<option value="" ${!arc.pm ? 'selected' : ''}>任何開著的電腦（建議）</option>`
+    + pms.map(p => `<option value="${pdfEsc(p)}" ${p === arc.pm ? 'selected' : ''}>只用 ${pdfEsc(p)} 的電腦</option>`).join('');
   document.getElementById('pdfArchiveRoots').value = arc.roots || 'G:\\共用雲端硬碟\\永續電力處\\02 專案\\01 已上架電廠';
-  const w = ((PDF_STATE.status && PDF_STATE.status.watchers_status) || {})[arc.pm];
+  const all = (PDF_STATE.status && PDF_STATE.status.watchers_status) || {};
+  const list = arc.pm ? [all[arc.pm]].filter(Boolean) : Object.values(all);
+  const w = list.length ? {
+    archived_total: list.reduce((n, x) => n + (x.archived_total || 0), 0),
+    case_folders: Math.max(0, ...list.map(x => x.case_folders || 0)),
+    last_archive: (list.filter(x => x.last_archive).sort((a, b) => (b.at || '').localeCompare(a.at || ''))[0] || {}).last_archive || '',
+    archive_error: (list.find(x => x.archive_error) || {}).archive_error || '',
+  } : null;
   const confirmed = (PDF_STATE.items || []).filter(x => x.status === '已確認');
   const failed = confirmed.filter(x => (x.writeback || '').includes('歸檔失敗'));
   let html = '';
@@ -6778,7 +6786,7 @@ function renderPdfArchive(){
     html += `<div class="pdf-sub">這次開機已歸檔 <b>${w.archived_total || 0}</b> 份・找到 ${w.case_folders || 0} 個案場資料夾${w.last_archive ? '・最近：' + pdfEsc(w.last_archive.split(/[\\/]/).slice(-3).join(' / ')) : ''}</div>`;
     if(w.archive_error) html += `<div class="pdf-sub" style="color:#C9383D;">⚠ ${pdfEsc(w.archive_error)}</div>`;
   }else if(arc.enabled){
-    html += '<div class="pdf-sub">還沒收到那台電腦的回報（背景程式要是 v1.1 以上；舊版請重跑一次安裝指令更新）。</div>';
+    html += '<div class="pdf-sub">還沒收到任何電腦的回報（背景程式要是 v1.3 以上；舊版請重跑一次安裝指令更新）。</div>';
   }
   if(confirmed.length) html += `<div class="pdf-sub">等待歸檔 ${confirmed.length} 份${failed.length ? `，其中 <b style="color:#C9383D;">${failed.length} 份歸檔失敗</b>（打開檔案看原因）` : ''}</div>`;
   document.getElementById('pdfArchiveStatus').innerHTML = html;
@@ -6790,7 +6798,6 @@ async function savePdfArchive(){
     pm: document.getElementById('pdfArchivePm').value,
     roots: document.getElementById('pdfArchiveRoots').value.trim(),
   };
-  if(archive.enabled && !archive.pm){ showToast('請先選擇由哪台電腦歸檔'); return; }
   const s = await savePdfSetting({archive});
   if(s) renderPdfArchive();
 }
