@@ -6721,7 +6721,7 @@ function closePdfRulesModal(){ document.getElementById('pdfRulesModalOverlay').c
 function pdfRuleRow(t){
   const kw = [t.keywords, t.note].filter(Boolean).join('；');
   // 分類、檔名其他寫法、日期規則不在表格上編輯，存在 data-extra 裡，儲存時原樣帶回
-  const extra = pdfEsc(JSON.stringify({synonyms: t.synonyms || '', date_keys: t.date_keys || ''}));
+  const extra = pdfEsc(JSON.stringify({synonyms: t.synonyms || '', date_keys: t.date_keys || '', date_mode: t.date_mode || '', date_from: t.date_from || ''}));
   return `<tr data-extra="${extra}"><td><input class="r-cat" value="${pdfEsc(t.category || '')}" placeholder="06"></td>
     <td><input class="r-name" value="${pdfEsc(t.name || '')}"></td>
     <td><input class="r-kw" value="${pdfEsc(kw)}"></td>
