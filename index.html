@@ -805,7 +805,7 @@
   .pdf-spin{width:14px;height:14px;border:2px solid #9CC3F5;border-top-color:#2F6FD6;border-radius:50%;animation:pdfSpin .8s linear infinite;flex-shrink:0;}
   @keyframes pdfSpin{to{transform:rotate(360deg);}}
   .pdf-row-step{font-size:12px;color:#1E70C8;margin-top:4px;display:flex;align-items:center;gap:6px;}
-  #view-pdf .pdf-table td:nth-child(3) .pdf-name{white-space:nowrap;}
+  #view-pdf .pdf-table td:nth-child(3) .pdf-name,#view-pdf .pdf-table .pdf-type{white-space:nowrap;}
   #pdfDetailModalOverlay .pdf-form label{font-size:13.5px;}
   #pdfDetailModalOverlay .pdf-form .quick-mark-input{font-size:15px;}
   #pdfDetailModalOverlay .pdf-issue,#pdfDetailModalOverlay .pdf-evidence,#pdfDetailModalOverlay .pdf-cand{font-size:13px;}
@@ -6750,10 +6750,23 @@ function renderPdfBatchBar(rows){
   el.innerHTML = `<div class="pdf-batch">
     ${n ? `<b>已勾選 ${n} 份</b>
       <button class="btn btn-primary" style="padding:5px 12px;font-size:12px;" onclick="confirmPdfBatch()">✅ 一次確認 ${n} 份</button>
+      <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="retryPdfBatch()">🔁 重新辨識 ${n} 份</button>
       <a href="javascript:void(0)" onclick="PDF_STATE.selected.clear();renderPdfList();">取消勾選</a>`
     : `<span>勾選左邊的方框可以一次確認多份（會用系統產生的檔名）</span>
       ${hi ? `<a href="javascript:void(0)" onclick="selectPdfHigh(80)">勾選信心 80 以上的 ${hi} 份</a>` : ''}`}
   </div>`;
+}
+
+async function retryPdfBatch(){
+  const ids = [...PDF_STATE.selected];
+  if(!ids.length || !confirm(`把勾選的 ${ids.length} 份放回佇列重新辨識？`)) return;
+  for(const id of ids){
+    try{ await fetch(API_BASE + `/api/pdf-rename/${id}/retry`, {method: 'POST'}); }catch(e){}
+  }
+  PDF_STATE.selected.clear();
+  showToast(`已放回佇列 ${ids.length} 份，背景重新辨識中`);
+  PDF_STATE.filter = 'queue';
+  loadPdfRename();
 }
 
 async function confirmPdfBatch(){
