@@ -2647,7 +2647,8 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             </div>
           </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">指派給（業務姓名，選填，純提示不影響連結本身）</label>
-          <input type="text" class="quick-mark-input" id="slotTaskAssignee" placeholder="例如：小夫" style="margin-bottom:6px;" oninput="updateAssigneeBindLine()">
+          <input type="text" class="quick-mark-input" id="slotTaskAssignee" list="repNameList" autocomplete="off" placeholder="從名單選，或自己打" style="margin-bottom:6px;" oninput="updateAssigneeBindLine()" onchange="this.value = canonRep(this.value); updateAssigneeBindLine()">
+          <datalist id="repNameList"></datalist>
           <div id="slotTaskAssigneeBind" style="font-size:12px;margin-bottom:14px;min-height:16px;"></div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">請業務在這個時間前回覆給我（預設隔天 18:00，進場為 2 天後 18:00，可調整；日期留空＝不設期限）</label>
           <div style="display:flex;gap:10px;margin-bottom:18px;">
@@ -8151,6 +8152,7 @@ let BOUND_NAMES = new Set();
 let BOUND_NAMES_AT = 0;
 async function loadBoundNames(force){
   if(!force && Date.now() - BOUND_NAMES_AT < 60000) return;
+  if(!Object.keys(REP_MAP).length) loadRepList();
   BOUND_NAMES_AT = Date.now();
   try{
     const d = await (await fetch(API_BASE + '/api/line/bound-names', {cache: 'no-store'})).json();
@@ -8160,8 +8162,28 @@ async function loadBoundNames(force){
   }catch(e){ console.error('載入綁定名單失敗', e); }
 }
 // 「林嘉偉(Mika)」也算對得上只綁「Mika」或「林嘉偉」的人（跟後端 _binding_name_candidates 同規則）
-function isBoundName(name){
+// 2026-10-09：業務名單（Airtable「業務名單」表，後端 /api/reps）。同一個人的不同寫法
+// （JACK／Jack Wu、Mika／林嘉偉(Mika)）統一成名單上的姓名，LINE 綁定、篩選才對得上。
+let REP_MAP = {};   // {小寫別名: 統一姓名}
+async function loadRepList(){
+  try{
+    const d = await (await fetch(API_BASE + '/api/reps', {cache: 'no-store'})).json();
+    REP_MAP = {};
+    (d.reps || []).forEach(r => [r.name, ...(r.aliases || [])].forEach(k => { REP_MAP[k.toLowerCase()] = r.name; }));
+    const dl = document.getElementById('repNameList');
+    if(dl) dl.innerHTML = (d.reps || []).map(r => `<option value="${escHtml(r.name)}"></option>`).join('');
+  }catch(e){ console.error('載入業務名單失敗', e); }
+}
+function canonRep(name){
   name = (name || '').trim();
+  if(!name) return name;
+  const m = name.match(/^(.*?)[(（]\s*(.+?)\s*[)）]\s*$/);
+  const cands = [name].concat(m ? [m[2].trim(), m[1].trim()] : []);
+  for(const c of cands){ const k = REP_MAP[(c || '').toLowerCase()]; if(k) return k; }
+  return name;
+}
+function isBoundName(name){
+  name = canonRep(name);
   if(!name) return false;
   const cands = [name];
   const m = name.match(/^(.*?)[(（]\s*(.+?)\s*[)）]\s*$/);
@@ -8358,6 +8380,7 @@ function openSlotTaskModal(){
   slotDeadlineTouched = false;
   updateAssigneeBindLine();
   loadBoundNames(true);
+  loadRepList();
   populateSlotCreatorSelect();
   loadSlotSchedulers();
   ['slotTaskOwnerWinStart', 'slotTaskOwnerWinEnd'].forEach(id => { document.getElementById(id).innerHTML = slotTimeOptionsHtml(); });
@@ -8645,7 +8668,7 @@ let SLOT_BOOKING_FILTER = {vendors: [], reps: [], schedulers: []};
 function setSlotTypeFilter(t){ SLOT_TYPE_FILTER = t; renderVendorSlots(); }
 function bookingPeople(b){
   const t = (typeof SLOT_TASKS !== 'undefined' ? SLOT_TASKS : []).find(x => x.booking_id === b.record_id);
-  return {rep: (t && t.assignee) || b.registrant || '', scheduler: (t && t.creator) || ''};
+  return {rep: canonRep((t && t.assignee) || b.registrant || ''), scheduler: (t && t.creator) || ''};
 }
 function slotBookingFilterMatch(b){
   const f = SLOT_BOOKING_FILTER, p = bookingPeople(b);
@@ -9167,7 +9190,7 @@ function wireSlotCaseAutofill(caseId, aliasId, assigneeId, vendorId){
         }
         if(data.sales_person){
           const assigneeEl = document.getElementById(assigneeId);
-          if(assigneeEl){ assigneeEl.value = data.sales_person; updateAssigneeBindLine(); }
+          if(assigneeEl){ assigneeEl.value = canonRep(data.sales_person); updateAssigneeBindLine(); }
         }
         if(data.vendor && vendorId){
           const vendorEl = document.getElementById(vendorId);
@@ -9246,14 +9269,14 @@ async function selectSlotCaseCandidate(r, caseId, resultsId, aliasId, assigneeId
       const data = await res.json().catch(() => ({}));
       if(data.found && data.sales_person){
         const assigneeEl = document.getElementById(assigneeId);
-        if(assigneeEl){ assigneeEl.value = data.sales_person; updateAssigneeBindLine(); }
+        if(assigneeEl){ assigneeEl.value = canonRep(data.sales_person); updateAssigneeBindLine(); }
       }
     }catch(err){ /* 查詢失敗就放棄，不影響已經帶好的案號/別名/廠商 */ }
   } else if(r.sales_person){
     // not_in_airtable 的案件沒有 record_id 可以查，業務姓名是搜尋結果裡
     // 直接帶來的（業務自治區 U 欄），不用再另外查一次。
     const assigneeEl = document.getElementById(assigneeId);
-    if(assigneeEl){ assigneeEl.value = r.sales_person; updateAssigneeBindLine(); }
+    if(assigneeEl){ assigneeEl.value = canonRep(r.sales_person); updateAssigneeBindLine(); }
   }
   // 2026-10-01 新增：屋主聯絡資訊（姓名/電話，來源是業務自治區 K 欄連結的
   // 租賃合約書，見 OWNER_CONTACT_CACHE）只有「指派給業務」modal 會傳
