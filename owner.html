@@ -104,27 +104,34 @@ function headerHtml(){
   return `<div class="card">
     <h1>您好！我們要為您安排：<br>${D.items.map(esc).join('、')}</h1>
     ${D.address ? `<div class="lead" style="margin:2px 0 6px;">📍 施工地址：<b>${esc(D.address)}</b></div>` : ''}
-    <div class="muted">大約需要 <b>${durLabel(D.duration_min)}</b>${D.rep_name ? `｜您的業務：<b>${esc(D.rep_name)}</b>` : ''}</div>
+    <div class="muted">大約需要 <b>${D.date_only && D.duration_label ? esc(D.duration_label) : durLabel(D.duration_min)}</b>${D.rep_name ? `｜您的業務：<b>${esc(D.rep_name)}</b>` : ''}</div>
   </div>`;
 }
 function contactHtml(){
-  return `<div class="step"><span class="n">${mode === 'alt' ? 2 : 3}</span>您的聯絡資料</div>
+  return `<div class="step"><span class="n">${(mode === 'alt' || (D.date_only && D.status === 'open')) ? 2 : 3}</span>您的聯絡資料</div>
     <label for="ownerName">姓名</label><input id="ownerName" autocomplete="name" placeholder="例如：王小明">
     <label for="ownerPhone">聯絡電話</label><input id="ownerPhone" type="tel" autocomplete="tel" placeholder="例如：0912-345-678">
     <label for="ownerNote">想告訴我們的事（選填）</label><textarea id="ownerNote" placeholder="例如：下午才在家、請先打電話"></textarea>`;
 }
 
 // 預估時間提醒（選時間、確認時間、預約完成都會顯示）
-const EST_NOTE = '<div class="muted" style="margin-top:10px;background:#FFF7E6;border-radius:10px;padding:10px 12px;">⏱ 以上時間為預估時間，實際到場與完工時間會依現場施工進度調整，施工團隊或業務會再跟您聯絡。</div>';
+const EST_NOTE_TEXT = '⏱ 以上時間為預估時間，實際到場與完工時間會依現場施工進度調整，施工團隊或業務會再跟您聯絡。';
+const EST_NOTE_DAYS = '⏱ 進場日期與施工天數（約 3～5 天）都是預估，實際會依現場施工進度調整，施工團隊或業務會再跟您聯絡。';
+function estNote(){ return `<div class="muted" style="margin-top:10px;background:#FFF7E6;border-radius:10px;padding:10px 12px;">${D.date_only ? EST_NOTE_DAYS : EST_NOTE_TEXT}</div>`; }
 
 // ---- 加入行事曆（預約完成後）----
 function calTimes(b){
+  if(D.date_only){   // 整天行程（iCal／Google 的整天事件結束日是「隔天」）
+    const d = b.date.replace(/-/g, '');
+    const nx = new Date(b.date + 'T00:00:00Z'); nx.setUTCDate(nx.getUTCDate() + 1);
+    return {start: d, end: nx.toISOString().slice(0, 10).replace(/-/g, ''), allDay: true};
+  }
   const toUtc = t => new Date(`${b.date}T${t}:00+08:00`).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   return {start: toUtc(b.start_time), end: toUtc(b.end_time)};
 }
-function calTitle(){ return '陽光伏特家｜' + (D.items || []).join('、'); }
+function calTitle(){ return '陽光伏特家｜' + (D.items || []).join('、') + (D.date_only && D.duration_label ? '（預計 ' + D.duration_label + '）' : ''); }
 function calDetails(){
-  return '施工團隊預計到場時間（預估，實際依現場施工進度調整）。'
+  return (D.date_only ? '預計進場日期，施工約需 ' + (D.duration_label || '3～5 天') + '（預估，實際依現場施工進度調整）。' : '施工團隊預計到場時間（預估，實際依現場施工進度調整）。')
     + (D.rep_name ? '如需更改請聯絡您的業務 ' + D.rep_name + '。' : '如需更改請聯絡您的業務。');
 }
 function googleCalUrl(b){
@@ -141,7 +148,7 @@ function downloadIcs(){
   const icsEsc = s => String(s).replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1');
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SunVolt//Booking//ZH', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
-    'UID:' + T + '@sunvolt-booking', 'DTSTAMP:' + stamp, 'DTSTART:' + t.start, 'DTEND:' + t.end,
+    'UID:' + T + '@sunvolt-booking', 'DTSTAMP:' + stamp, (t.allDay ? 'DTSTART;VALUE=DATE:' : 'DTSTART:') + t.start, (t.allDay ? 'DTEND;VALUE=DATE:' : 'DTEND:') + t.end,
     'SUMMARY:' + icsEsc(calTitle()), 'DESCRIPTION:' + icsEsc(calDetails()),
     'BEGIN:VALARM', 'TRIGGER:-P1D', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(calTitle()), 'END:VALARM',
     'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
@@ -163,9 +170,9 @@ function render(){
   if(D.status === 'done'){
     const b = D.booked || {};
     app.innerHTML = `<div class="card ok-box"><div class="ok-icon">✅</div><h1>預約完成，謝謝您！</h1>
-      ${b.date ? `<div class="big-time">${dateLabel(b.date)}<br>${esc(b.start_time)}–${esc(b.end_time)}</div>` : ''}
-      <div class="lead">施工團隊預計在這個時間到場。</div>
-      ${EST_NOTE}
+      ${b.date ? `<div class="big-time">${dateLabel(b.date)}${D.date_only ? '' : '<br>' + esc(b.start_time) + '–' + esc(b.end_time)}</div>` : ''}
+      <div class="lead">${D.date_only ? '施工團隊預計在這天進場，施工約需 <b>' + esc(D.duration_label || '3～5 天') + '</b>。' : '施工團隊預計在這個時間到場。'}</div>
+      ${estNote()}
       ${b.date ? `<div style="margin-top:16px;">
         <a class="btn" style="display:block;text-decoration:none;" href="${googleCalUrl(b)}" target="_blank" rel="noopener">📅 加入 Google 日曆</a>
         <button class="btn-ghost" onclick="downloadIcs()">📅 加入手機行事曆（iPhone／其他）</button>
@@ -177,8 +184,8 @@ function render(){
   if(D.status === 'wait_confirm' && mode !== 'alt'){
     const c = D.chosen_slot;
     app.innerHTML = headerHtml() + `<div class="card"><h1>我們幫您安排在這個時間，可以嗎？</h1>
-      <div class="big-time" style="text-align:center;">${dateLabel(c.date)}<br>${esc(c.start_time)}–${esc(c.end_time)}</div>
-      ${EST_NOTE}
+      <div class="big-time" style="text-align:center;">${dateLabel(c.date)}${D.date_only ? '' : '<br>' + esc(c.start_time) + '–' + esc(c.end_time)}</div>
+      ${estNote()}
       ${contactHtml()}
       <button class="btn" id="submitBtn" onclick="submitConfirm()">✅ 可以，確認這個時間</button>
       <div class="err" id="err"></div>
@@ -203,6 +210,31 @@ function renderPick(){
   // 只有一個候選日期：直接選好，標題改成「預計前往日期」，屋主只要選時間
   const single = D.candidate_dates.length === 1;
   if(single && !selDate && startOptions(D.candidate_dates[0]).some(o => o.ok)) selDate = D.candidate_dates[0];
+  // 進場（要 3～5 天）：只選進場日期，不選時間。那天整個時段有別的預約就不能選。
+  const dateFree = d => {
+    const ws = toMin(D.window_start), we = toMin(D.window_end);
+    return !(D.busy_slots || []).some(b => b.date === d && toMin(b.start_time) < we && ws < toMin(b.end_time));
+  };
+  if(D.date_only){
+    if(D.candidate_dates.length === 1 && !selDate && dateFree(D.candidate_dates[0])) selDate = D.candidate_dates[0];
+    const btns = D.candidate_dates.map(d => {
+      const ok = dateFree(d);
+      return `<button class="opt ${selDate === d ? 'active' : ''}" ${ok ? '' : 'disabled'} onclick="pickDate('${d}')">${dateLabel(d)}${ok ? '' : '<small>已額滿</small>'}</button>`;
+    }).join('');
+    app.innerHTML = headerHtml() + `<div class="card">
+      <div class="step" style="margin-top:0;"><span class="n">1</span>${D.candidate_dates.length === 1 ? '預計進場日期' : '請選進場日期'}</div>
+      <div class="grid">${btns}</div>
+      <div class="muted" style="margin-top:8px;">施工約需 <b>${esc(D.duration_label || '3～5 天')}</b>，這一天是「開始進場」的日期。</div>
+      ${estNote()}
+      ${contactHtml()}
+      <button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>
+      <div class="err" id="err"></div>
+      <button class="btn-ghost" onclick="mode='alt';render()">以上日期都不方便？告訴我們您方便的日期</button>
+      <div class="help">${repHelp()}</div>
+    </div>`;
+    restoreContact();
+    return;
+  }
   const dateBtns = D.candidate_dates.map(d => {
     const any = startOptions(d).some(o => o.ok);
     return `<button class="opt ${selDate === d ? 'active' : ''}" ${any ? '' : 'disabled'} onclick="pickDate('${d}')">${dateLabel(d)}${any ? '' : '<small>已額滿</small>'}</button>`;
@@ -216,7 +248,7 @@ function renderPick(){
     <div class="step" style="margin-top:0;"><span class="n">1</span>${single ? '預計前往日期' : '請選一天'}</div>
     <div class="grid">${dateBtns}</div>
     <div class="step"><span class="n">2</span>${okTimes.length === 1 ? '預計時間' : '請選開始時間'}</div>
-    ${selDate ? `<div class="grid">${timeBtns}</div>${EST_NOTE}` : '<div class="muted">請先選上面的日期</div>'}
+    ${selDate ? `<div class="grid">${timeBtns}</div>${estNote()}` : '<div class="muted">請先選上面的日期</div>'}
     ${contactHtml()}
     <button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>
     <div class="err" id="err"></div>
@@ -264,7 +296,7 @@ async function post(path, body, btnText){
 }
 
 async function submitBook(){
-  if(!selDate || !selStart){ showErr('請先選日期和開始時間'); return; }
+  if(!selDate || (!D.date_only && !selStart)){ showErr(D.date_only ? '請先選進場日期' : '請先選日期和開始時間'); return; }
   const c = readContact();
   if(!c){ showErr('請填寫您的姓名和聯絡電話'); return; }
   const data = await post('/book', {date: selDate, start_time: selStart, ...c}, '確認預約');
@@ -289,7 +321,7 @@ function renderAlt(){
   const minDate = tmr.getFullYear() + '-' + String(tmr.getMonth()+1).padStart(2,'0') + '-' + String(tmr.getDate()).padStart(2,'0');
   app.innerHTML = headerHtml() + `<div class="card">
     <h1 style="font-size:18px;">告訴我們您方便的日期</h1>
-    <div class="muted">可以選好幾天。我們跟施工團隊確認後，會選其中一天，再告訴您大約幾點到。</div>
+    <div class="muted">可以選好幾天。我們跟施工團隊確認後，會選其中一天，再${D.date_only ? '通知您進場日期' : '告訴您大約幾點到'}。</div>
     <div class="step"><span class="n">1</span>您方便的日期</div>
     ${ALT.map((a, i) => `<div class="alt-row">
       <input type="date" min="${minDate}" value="${a.date}" onchange="ALT[${i}].date=this.value;saveContact();renderAlt()">
