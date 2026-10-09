@@ -748,6 +748,8 @@
     .pdf-chip{white-space:nowrap;}
     .pdf-hint{display:none;}
   }
+  .pdf-note{font-size:13px;background:#F1F6FD;border:1px solid #D6E4F7;color:#2D4E78;border-radius:8px;padding:7px 10px;margin-top:6px;}
+  .pdf-row-note{font-size:12.5px;color:#4A6A93;margin-top:3px;max-width:340px;}
   .pdf-dup{font-size:11.5px;font-weight:700;color:#C9383D;margin-top:4px;white-space:nowrap;}
   .pdf-dup.keep{color:#B8720A;}
   .pdf-del{border:none;background:none;cursor:pointer;font-size:15px;opacity:.45;padding:4px 6px;margin-left:2px;vertical-align:middle;}
@@ -6451,7 +6453,7 @@ async function loadPdfRename(){
     const i = await iRes.json();
     if(s.error || i.error) throw new Error(s.error || i.error);
     PDF_STATE.status = s;
-    PDF_STATE.items = i.items || [];
+    PDF_STATE.items = (i.items || []).map(pdfNormalizeItem);
     PDF_STATE.progress = s.progress || null;
     renderPdfStatus();
     renderPdfList();
@@ -6672,6 +6674,20 @@ function pdfSearchHit(x, q){
   return q.toLowerCase().split(/\s+/).every(w => hay.includes(w));
 }
 // 可以一次確認：案號、類型、日期都有
+// 舊版辨識結果把「用地址比對到（唯一）」也當成警告；歷史資料驗證這種比對 97% 正確，改成一般說明
+const PDF_OLD_ADDR_ISSUE = /^(文件裡找不到案件編號，案號是用地址|文件上的編號（.*）Airtable 還沒記錄，這次用地址)/;
+function pdfNormalizeItem(x){
+  x.notes = x.notes || [];
+  const caseConf = (x.conf_parts || [])[0] ?? x.confidence;
+  if(caseConf >= 75){
+    const old = (x.issues || []).filter(t => PDF_OLD_ADDR_ISSUE.test(t));
+    if(old.length){
+      x.issues = x.issues.filter(t => !PDF_OLD_ADDR_ISSUE.test(t));
+      x.notes = ['📍 案號依文件上的地址判斷（文件上沒有 Airtable 已記錄的編號）', ...x.notes];
+    }
+  }
+  return x;
+}
 function pdfSelectable(x){ return x.status !== '辨識中'; }
 // 重複：同案號＋同類型＋同日期的其他檔案（辨識失敗的不算）。每組保留一份：已歸檔＞已確認＞待確認，同狀態留最早收到的
 function pdfDupGroups(){
@@ -6695,6 +6711,7 @@ function pdfTypeTag(x){
 }
 function pdfRowIssue(x){
   if(x.status === '待確認' && x.issues.length) return `<div class="pdf-row-issue">⚠ ${pdfEsc(x.issues[0])}${x.issues.length > 1 ? `（還有 ${x.issues.length - 1} 項）` : ''}</div>`;
+  if(x.status === '待確認' && (x.notes || []).length) return `<div class="pdf-row-note">${pdfEsc(x.notes[0].replace(/（只有這個案件是這個地址）/, ''))}</div>`;
   if(x.status === '辨識失敗' || (x.error && x.status === '待辨識')) return `<div class="pdf-row-issue" style="color:#C9383D;">✗ ${pdfEsc((x.error || '').slice(0, 60))}</div>`;
   if(/⚠ 同類型已存在|歸檔失敗/.test(x.writeback || '')) return `<div class="pdf-row-issue">📂 ${pdfEsc((x.writeback.split('\n').find(l => /⚠/.test(l)) || '').slice(0, 60))}</div>`;
   return '';
@@ -6993,7 +7010,8 @@ function openPdfDetail(id){
     if(!c) return '';
     return `<span class="pdf-field-tip ${c === 'pdf-bad' ? 'bad' : 'warn'}">${c === 'pdf-bad' ? '← 請' + (i === 0 ? '選' : '填') + what : '← 不太確定，請看一下'}</span>`;
   };
-  const issues = x.issues.map(t => `<div class="pdf-issue">⚠ ${pdfEsc(t)}</div>`).join('');
+  const issues = x.issues.map(t => `<div class="pdf-issue">⚠ ${pdfEsc(t)}</div>`).join('')
+    + (x.notes || []).map(t => `<div class="pdf-note">${pdfEsc(t)}</div>`).join('');
   const cands = x.candidates.map(c => `<div class="pdf-cand ${c.strong ? 'strong' : ''}" onclick="pickPdfCase('${pdfEsc(c.case_no)}')">
       <b>${pdfEsc(c.case_no)}</b> ${pdfEsc(c.alias)} <span class="pdf-sub">（比對分數 ${c.score}）</span>
       <div class="pdf-sub">${c.why.map(pdfEsc).join('；')}</div></div>`).join('');
@@ -7388,7 +7406,7 @@ async function loadPdfLine(){
     const i = await iRes.json();
     if(s.error || i.error) throw new Error(s.error || i.error);
     PDF_STATE.status = s;
-    PDF_STATE.items = i.items || [];
+    PDF_STATE.items = (i.items || []).map(pdfNormalizeItem);
     renderPdfWatchers();
     renderPdfArchive();
     renderPdfLineList();
