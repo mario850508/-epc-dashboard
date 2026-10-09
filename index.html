@@ -698,7 +698,7 @@
         </div>
         <div class="nav-sub" id="navSub-pdf">
           <div class="nav-sub-item" data-sub="pdf-rename" onclick="showPdfTab('pdf-rename')">公文更名</div>
-          <div class="nav-sub-item" data-sub="pdf-line" onclick="showPdfTab('pdf-line')">LINE 收件紀錄</div>
+          <div class="nav-sub-item" data-sub="pdf-line" onclick="showPdfTab('pdf-line')">LINE 收件／自動歸檔</div>
         </div>
         <div class="nav-item" data-view="epc" onclick="toggleNavSection('epc')">
           <span class="nav-icon">🚚</span> EPC 出貨／進場排程
@@ -857,7 +857,7 @@
 
       <div class="tabs">
         <div class="tab active" data-tab="pdf-rename" onclick="showPdfTab('pdf-rename')">公文更名</div>
-        <div class="tab" data-tab="pdf-line" onclick="showPdfTab('pdf-line')">LINE 收件紀錄</div>
+        <div class="tab" data-tab="pdf-line" onclick="showPdfTab('pdf-line')">LINE 收件／自動歸檔</div>
       </div>
 
       <div class="subview active" id="tab-pdf-rename">
@@ -935,6 +935,18 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             </ol>
             <div class="pdf-sub">第一次執行時，資料夾裡一天以前的舊檔會略過，只處理新下載的。要停用：表格取消「啟用」；要移除：在那台電腦執行 <code>powershell -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\SunnyPdfWatcher\pdf_watcher.ps1" -Uninstall</code></div>
           </details>
+        </div>
+        <div class="panel" style="margin-bottom:14px;">
+          <div class="panel-title">🗂 自動歸檔到 G 槽</div>
+          <div class="pdf-sub" style="margin-bottom:10px;">按「確認更名」後，指定的那台電腦會自動把檔案用新檔名放進「案場資料夾 → 03 契約／04 電廠設計圖／06 政府函文／07 設備保固」，主控台狀態改成「已歸檔」。資料夾裡已有同名檔案時不覆蓋，會在檔案上標示「歸檔失敗」讓你處理。</div>
+          <div style="display:grid;grid-template-columns:auto 200px 1fr;gap:10px;align-items:start;">
+            <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600;margin-top:8px;"><input type="checkbox" id="pdfArchiveOn" style="width:auto;"> 啟用</label>
+            <div><div class="pdf-sub">由哪台電腦歸檔</div><select class="quick-mark-input" id="pdfArchivePm" style="padding:8px 10px;"></select></div>
+            <div><div class="pdf-sub">案場資料夾的根目錄（可多個，一行一個；會往下找「001 潤特桃園1號_…」這種案場資料夾）</div>
+              <textarea class="quick-mark-input" id="pdfArchiveRoots" style="height:62px;padding:8px 10px;font-size:12px;" placeholder="G:\共用雲端硬碟\永續電力處\02 專案\01 已上架電廠"></textarea></div>
+          </div>
+          <div id="pdfArchiveStatus" style="margin-top:8px;"></div>
+          <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;margin-top:10px;" onclick="savePdfArchive()">儲存歸檔設定</button>
         </div>
         <div class="panel">
           <div class="panel-title">LINE 收件紀錄 <span class="pdf-sub" style="font-weight:400;">從 LINE 收件資料夾自動送來辨識的檔案</span></div>
@@ -6434,6 +6446,7 @@ function openPdfDetail(id){
       <select class="quick-mark-input" id="pdfFormType" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>${pdfDocTypeOptions(x.doc_type)}</select>
       <label>發文日期</label>
       <input type="date" class="quick-mark-input" id="pdfFormDate" value="${pdfEsc(x.doc_date)}" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>
+      ${x.category ? `<div class="pdf-sub" style="margin-top:8px;">📁 確認後會歸檔到：${pdfEsc(x.case_no || '（案號）')} → ${pdfEsc(x.category)} 資料夾</div>` : ''}
       <label>檔名 <a href="javascript:void(0)" style="font-weight:400;font-size:11.5px;" onclick="refreshPdfName(true)">依命名格式重新產生</a></label>
       <input class="quick-mark-input" id="pdfFormName" value="${pdfEsc(x.final_name || x.suggested_name || x.src_name)}" ${editable ? '' : 'disabled'}>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
@@ -6722,6 +6735,7 @@ async function loadPdfLine(){
     PDF_STATE.status = s;
     PDF_STATE.items = i.items || [];
     renderPdfWatchers();
+    renderPdfArchive();
     renderPdfLineList();
   }catch(e){
     document.getElementById('pdfLineList').innerHTML = `<div class="login-note">⚠ 讀取失敗：${pdfEsc(e.message)}（後端剛啟動的話等一分鐘再按重新整理）</div>`;
@@ -6746,6 +6760,39 @@ function pdfWatcherRow(w){
     <td style="text-align:center;"><input type="checkbox" class="w-on" ${w.enabled !== false ? 'checked' : ''} style="width:auto;"></td>
     <td>${w.pm ? pdfWatcherStatus(w.pm) : ''}</td>
     <td><button class="modal-close" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
+}
+
+function renderPdfArchive(){
+  const st = (PDF_STATE.status && PDF_STATE.status.settings) || {};
+  const arc = st.archive || {};
+  const pms = (st.watchers || []).map(w => w.pm).filter(Boolean);
+  document.getElementById('pdfArchiveOn').checked = !!arc.enabled;
+  document.getElementById('pdfArchivePm').innerHTML = (pms.length ? '' : '<option value="">（先在上面新增 PM）</option>')
+    + pms.map(p => `<option value="${pdfEsc(p)}" ${p === arc.pm ? 'selected' : ''}>${pdfEsc(p)} 的電腦</option>`).join('');
+  document.getElementById('pdfArchiveRoots').value = arc.roots || 'G:\\共用雲端硬碟\\永續電力處\\02 專案\\01 已上架電廠';
+  const w = ((PDF_STATE.status && PDF_STATE.status.watchers_status) || {})[arc.pm];
+  const confirmed = (PDF_STATE.items || []).filter(x => x.status === '已確認');
+  const failed = confirmed.filter(x => (x.writeback || '').includes('歸檔失敗'));
+  let html = '';
+  if(arc.enabled && w){
+    html += `<div class="pdf-sub">這次開機已歸檔 <b>${w.archived_total || 0}</b> 份・找到 ${w.case_folders || 0} 個案場資料夾${w.last_archive ? '・最近：' + pdfEsc(w.last_archive.split(/[\\/]/).slice(-3).join(' / ')) : ''}</div>`;
+    if(w.archive_error) html += `<div class="pdf-sub" style="color:#C9383D;">⚠ ${pdfEsc(w.archive_error)}</div>`;
+  }else if(arc.enabled){
+    html += '<div class="pdf-sub">還沒收到那台電腦的回報（背景程式要是 v1.1 以上；舊版請重跑一次安裝指令更新）。</div>';
+  }
+  if(confirmed.length) html += `<div class="pdf-sub">等待歸檔 ${confirmed.length} 份${failed.length ? `，其中 <b style="color:#C9383D;">${failed.length} 份歸檔失敗</b>（打開檔案看原因）` : ''}</div>`;
+  document.getElementById('pdfArchiveStatus').innerHTML = html;
+}
+
+async function savePdfArchive(){
+  const archive = {
+    enabled: document.getElementById('pdfArchiveOn').checked,
+    pm: document.getElementById('pdfArchivePm').value,
+    roots: document.getElementById('pdfArchiveRoots').value.trim(),
+  };
+  if(archive.enabled && !archive.pm){ showToast('請先選擇由哪台電腦歸檔'); return; }
+  const s = await savePdfSetting({archive});
+  if(s) renderPdfArchive();
 }
 
 function renderPdfWatchers(){
