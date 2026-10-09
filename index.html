@@ -611,7 +611,8 @@
   .pdf-stat-label{font-size:11.5px;color:var(--text-muted);}
   .pdf-stat-num{font-size:22px;font-weight:800;margin-top:2px;}
   .pdf-stat-sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
-  .pdf-toggles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px;}
+  .pdf-toggles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;}
+  @media (max-width:1250px){ .pdf-toggles{grid-template-columns:repeat(2,1fr);} }
   .pdf-toggle{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;justify-content:space-between;}
   .pdf-toggle-title{font-size:13px;font-weight:700;}
   .pdf-toggle-desc{font-size:11.5px;color:var(--text-muted);margin-top:3px;line-height:1.55;}
@@ -884,6 +885,13 @@
               <div class="pdf-toggle-desc">把發文日期寫進「進度管理」對應里程碑的完成日期（只填空白，不覆蓋既有日期）</div>
             </div>
             <label class="pdf-switch"><input type="checkbox" id="pdfWriteback" onchange="savePdfSetting({writeback: this.checked})"><span></span></label>
+          </div>
+          <div class="pdf-toggle">
+            <div>
+              <div class="pdf-toggle-title">確認後自動歸檔到 G 槽</div>
+              <div class="pdf-toggle-desc" id="pdfArchiveToggleDesc">—</div>
+            </div>
+            <label class="pdf-switch"><input type="checkbox" id="pdfArchiveToggle" onchange="togglePdfArchive(this.checked)"><span></span></label>
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
@@ -6290,6 +6298,11 @@ function renderPdfStatus(){
   document.getElementById('pdfWriteback').checked = !!st.writeback;
   document.getElementById('pdfIntervalMin').value = st.interval_min || 5;
   document.getElementById('pdfThreshold').value = st.auto_confirm_threshold || 92;
+  const arc = st.archive || {};
+  document.getElementById('pdfArchiveToggle').checked = !!arc.enabled;
+  document.getElementById('pdfArchiveToggleDesc').innerHTML = arc.enabled
+    ? `已開啟，確認後由${arc.pm ? ' ' + pdfEsc(arc.pm) + ' 的電腦' : '開著的 PM 電腦'}放進案場 03／04／06／07 資料夾（單份可在確認時取消）`
+    : '已關閉，確認後只改名，用「⬇ 用新檔名下載」自己存檔';
   let info = st.enabled ? '已開啟' : '已關閉';
   if(s.running) info += '｜🔄 辨識中…';
   else if(s.last_finished_at) info += `｜上次執行：${pdfFmtTime(s.last_finished_at)}`;
@@ -6396,6 +6409,15 @@ async function savePdfSetting(patch){
   }
 }
 
+async function togglePdfArchive(on){
+  const arc = ((PDF_STATE.status && PDF_STATE.status.settings && PDF_STATE.status.settings.archive) || {});
+  if(on && !(arc.roots || '').trim()){
+    // 還沒設定過根目錄就用公司共用雲端的預設位置
+    arc.roots = 'G:\\共用雲端硬碟\\永續電力處\\02 專案\\01 已上架電廠';
+  }
+  await savePdfSetting({archive: {enabled: on, pm: arc.pm || '', roots: arc.roots || ''}});
+}
+
 async function runPdfRecognizeNow(){
   const btn = document.getElementById('pdfRunBtn');
   btn.disabled = true;
@@ -6446,7 +6468,14 @@ function openPdfDetail(id){
       <select class="quick-mark-input" id="pdfFormType" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>${pdfDocTypeOptions(x.doc_type)}</select>
       <label>發文日期</label>
       <input type="date" class="quick-mark-input" id="pdfFormDate" value="${pdfEsc(x.doc_date)}" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>
-      ${x.category ? `<div class="pdf-sub" style="margin-top:8px;">📁 確認後會歸檔到：${pdfEsc(x.case_no || '（案號）')} → ${pdfEsc(x.category)} 資料夾</div>` : ''}
+      ${(() => {
+        const arcOn = !!(((PDF_STATE.status || {}).settings || {}).archive || {}).enabled;
+        if(!arcOn || x.status === '已歸檔' || !editable) return '';
+        return `<label style="display:flex;gap:6px;align-items:center;font-weight:600;margin-top:10px;">
+          <input type="checkbox" id="pdfFormArchive" style="width:auto;" ${x.no_archive ? '' : 'checked'}>
+          這份自動歸檔到 G 槽${x.category ? `（${pdfEsc(x.case_no || '案號')} → ${pdfEsc(x.category)} 資料夾）` : ''}</label>
+          <div class="pdf-sub">取消勾選＝只改名，按確認後直接用新檔名下載到你的電腦</div>`;
+      })()}
       <label>檔名 <a href="javascript:void(0)" style="font-weight:400;font-size:11.5px;" onclick="refreshPdfName(true)">依命名格式重新產生</a></label>
       <input class="quick-mark-input" id="pdfFormName" value="${pdfEsc(x.final_name || x.suggested_name || x.src_name)}" ${editable ? '' : 'disabled'}>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
@@ -6517,6 +6546,9 @@ async function confirmPdf(){
     final_name: document.getElementById('pdfFormName').value.trim(),
     user: pdfUser() || '主控台',
   };
+  const arcBox = document.getElementById('pdfFormArchive');
+  body.archive = arcBox ? arcBox.checked : true;
+  const downloadAfter = !arcBox || !arcBox.checked;
   if(!body.case_no || !body.doc_type || !body.final_name){ showToast('案號、函文類型、檔名都要填'); return; }
   try{
     const res = await fetch(API_BASE + `/api/pdf-rename/${x.id}/confirm`, {
@@ -6524,6 +6556,7 @@ async function confirmPdf(){
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || '確認失敗');
     showToast('已確認' + (data.writeback ? '｜' + data.writeback : ''));
+    if(downloadAfter) downloadPdf(x.id);   // 沒有要自動歸檔的，直接用新檔名下載
     closePdfDetailModal();
     loadPdfRename();
   }catch(e){
@@ -6532,7 +6565,13 @@ async function confirmPdf(){
 }
 
 function downloadPdf(id){
-  window.open(API_BASE + `/api/pdf-rename/${id}/file`, '_blank');
+  // 用 <a> 觸發下載（後端回 Content-Disposition: attachment），確認後自動下載時才不會被擋彈出視窗
+  const a = document.createElement('a');
+  a.href = API_BASE + `/api/pdf-rename/${id}/file`;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 async function pdfPost(url, method, okMsg){
