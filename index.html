@@ -908,25 +908,37 @@
       </div>
 
       <div class="subview" id="tab-pdf-line">
+        <div class="panel" style="margin-bottom:14px;">
+          <div class="panel-title">📂 LINE 收件資料夾（每位 PM 一個，背景自動辨識）</div>
+          <div class="pdf-sub" style="margin-bottom:10px;">LINE 官方帳號把廠商群組的檔案下載到每位 PM 自己的資料夾。在這裡設定資料夾路徑，PM 電腦上的背景程式每分鐘檢查一次，有新的 PDF 就自動送去辨識（重複的檔案不會重複辨識）。路徑隨時可以在這裡改，不用重裝。</div>
+          <div style="overflow-x:auto;"><table class="pdf-rules-table" style="min-width:720px;">
+            <thead><tr><th style="width:13%;">PM</th><th>資料夾路徑（PM 電腦上的完整路徑）</th><th style="width:7%;">啟用</th><th style="width:30%;">這台電腦的狀態</th><th style="width:30px;"></th></tr></thead>
+            <tbody id="pdfWatcherRows"></tbody>
+          </table></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+            <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="document.getElementById('pdfWatcherRows').insertAdjacentHTML('beforeend', pdfWatcherRow({enabled:true}))">＋ 新增 PM</button>
+            <button class="btn btn-primary" style="padding:6px 14px;font-size:12px;" onclick="savePdfWatchers()">儲存</button>
+            <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="loadPdfLine()">🔄 重新整理狀態</button>
+          </div>
+          <details style="margin-top:12px;font-size:12px;">
+            <summary style="cursor:pointer;color:var(--primary-dark);font-weight:600;">每位 PM 電腦的安裝步驟（約 1 分鐘，每台電腦只要做一次）</summary>
+            <ol style="padding-left:18px;line-height:1.9;margin:8px 0;">
+              <li>先在上面表格加好這位 PM 的名字和資料夾路徑，按「儲存」。<br><span class="pdf-sub">路徑可以在檔案總管點上方網址列複製，例如 G:\共用雲端硬碟\永續電力處\LINE收件\家豪</span></li>
+              <li>在那台電腦按 Windows 鍵，輸入「cmd」打開「命令提示字元」，貼上下面兩行（一行貼完按 Enter）：</li>
+            </ol>
+            <textarea readonly id="pdfWatcherCmd" style="width:100%;height:62px;font-family:ui-monospace,monospace;font-size:11.5px;border:1px solid var(--border);border-radius:8px;padding:8px;">curl -L -o "%TEMP%\pdf_watcher.ps1" https://raw.githubusercontent.com/mario850508/epc-backend/main/tools/pdf_watcher.ps1
+powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</textarea>
+            <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-top:6px;" onclick="navigator.clipboard.writeText(document.getElementById('pdfWatcherCmd').value).then(() => showToast('已複製'))">📋 複製指令</button>
+            <ol start="3" style="padding-left:18px;line-height:1.9;margin:8px 0;">
+              <li>畫面會列出 PM 名單，輸入自己的編號按 Enter，出現「✓ 安裝完成」就好了。之後每次開機都會自動在背景執行，不會跳視窗。</li>
+              <li>回到這裡按「🔄 重新整理狀態」，看到「✓ 運作中」就代表成功。</li>
+            </ol>
+            <div class="pdf-sub">第一次執行時，資料夾裡一天以前的舊檔會略過，只處理新下載的。要停用：表格取消「啟用」；要移除：在那台電腦執行 <code>powershell -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\SunnyPdfWatcher\pdf_watcher.ps1" -Uninstall</code></div>
+          </details>
+        </div>
         <div class="panel">
-          <div class="panel-title">陽光機器人 · 最近收件</div>
-          <table>
-            <thead><tr><th>時間</th><th>LINE 群組</th><th>檔案</th><th>分派 PM</th><th>狀態</th></tr></thead>
-            <tbody>
-              <tr>
-                <td>08/20 09:14</td><td>陽光伏特家&曙光能創</td><td>電費單_115年8月.pdf</td>
-                <td><span class="pm-pill">PM-家豪</span></td><td><span class="pm-pill" style="color:var(--success);background:var(--success-soft);">已同步</span></td>
-              </tr>
-              <tr>
-                <td>08/20 08:52</td><td>文件測試</td><td>竣工報告.pdf</td>
-                <td><span class="pm-pill">PM-家豪 / PM-敏萱</span></td><td><span class="pm-pill" style="color:var(--success);background:var(--success-soft);">已同步</span></td>
-              </tr>
-              <tr>
-                <td>08/19 17:03</td><td>三創</td><td>併聯掛表申請.pdf</td>
-                <td><span class="pm-pill">PM-家豪</span></td><td><span class="pm-pill" style="color:var(--success);background:var(--success-soft);">已同步</span></td>
-              </tr>
-            </tbody>
-          </table>
+          <div class="panel-title">LINE 收件紀錄 <span class="pdf-sub" style="font-weight:400;">從 LINE 收件資料夾自動送來辨識的檔案</span></div>
+          <div id="pdfLineList"><div class="login-note">載入中…</div></div>
         </div>
       </div>
     </section>
@@ -4503,6 +4515,7 @@ function showView(name){
   // PDF 公文更名：等 showPdfTab 切完子頁籤再判斷要不要載入（setTimeout 0）
   if(name === 'pdf') setTimeout(() => {
     if(document.getElementById('tab-pdf-rename').classList.contains('active')){ initPdfDrop(); loadPdfRename(); }
+    if(document.getElementById('tab-pdf-line').classList.contains('active')){ loadPdfLine(); }
   }, 0);
   closeSidebar(); // 手機版選了頁面後，選單自動收起來，桌面版沒有影響
 }
@@ -6232,6 +6245,7 @@ async function loadPdfRename(){
     PDF_STATE.items = i.items || [];
     renderPdfStatus();
     renderPdfList();
+    if(document.getElementById('tab-pdf-line').classList.contains('active')){ renderPdfLineList(); }
   }catch(e){
     document.getElementById('pdfList').innerHTML = `<div class="login-note">⚠ 讀取失敗：${pdfEsc(e.message)}（後端剛啟動的話等一分鐘再按重新整理）</div>`;
   }
@@ -6693,6 +6707,82 @@ async function savePdfRules(){
     doc_types,
   });
   if(s) closePdfRulesModal();
+}
+
+// ---- LINE 收件資料夾（PM 電腦上的 tools/pdf_watcher.ps1）----
+async function loadPdfLine(){
+  try{
+    const [sRes, iRes] = await Promise.all([
+      fetch(API_BASE + '/api/pdf-rename/status', {cache: 'no-store'}),
+      fetch(API_BASE + '/api/pdf-rename/items?status=all', {cache: 'no-store'}),
+    ]);
+    const s = await sRes.json();
+    const i = await iRes.json();
+    if(s.error || i.error) throw new Error(s.error || i.error);
+    PDF_STATE.status = s;
+    PDF_STATE.items = i.items || [];
+    renderPdfWatchers();
+    renderPdfLineList();
+  }catch(e){
+    document.getElementById('pdfLineList').innerHTML = `<div class="login-note">⚠ 讀取失敗：${pdfEsc(e.message)}（後端剛啟動的話等一分鐘再按重新整理）</div>`;
+  }
+}
+
+function pdfWatcherStatus(pm){
+  const st = ((PDF_STATE.status && PDF_STATE.status.watchers_status) || {})[pm];
+  if(!st) return '<span class="pdf-sub">尚未安裝，或電腦沒開（還沒收到回報）</span>';
+  const mins = Math.round((Date.now() - new Date(st.at).getTime()) / 60000);
+  const alive = mins <= 3;
+  const head = alive
+    ? (st.folder_ok ? '<span style="color:var(--success);font-weight:700;">✓ 運作中</span>' : '<span style="color:#C9383D;font-weight:700;">⚠ 找不到資料夾</span>')
+    : `<span style="color:var(--text-muted);font-weight:700;">● ${mins < 60 ? mins + ' 分鐘' : Math.round(mins / 60) + ' 小時'}前回報（電腦可能關機）</span>`;
+  const bits = [st.host && `電腦：${pdfEsc(st.host)}`, `這次開機已送 ${st.uploaded_total} 份`, st.last_upload && `最近：${pdfEsc(st.last_upload)}`].filter(Boolean);
+  return `${head}<div class="pdf-sub">${bits.join('・')}</div>${st.last_error ? `<div class="pdf-sub" style="color:#C9383D;">${pdfEsc(st.last_error)}</div>` : ''}`;
+}
+
+function pdfWatcherRow(w){
+  return `<tr><td><input class="w-pm" value="${pdfEsc(w.pm || '')}" placeholder="名字"></td>
+    <td><input class="w-folder" value="${pdfEsc(w.folder || '')}" placeholder="G:\\…\\LINE收件\\名字"></td>
+    <td style="text-align:center;"><input type="checkbox" class="w-on" ${w.enabled !== false ? 'checked' : ''} style="width:auto;"></td>
+    <td>${w.pm ? pdfWatcherStatus(w.pm) : ''}</td>
+    <td><button class="modal-close" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
+}
+
+function renderPdfWatchers(){
+  const ws = (PDF_STATE.status && PDF_STATE.status.settings && PDF_STATE.status.settings.watchers) || [];
+  document.getElementById('pdfWatcherRows').innerHTML = ws.length ? ws.map(pdfWatcherRow).join('')
+    : pdfWatcherRow({enabled: true});
+}
+
+async function savePdfWatchers(){
+  const watchers = Array.from(document.querySelectorAll('#pdfWatcherRows tr')).map(tr => ({
+    pm: tr.querySelector('.w-pm').value.trim(),
+    folder: tr.querySelector('.w-folder').value.trim(),
+    enabled: tr.querySelector('.w-on').checked,
+  })).filter(w => w.pm);
+  const s = await savePdfSetting({watchers});
+  if(s) renderPdfWatchers();
+}
+
+function renderPdfLineList(){
+  const rows = PDF_STATE.items.filter(x => (x.source || '').startsWith('LINE'));
+  if(!rows.length){
+    document.getElementById('pdfLineList').innerHTML = '<div class="login-note">還沒有從 LINE 收件資料夾送來的檔案。</div>';
+    return;
+  }
+  document.getElementById('pdfLineList').innerHTML = `<div style="overflow-x:auto;"><table class="pdf-table">
+    <thead><tr><th>收件時間</th><th>PM</th><th>原檔名</th><th>辨識結果</th><th>狀態</th><th></th></tr></thead>
+    <tbody>${rows.map(x => {
+      const parts = (x.src_path || '').split(/[\\/]/);
+      const sub = parts.length > 2 ? parts.slice(-2, -1)[0] : '';
+      return `<tr>
+      <td style="white-space:nowrap;">${pdfEsc(pdfFmtTime(x.uploaded_at))}</td>
+      <td>${pdfEsc(x.uploader)}</td>
+      <td><div class="pdf-name">${pdfEsc(x.src_name)}</div>${sub ? `<div class="pdf-sub">📁 ${pdfEsc(sub)}</div>` : ''}</td>
+      <td>${x.final_name || x.suggested_name ? `<div class="pdf-sub" style="color:var(--text);">${pdfEsc(x.final_name || x.suggested_name)}</div>` : '<span class="pdf-sub">—</span>'}</td>
+      <td><span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span> ${pdfConfBadge(x.confidence)}</td>
+      <td><button class="btn ${x.status === '待確認' ? 'btn-primary' : 'btn-ghost'}" style="padding:6px 10px;font-size:11.5px;" onclick="openPdfDetail('${x.id}')">${x.status === '待確認' ? '檢查並確認' : '檢視'}</button></td>
+    </tr>`;}).join('')}</tbody></table></div>`;
 }
 
 async function importPdfLearnReport(file){
