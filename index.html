@@ -897,7 +897,8 @@
     </div>
 
     <div class="sidebar-footer">
-      本機模組與雲端模組並存<br>V0.2 介面原型
+      本機模組與雲端模組並存<br>V0.2 介面原型<br>
+      <a href="#" onclick="epcLogout();return false;" style="color:var(--text-muted);text-decoration:underline;">🔒 登出</a>
     </div>
   </aside>
 
@@ -2690,6 +2691,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
 
   </main>
 
+<script src="auth.js?v=1"></script>
 <script>
 const API_BASE = 'https://epc-backend-4aj2.onrender.com';
 
@@ -7235,7 +7237,7 @@ async function confirmPdf(goNext){
 function downloadPdf(id){
   // 用 <a> 觸發下載（後端回 Content-Disposition: attachment），確認後自動下載時才不會被擋彈出視窗
   const a = document.createElement('a');
-  a.href = API_BASE + `/api/pdf-rename/${id}/file`;
+  a.href = epcAuthUrl(API_BASE + `/api/pdf-rename/${id}/file`);   // 下載連結帶不了標頭，用 ?access_token=
   a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
