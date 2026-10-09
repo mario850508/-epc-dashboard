@@ -404,9 +404,9 @@ function renderVendorShare(msg, ok){
       <div style="padding:16px 18px;"><h1>${c.title}</h1>${rows}</div>
     </div>
     ${VSHARE.sent_at ? `<div class="hint" style="margin-bottom:10px;">上次傳送：${VSHARE.sent_at.replace('T', ' ').slice(0, 16)}</div>` : ''}
-    <button class="btn-line" onclick="startVendorShare()">📤 選擇廠商群組並傳送</button>
+    <button class="btn-line" onclick="startVendorShare()">${VSHARE.kind === 'rep' ? '📤 選擇要傳送的人／群組' : '📤 選擇廠商群組並傳送'}</button>
     ${msg ? `<div style="margin-top:10px;font-size:13px;color:${ok ? '#16A34A' : '#c0392b'};font-weight:700;">${msg}</div>` : ''}
-    <div class="hint" style="margin-top:12px;">卡片會以你自己的 LINE 帳號傳進你選的群組或聊天室，可以一次選多個。</div>`;
+    <div class="hint" style="margin-top:12px;">卡片會以你自己的 LINE 帳號傳給你選的人、群組或聊天室，可以一次選多個。</div>`;
 }
 async function initVendorShare(tok){
   const app = document.getElementById('app');
@@ -435,7 +435,7 @@ async function startVendorShare(){
     const res = await fetch(API_BASE + '/api/vendor-share/' + encodeURIComponent(VSHARE.token) + '/sent', {method: 'POST'});
     const d = await res.json().catch(() => ({}));
     if(d.sent_at) VSHARE.sent_at = d.sent_at;
-    renderVendorShare('✅ 已傳送給廠商！可以關掉這個畫面了。', true);
+    renderVendorShare(VSHARE.kind === 'rep' ? '✅ 已傳送！可以關掉這個畫面了。' : '✅ 已傳送給廠商！可以關掉這個畫面了。', true);
   }catch(err){
     renderVendorShare('傳送失敗：' + err.message);
   }

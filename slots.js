@@ -738,6 +738,7 @@ function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, c
               ${b.cancelled ? `<span class="chip" style="flex-shrink:0;background:#FDECEC;color:#B42318;">❌ 已取消</span>` : ''}
               <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="showSlotBookingDetail('${b.record_id}')">📄 查看填單</button>
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;${b.vendor_notified_at ? 'color:#16A34A;border-color:#BFE6CF;' : ''}" onclick="openVendorNotice('${b.record_id}')" title="${b.vendor_notified_at ? '已通知廠商：' + fmtDateTimeTW(b.vendor_notified_at) : '確認屋主資料後，傳卡片到廠商群組'}">${b.vendor_notified_at ? '✓ 已通知廠商' : '📤 通知廠商'}</button>`}
+              ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="notifyRep('${b.record_id}')" title="業務有綁 LINE 就直接用機器人通知；沒綁（或離職）會產生連結，讓你轉傳給代辦同事">📨 通知業務</button>`}
               ${canCancel && !b.cancelled ? `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;color:#B42318;" onclick="openCancelBooking('${b.record_id}')">❌ 取消預約</button>` : ''}
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotBooking('${b.record_id}')">刪除</button>`}
               ${b.cancelled ? `<div style="flex-basis:100%;font-size:11.5px;color:#B42318;padding-left:2px;">取消原因：${escHtml(b.cancel_reason || '（未填）')}${b.cancelled_at ? '　' + fmtDateTimeTW(b.cancelled_at) : ''}</div>` : ''}
@@ -918,6 +919,47 @@ async function submitVendorNotice(recordId){
   }catch(err){
     showToast('儲存失敗：' + err.message);
     btn.disabled = false; btn.textContent = '儲存並產生廠商通知';
+  }
+}
+// 2026-10-10：通知業務。業務有綁 LINE → 機器人直接推；沒綁／離職 → 產生連結，轉傳給代辦同事。
+function closeRepNotice(){ const ov = document.getElementById('repNoticeOverlay'); if(ov) ov.remove(); }
+async function notifyRep(recordId, share){
+  const b = SLOT_BOOKINGS.find(x => x.record_id === recordId);
+  if(!b){ showToast('找不到這筆預約，請重新整理'); return; }
+  showToast('處理中…');
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/' + encodeURIComponent(recordId) + '/rep-notice', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({share: !!share}),
+    });
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    if(d.sent){ showToast('✅ 已用機器人通知 ' + d.rep_name); return; }
+    window._vnPlain = d.plain_text || '';
+    window._vnLink = d.liff_url || '';
+    closeRepNotice();
+    const ov = document.createElement('div');
+    ov.id = 'repNoticeOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.onclick = e => { if(e.target === ov) closeRepNotice(); };
+    const why = d.rep_name
+      ? (d.bound ? escHtml(d.rep_name) + ' 的 LINE 推播沒成功' : escHtml(d.rep_name) + ' 還沒綁定 LINE（或已離職）')
+      : '這筆預約沒有指定負責業務';
+    ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:22px;max-width:460px;width:100%;color:#1B2333;max-height:92vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:17px;font-weight:800;">📨 通知業務</div>
+        <button type="button" onclick="closeRepNotice()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button>
+      </div>
+      <div style="font-size:13px;color:#6B7280;margin:4px 0 12px;">${escHtml(b.case)} ${escHtml(b.alias || '')}｜${fmtDate(b.date)}（${fmtWeekday(b.date)}）</div>
+      <div style="padding:12px 14px;background:#FFF7E6;border:1px solid #FDE0A8;border-radius:12px;font-size:13px;line-height:1.7;">
+        ${why}，沒辦法用機器人直接通知。<b>請用手機 LINE 開啟下面的連結</b>，按「選擇要傳送的人／群組」，傳給代為處理的同事。
+      </div>
+      ${d.liff_url ? `<a href="${d.liff_url}" target="_blank" rel="noopener" class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:10px;text-decoration:none;">📱 在 LINE 開啟並選擇要傳給誰</a>
+      <button type="button" class="btn btn-ghost" style="width:100%;justify-content:center;padding:10px;margin-top:8px;" onclick="copyVnText(window._vnLink, '已複製連結，可以貼到 LINE 給自己再點開')">複製連結（在電腦上時，傳到自己的 LINE 再點）</button>` : ''}
+      <button type="button" class="btn btn-ghost" style="width:100%;justify-content:center;padding:10px;margin-top:8px;" onclick="copyVnText(window._vnPlain, '已複製文字版通知')">複製文字版（備用）</button>
+    </div>`;
+    document.body.appendChild(ov);
+  }catch(err){
+    showToast('通知失敗：' + err.message);
   }
 }
 function copyVnText(text, okMsg){
