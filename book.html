@@ -397,6 +397,17 @@ async function doSchedulerBind(name){
 let VSHARE = null;
 function renderVendorShare(msg, ok){
   const app = document.getElementById('app');
+  if(VSHARE.kind === 'own'){   // 傳給屋主的文字訊息（業務選屋主的聊天室傳出去）
+    const safe = String(VSHARE.text || '').replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]));
+    app.innerHTML = `<div class="card"><h1>要傳給屋主的訊息</h1>
+      ${VSHARE.title ? `<div class="hint" style="margin-bottom:8px;">${VSHARE.title.replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]))}</div>` : ''}
+      <div style="white-space:pre-wrap;background:#F6F8FB;border-radius:12px;padding:14px;font-size:14.5px;line-height:1.75;">${safe}</div></div>
+      <button class="btn-line" onclick="startVendorShare()">📤 選擇屋主並傳送</button>
+      <button class="btn-line" style="background:#fff;color:#1B2333;border:1px solid #D5DAE3;margin-top:8px;" onclick="copyOwnerText()">📋 只複製文字</button>
+      ${msg ? `<div style="margin-top:10px;font-size:13px;color:${ok ? '#16A34A' : '#c0392b'};font-weight:700;">${msg}</div>` : ''}
+      <div class="hint" style="margin-top:12px;">訊息會以你自己的 LINE 帳號傳給你選的屋主聊天室。傳之前可以先看一下內容對不對。</div>`;
+    return;
+  }
   const c = VSHARE.card;
   const rows = (c.rows || []).filter(([k, v]) => v).map(([k, v]) => `<div class="info-row"><span class="info-label">${k}</span><span style="white-space:pre-wrap;">${String(v).replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]))}</span></div>`).join('');
   app.innerHTML = `<div class="card" style="padding:0;overflow:hidden;">
@@ -407,6 +418,15 @@ function renderVendorShare(msg, ok){
     <button class="btn-line" onclick="startVendorShare()">${VSHARE.kind === 'rep' ? '📤 選擇要傳送的人／群組' : '📤 選擇廠商群組並傳送'}</button>
     ${msg ? `<div style="margin-top:10px;font-size:13px;color:${ok ? '#16A34A' : '#c0392b'};font-weight:700;">${msg}</div>` : ''}
     <div class="hint" style="margin-top:12px;">卡片會以你自己的 LINE 帳號傳給你選的人、群組或聊天室，可以一次選多個。</div>`;
+}
+function copyOwnerText(){
+  const ta = document.createElement('textarea');
+  ta.value = VSHARE.text || ''; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  let okc = false;
+  try{ okc = document.execCommand('copy'); }catch(e){}
+  ta.remove();
+  renderVendorShare(okc ? '✅ 已複製，可以貼給屋主' : '複製失敗，請長按文字手動複製', okc);
 }
 async function initVendorShare(tok){
   const app = document.getElementById('app');
@@ -430,12 +450,13 @@ async function startVendorShare(){
       renderVendorShare('這裡不能使用「選擇群組傳送」：請確認 LINE Developers 已開啟 shareTargetPicker，並用手機 LINE 開啟這個連結。');
       return;
     }
-    const r = await liff.shareTargetPicker([{type: 'flex', altText: VSHARE.alt, contents: VSHARE.flex}], {isMultiple: true});
+    const msgs = VSHARE.kind === 'own' ? [{type: 'text', text: VSHARE.text}] : [{type: 'flex', altText: VSHARE.alt, contents: VSHARE.flex}];
+    const r = await liff.shareTargetPicker(msgs, {isMultiple: true});
     if(!r){ renderVendorShare('已取消，沒有傳送。'); return; }
     const res = await fetch(API_BASE + '/api/vendor-share/' + encodeURIComponent(VSHARE.token) + '/sent', {method: 'POST'});
     const d = await res.json().catch(() => ({}));
     if(d.sent_at) VSHARE.sent_at = d.sent_at;
-    renderVendorShare(VSHARE.kind === 'rep' ? '✅ 已傳送！可以關掉這個畫面了。' : '✅ 已傳送給廠商！可以關掉這個畫面了。', true);
+    renderVendorShare(VSHARE.kind === 'rep' || VSHARE.kind === 'own' ? '✅ 已傳送！可以關掉這個畫面了。' : '✅ 已傳送給廠商！可以關掉這個畫面了。', true);
   }catch(err){
     renderVendorShare('傳送失敗：' + err.message);
   }
@@ -468,6 +489,20 @@ async function init(){
   }
 }
 
+async function shareConfirmToOwner(){
+  const b = document.getElementById('shareOwnerBtn');
+  if(b){ b.disabled = true; b.textContent = '準備中…'; }
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/public-task/' + encodeURIComponent(TOKEN) + '/owner-share', {cache: 'no-store'});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok || !d.liff_url) throw new Error(d.error || '產生失敗');
+    window.location.href = d.liff_url;
+  }catch(err){
+    if(b){ b.disabled = false; b.textContent = '📤 傳確認預約給屋主'; }
+    alert('產生失敗：' + err.message);
+  }
+}
+
 function render(){
   const app = document.getElementById('app');
   if(TASK.status === '已取消'){
@@ -488,6 +523,8 @@ function render(){
           ${b.registrant ? ('<br>登記人：' + b.registrant) : ''}
         </div>
       </div>
+      <div style="margin-top:14px;"><button class="btn-line" id="shareOwnerBtn" onclick="shareConfirmToOwner()">📤 傳確認預約給屋主</button>
+        <div class="hint" style="margin-top:6px;">屋主沒辦法自己填單的話，按這裡會產生確認訊息，你再選屋主的聊天室傳給他。</div></div>
       <div class="hint">如果時間需要調整，請直接聯絡窗口處理，這個連結已經不能再重新預約。</div>`;
     return;
   }
