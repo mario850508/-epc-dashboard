@@ -274,6 +274,8 @@
   .dot-rebar{background:var(--m-rebar);}
   .dot-enter{background:var(--m-enter);}
   .dot-meter{background:var(--m-meter);}
+  .dot-survey{background:#0E9AA7;}
+  .dot-stake{background:#DB2777;}
 
   .cal-grid{
     display:grid;grid-template-columns:repeat(7,1fr);
@@ -304,6 +306,12 @@
   .chip-rebar{background:var(--m-rebar-soft);color:var(--m-rebar);}
   .chip-enter{background:var(--m-enter-soft);color:var(--m-enter);}
   .chip-meter{background:var(--m-meter-soft);color:var(--m-meter);}
+  .chip-survey{background:#DDF3F5;color:#0B7A85;}
+  .chip-stake{background:#FCE4F0;color:#B21E63;}
+  .chip[data-evt]{cursor:pointer;}
+  .chip[data-evt]:hover{outline:1px solid currentColor;}
+  .day-detail-row.clickable{cursor:pointer;}
+  .day-detail-row.clickable:hover{background:var(--surface-2);}
 
   .epc-bottom{display:block;margin-top:16px;}
   .day-detail-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:12.5px;}
@@ -1187,7 +1195,8 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             </div>
           </div>
           <div class="progress-bar-track" id="surveyProgressBar"><div class="progress-bar-fill"></div></div>
-          <div class="pending-toolbar">
+          <div class="pending-toolbar" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <div id="surveyViewChips" style="display:flex;gap:6px;"></div>
             <input type="text" class="quick-mark-input" id="surveyFilterInput" placeholder="搜尋案號、地址…" oninput="tableSearchInput('survey')" style="max-width:260px;">
           </div>
           <table>
@@ -1206,6 +1215,11 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           <div class="login-note">
             🔗 資料來源是工務組另一個 Airtable base,不是這頁其他表格共用的那份,所以不會跟著下面「待安排出貨&植筋」的「手動更新」一起刷新,要自己點上面「🔄 重新整理」。列出的是「案件提供日」已經有日期(代表確定由哪間 EPC 承接)、但「實際場勘日」還空白(代表還沒去場勘)的案件;如果這個案號在「併聯審查」已經有送件或取得日期,代表早就過了場勘階段,會自動排除,不會出現在這裡。依「案件提供日」由舊到新排序,越上面代表等越久。
           </div>
+        </div>
+        <div class="panel" style="margin-top:16px;">
+          <div class="panel-title">📌 已預約的場勘／放樣 <span class="module-tag tag-cloud" style="margin-left:6px;" id="surveySlotCountTag">共 0 筆</span>
+            <span style="margin-left:8px;font-size:11px;color:var(--text-muted);font-weight:400;">來自廠商時段協調，近 7 天前起；點一列看詳細、提醒業務通知屋主</span></div>
+          <div id="surveySlotRows"><div class="login-note">載入中…</div></div>
         </div>
       </div>
 
@@ -2145,6 +2159,8 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             <div class="legend-item"><span class="dot dot-rebar"></span>植筋</div>
             <div class="legend-item"><span class="dot dot-enter"></span>進場</div>
             <div class="legend-item"><span class="dot dot-meter"></span>掛表</div>
+            <div class="legend-item"><span class="dot dot-survey"></span>場勘</div>
+            <div class="legend-item"><span class="dot dot-stake"></span>放樣</div>
             <div class="legend-item"><span style="color:#D64545;font-weight:700;">●</span>國定假日</div>
           </div>
         </div>
@@ -3611,7 +3627,39 @@ async function loadCompletedCases(){
 // base，避免兩邊一起查太頻繁），只在切到這個頁籤、或按「🔄 重新整理」時
 // 才重新抓一次（抓的也只是快取，不是現查）。
 let SURVEY_CASES = [];
+let SURVEY_VIEW = 'pending';   // pending 待安排 ／ planned 已排定 ／ all
 let surveyLastKnownUpdatedAt = null;
+function setSurveyView(v){ SURVEY_VIEW = v; renderSurveyTable(); }
+function renderSurveyViewChips(){
+  const el = document.getElementById('surveyViewChips');
+  if(!el) return;
+  const pend = SURVEY_CASES.filter(c => !c.planned_date).length;
+  const plan = SURVEY_CASES.length - pend;
+  const chip = (v, label) => `<button type="button" class="btn ${SURVEY_VIEW === v ? 'btn-primary' : 'btn-ghost'}" style="padding:5px 12px;font-size:12px;" onclick="setSurveyView('${v}')">${label}</button>`;
+  el.innerHTML = chip('pending', '待安排 ' + pend) + chip('planned', '已排定 ' + plan) + chip('all', '全部 ' + SURVEY_CASES.length);
+}
+// 已預約的場勘／放樣（廠商時段協調），近 7 天前起、日期由近到遠
+function renderSurveySlotList(){
+  const el = document.getElementById('surveySlotRows');
+  if(!el) return;
+  const from = new Date(); from.setDate(from.getDate() - 7);
+  const fromStr = fmtISODate(from.getFullYear(), from.getMonth(), from.getDate());
+  const today = todayStr();
+  const list = (typeof SLOT_BOOKINGS !== 'undefined' ? SLOT_BOOKINGS : [])
+    .filter(b => (b.type || []).some(t => t === '場勘' || t === '放樣') && b.date >= fromStr && matchesGlobalVendorScope(b.vendor))
+    .sort((a, b) => (a.date + (a.start_time || '')).localeCompare(b.date + (b.start_time || '')));
+  const tag = document.getElementById('surveySlotCountTag');
+  if(tag) tag.textContent = '共 ' + list.length + ' 筆';
+  if(!list.length){ el.innerHTML = '<div class="login-note">目前沒有已預約的場勘／放樣。（在「廠商時段協調」預約時，項目勾「場勘」或「放樣」就會出現在這裡和排程日曆。）</div>'; return; }
+  el.innerHTML = list.map(b => {
+    const past = b.date < today;
+    const chips = (b.type || []).filter(t => t === '場勘' || t === '放樣').map(t => `<span class="chip ${t === '場勘' ? 'chip-survey' : 'chip-stake'}" style="flex-shrink:0;">${t}</span>`).join('');
+    return `<div class="day-detail-row clickable" style="gap:8px;flex-wrap:wrap;${past ? 'opacity:.55;' : ''}" onclick="openSlotBookingDetail('${b.record_id}')" title="點一下看詳細／提醒業務">
+      <div class="dd-left"><span class="pm-pill" style="background:var(--surface-2);">${fmtDate(b.date)}（${fmtWeekday(b.date)}）</span>${chips}<span style="font-size:12px;font-weight:700;">${b.start_time}-${b.end_time}</span><span class="case-id">${b.case || ''}</span>${b.alias ? `<span style="font-size:11px;color:var(--text-muted);">${b.alias}</span>` : ''}</div>
+      <span style="display:flex;gap:6px;align-items:center;"><span style="font-size:11px;color:var(--text-muted);">${b.registrant || ''}</span><span class="vendor-pill ${VENDOR_CLASS[b.vendor] || 'vendor-other'}">${b.vendor || ''}</span></span>
+    </div>`;
+  }).join('');
+}
 async function loadSurveyPendingCases(){
   const tbody = document.getElementById('surveyRows');
   if(tbody && SURVEY_CASES.length === 0){
@@ -3645,6 +3693,8 @@ async function loadSurveyPendingCases(){
     }
     const bar = document.getElementById('surveyProgressBar');
     if(bar) bar.classList.toggle('show', !!data.refreshing);
+    if(typeof renderCalendar === 'function') renderCalendar();
+    if(typeof renderWeekList === 'function') renderWeekList();
     return data;
   }catch(err){
     if(tbody && SURVEY_CASES.length === 0){
@@ -3689,11 +3739,16 @@ async function triggerSurveyManualRefresh(){
 function renderSurveyTable(){
   const tbody = document.getElementById('surveyRows');
   if(!tbody) return;
-  const rows = applyTableFilterSort('survey', SURVEY_CASES);
+  renderSurveyViewChips();
+  renderSurveySlotList();
+  let base = SURVEY_CASES;
+  if(SURVEY_VIEW === 'pending') base = SURVEY_CASES.filter(c => !c.planned_date);
+  else if(SURVEY_VIEW === 'planned') base = SURVEY_CASES.filter(c => c.planned_date).sort((a, b) => (a.planned_date || '').localeCompare(b.planned_date || ''));
+  const rows = applyTableFilterSort('survey', base);
   const countTag = document.getElementById('surveyCountTag');
   if(countTag) countTag.textContent = '共 ' + rows.length + ' 筆';
   if(rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">目前沒有需要安排場勘的案件</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:30px 0;">' + (SURVEY_VIEW === 'planned' ? '目前沒有已排定場勘日的案件' : '目前沒有需要安排場勘的案件') + '</td></tr>';
     return;
   }
   const todayStr2 = todayStr();
@@ -3704,7 +3759,7 @@ function renderSurveyTable(){
       : `<span style="color:var(--text-muted);"> 等 ${waitDays} 天</span>`);
     return `
     <tr>
-      <td><div class="case-id">${r.case || '（無案號）'}</div><div class="case-alias">${r.alias||''}</div>${slotBadgeHtml(r.case)}</td>
+      <td><div class="case-id" style="cursor:pointer;text-decoration:underline dotted;" onclick="openSurveyCaseDetail('${r.record_id}')" title="點一下看詳細／提醒業務">${r.case || '（無案號）'}</div><div class="case-alias">${r.alias||''}</div>${slotBadgeHtml(r.case)}</td>
       <td>${r.vendor ? `<span class="vendor-pill ${r.vendorClass}">${r.vendor}</span>` : ''}</td>
       <td>${r.sales_person || ''}</td>
       <td>${r.address || ''}</td>
@@ -4625,6 +4680,7 @@ document.addEventListener('DOMContentLoaded', function(){
   loadCompletedCases();
   loadAppData();
   loadSlotBookingsQuiet(); // 廠商時段協調的預約，讓各案件列表可以顯示「📌 已預約」標籤
+  loadSurveyPendingCases(); // 預計場勘日也要出現在排程日曆
   loadSlotTasksQuiet();    // 業務回傳備選時間時，側邊欄/分頁要有紅點提醒
   startAutoSync();
   // 提早在背景偷偷把「模組型號」「逆變器型號」這兩份選項清單抓好，
@@ -4662,6 +4718,7 @@ function startAutoSync(){
       await loadAppData(includeArchived);
       await loadSlotBookingsQuiet(); // 業務在 book.html 剛預約的，這邊也會跟著出現標籤
       await loadSlotTasksQuiet();    // 業務剛回傳備選時間/確認時間，紅點跟任務清單也會更新
+      if(autoSyncTick % 50 === 0) await loadSurveyPendingCases();   // 場勘預計日（後端快取約 20 分鐘更新）
     }catch(err){
       // 忽略單次輪詢失敗，等下一輪繼續
     }finally{
@@ -6175,11 +6232,12 @@ function calShortLabel(caseStr, vendor){
 }
 function collectCalendarEvents(){
   const map = new Map();
-  function add(date, type, r, recordId){
+  function add(date, type, r, recordId, extra){
     if(!date) return;
     const key = date + '|' + type + '|' + (recordId || r.case);
     if(map.has(key)) return;
     map.set(key, {
+      id: date + '|' + type + '|' + r.case,
       date, type,
       record_id: recordId || r.record_id,
       case: r.case,
@@ -6190,6 +6248,7 @@ function collectCalendarEvents(){
       address: r.address,
       module: r.module || '',
       inverter: r.inverter || '',
+      ...(extra || {}),
     });
   }
   // 模組出貨與變流器出貨：同一天到貨就合併成一筆「模組&變流器」事件,不同天則各自獨立顯示
@@ -6223,22 +6282,49 @@ function collectCalendarEvents(){
     if(r.entry_date) add(r.entry_date, 'enter', r, rid);
     if(r.meter_date) add(r.meter_date, 'meter', r, rid);
   });
-  return Array.from(map.values()).filter(e => matchesGlobalVendorScope(e.vendor));
+  // 2026-10-11：場勘／放樣（廠商時段協調的預約、工務組的預計場勘日），以及時段預約的進場／掛表／植筋
+  // （案件日期欄位沒涵蓋到的才補上，同日同案同類型就不重複）
+  const have = new Set(Array.from(map.values()).map(e => e.date + '|' + e.case + '|' + (e.type === 'meter-planned' ? 'meter' : e.type)));
+  const slotList = (typeof SLOT_BOOKINGS !== 'undefined' && Array.isArray(SLOT_BOOKINGS)) ? SLOT_BOOKINGS : [];
+  const slotTypeMap = {'場勘': 'survey', '放樣': 'stake', '進場': 'enter', '掛表': 'meter-planned', '植筋': 'rebar'};
+  slotList.forEach(b => {
+    if(!b.date || !b.case) return;
+    const extra = {time: (b.start_time && b.end_time) ? b.start_time + '-' + b.end_time : '', booking_id: b.record_id, note: b.note || ''};
+    (b.type || []).forEach(t => {
+      const type = slotTypeMap[t];
+      if(!type) return;
+      const dupKey = b.date + '|' + b.case + '|' + (type === 'meter-planned' ? 'meter' : type);
+      if(have.has(dupKey)) return;
+      have.add(dupKey);
+      add(b.date, type, b, 'slot:' + b.record_id, extra);
+    });
+  });
+  (typeof SURVEY_CASES !== 'undefined' ? SURVEY_CASES : []).forEach(r => {
+    if(!r.planned_date) return;
+    const dupKey = r.planned_date + '|' + r.case + '|survey';
+    if(have.has(dupKey)) return;
+    have.add(dupKey);
+    add(r.planned_date, 'survey', r, 'survey:' + r.case, {});
+  });
+  const out = Array.from(map.values()).filter(e => matchesGlobalVendorScope(e.vendor));
+  window.CAL_EVENT_MAP = {};
+  out.forEach(e => { window.CAL_EVENT_MAP[e.id] = e; });
+  return out;
 }
 const CAL_TYPE_LABEL = {
   'ship-module': '模組出貨', 'ship-inverter': '變流器出貨', 'ship-both': '模組&變流器出貨',
   enter: '進場', meter: '掛表', 'meter-planned': '預計掛表',
-  rebar: '植筋',
+  rebar: '植筋', survey: '場勘', stake: '放樣',
 };
 const CAL_TYPE_DOT = {
   'ship-module': 'dot-ship', 'ship-inverter': 'dot-ship', 'ship-both': 'dot-ship',
   enter: 'dot-enter', meter: 'dot-meter', 'meter-planned': 'dot-meter',
-  rebar: 'dot-rebar',
+  rebar: 'dot-rebar', survey: 'dot-survey', stake: 'dot-stake',
 };
 const CAL_TYPE_CHIP = {
   'ship-module': 'chip-ship', 'ship-inverter': 'chip-ship', 'ship-both': 'chip-ship',
   enter: 'chip-enter', meter: 'chip-meter', 'meter-planned': 'chip-meter',
-  rebar: 'chip-rebar',
+  rebar: 'chip-rebar', survey: 'chip-survey', stake: 'chip-stake',
 };
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
@@ -6284,9 +6370,9 @@ function renderDayDetail(dateStr){
       if(parts.length) specLine = `<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">${parts.join('　')}</div>`;
     }
     return `
-    <div class="day-detail-row" style="align-items:flex-start;">
+    <div class="day-detail-row clickable" style="align-items:flex-start;" data-evt="${e.id.replace(/"/g, '&quot;')}" onclick="showEventDetail(this.dataset.evt)" title="點一下看詳細／提醒業務">
       <div class="dd-left" style="flex-direction:column;align-items:flex-start;gap:2px;">
-        <div style="display:flex;align-items:center;gap:8px;"><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span>${e.alias ? `<span style="font-size:11px;color:var(--text-muted);">${e.alias}</span>` : ''} ${CAL_TYPE_LABEL[e.type]}</div>
+        <div style="display:flex;align-items:center;gap:8px;"><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span>${e.alias ? `<span style="font-size:11px;color:var(--text-muted);">${e.alias}</span>` : ''} ${CAL_TYPE_LABEL[e.type]}${e.time ? '　' + e.time : ''}</div>
         ${specLine}
       </div>
       <span class="vendor-pill ${VENDOR_CLASS[e.vendor] || 'vendor-other'}">${e.vendor||''}</span>
@@ -6323,8 +6409,8 @@ function renderWeekList(){
     const holidayName = TW_HOLIDAYS[e.date];
     const dayLabel = p[1] + '/' + p[2] + '（' + weekdayNames[d.getDay()] + '）' + (holidayName ? ` 🎌${holidayName}` : '');
     return `
-    <div class="day-detail-row">
-      <div class="dd-left"><span class="pm-pill" style="background:var(--surface-2);">${dayLabel}</span><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span>${e.alias ? `<span style="font-size:11px;color:var(--text-muted);">${e.alias}</span>` : ''} ${CAL_TYPE_LABEL[e.type]}</div>
+    <div class="day-detail-row clickable" data-evt="${e.id.replace(/"/g, '&quot;')}" onclick="showEventDetail(this.dataset.evt)" title="點一下看詳細／提醒業務">
+      <div class="dd-left"><span class="pm-pill" style="background:var(--surface-2);">${dayLabel}</span><span class="dot ${CAL_TYPE_DOT[e.type]}"></span><span class="case-id">${e.case}</span>${e.alias ? `<span style="font-size:11px;color:var(--text-muted);">${e.alias}</span>` : ''} ${CAL_TYPE_LABEL[e.type]}${e.time ? '　' + e.time : ''}</div>
       <span class="vendor-pill ${VENDOR_CLASS[e.vendor] || 'vendor-other'}">${e.vendor||''}</span>
     </div>
   `;
@@ -6369,7 +6455,7 @@ function renderCalendar(){
     }
     const dayEvents = eventsByDate[cellDate] || [];
     const chipsHtml = dayEvents.map(e => {
-      return `<div class="chip ${CAL_TYPE_CHIP[e.type]}" data-vendor="${e.vendorCode}" title="${e.case}　${e.vendor||''}">${e.label} ${CAL_TYPE_LABEL[e.type]}</div>`;
+      return `<div class="chip ${CAL_TYPE_CHIP[e.type]}" data-vendor="${e.vendorCode}" data-evt="${e.id.replace(/"/g, '&quot;')}" onclick="event.stopPropagation();showEventDetail(this.dataset.evt)" title="${e.case}　${e.vendor||''}${e.time ? '　' + e.time : ''}（點一下看詳細）">${e.label} ${CAL_TYPE_LABEL[e.type]}</div>`;
     }).join('');
     const isToday = cellDate === todayIso;
     const selectedClass = cellDate === calSelectedDate ? ' cal-cell-selected' : '';
@@ -8447,6 +8533,7 @@ async function confirmCertAbbr(id){
 })();
 </script>
 <script src="home-todo.js?v=1"></script>
+<script src="event-detail.js?v=1"></script>
 
 </body>
 </html>
