@@ -775,6 +775,12 @@
   .pdf-pm-sel.need{border-color:#F0A020;background:#FFF4DF;box-shadow:0 0 0 3px rgba(240,160,32,.18);}
   .pdf-pm-sel{padding:8px 12px;border:1px solid var(--border);border-radius:20px;font-size:13.5px;font-family:inherit;background:var(--surface);font-weight:600;color:var(--text);}
   @media (max-width:760px){ .pdf-toolbar-right{width:100%;} .pdf-pm-sel{flex:1 1 100%;} }
+  .pdf-corr-item{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--surface);}
+  .pdf-corr-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:14px;margin-bottom:4px;}
+  .pdf-corr-row{font-size:13.5px;margin:3px 0;}
+  .pdf-corr-label{display:inline-block;min-width:70px;color:var(--text-muted);font-size:12.5px;}
+  .pdf-corr-from{color:#C9383D;text-decoration:line-through;}
+  .pdf-corr-to{color:var(--success);font-weight:700;}
   .pdf-dup{font-size:11.5px;font-weight:700;color:#C9383D;margin-top:4px;white-space:nowrap;}
   .pdf-dup.keep{color:#B8720A;}
   .pdf-del{border:none;background:none;cursor:pointer;font-size:15px;opacity:.45;padding:4px 6px;margin-left:2px;vertical-align:middle;}
@@ -2440,6 +2446,27 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           <button class="modal-close" onclick="closePdfDetailModal()">✕</button>
         </div>
         <div class="modal-body" id="pdfDetailBody" style="max-height:none;"></div>
+      </div>
+    </div>
+
+    <!-- PDF 公文更名：第一次進來選「我是哪位 PM」 -->
+    <div class="modal-overlay" id="pdfPmPickOverlay">
+      <div class="modal-box" style="max-width:440px;">
+        <div class="modal-header"><div class="modal-title">👋 你是哪位 PM？</div></div>
+        <div class="modal-body">
+          <div class="pdf-sub" style="font-size:13px;margin-bottom:12px;">選一次就會記在這台電腦，之後打開網站只會看到你自己 LINE 群組收到、你上傳的公文（隨時可以在清單上方的「我是」切換）。</div>
+          <div id="pdfPmPickBtns" style="display:grid;gap:8px;"></div>
+          <div style="text-align:center;margin-top:12px;"><a href="javascript:void(0)" onclick="closePdfPmPick(true)" style="font-size:12.5px;">先看全部，之後再選</a></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PDF 公文更名：修正紀錄 -->
+    <div class="modal-overlay" id="pdfCorrOverlay" onclick="if(event.target===this) this.classList.remove('show')">
+      <div class="modal-box" style="max-width:860px;">
+        <div class="modal-header"><div class="modal-title">✏️ 修正紀錄（系統判斷錯、PM 改過的）</div>
+          <button class="modal-close" onclick="document.getElementById('pdfCorrOverlay').classList.remove('show')">✕</button></div>
+        <div class="modal-body" id="pdfCorrBody" style="max-height:72vh;"></div>
       </div>
     </div>
 
@@ -6604,6 +6631,7 @@ async function loadPdfRename(){
     renderPdfList();
     renderPdfProgress();
     renderPdfSide();
+    maybeAskPdfPm();
     if(document.getElementById('tab-pdf-line').classList.contains('active')){ renderPdfLineList(); }
   }catch(e){
     document.getElementById('pdfList').innerHTML = `<div class="login-note">⚠ 讀取失敗：${pdfEsc(e.message)}（後端剛啟動的話等一分鐘再按重新整理）</div>`;
@@ -6764,7 +6792,8 @@ function renderPdfStatus(){
   const live = lm.live || {};
   const pct = v => v === undefined ? '—' : Math.round(v * 100) + '%';
   let learn = `學習資料：歷史 ${lm.base_docs || lm.trained_on || 0} 份＋你確認過的 <b>${lm.confirmed_docs || 0}</b> 份`
-    + `｜模型更新：${lm.trained_at ? pdfFmtTime(lm.trained_at) : '內建版本'}（每天凌晨 2:30 自動重新學習）`;
+    + `｜模型更新：${lm.trained_at ? pdfFmtTime(lm.trained_at) : '內建版本'}（每天 <b>19:00</b> 下班後、凌晨 2:30 自動重新學習）`;
+  if(lm.corrected_docs !== undefined) learn += `<br>✏️ 改過的檔案會加倍學習：今天修正 <b>${lm.corrections_today || 0}</b> 份・累計 ${lm.corrected_docs} 份　<a href="javascript:void(0)" onclick="event.stopPropagation();openPdfCorrections()">看修正紀錄</a>`;
   if(lm.base_cases || lm.cv_accuracy) learn += `<br>歷史資料：${lm.base_source === '上傳版' ? `你電腦自動上傳（${pdfFmtTime(lm.base_uploaded_at)}）` : '內建版本'}`
     + `・${lm.base_cases ? lm.base_cases + ' 個案場・' : ''}沒看過的案場測試正確率 <b>${pct(lm.cv_accuracy)}</b>`
     + (lm.cv_by_cat ? `（03 ${pct(lm.cv_by_cat['03'])}・04 ${pct(lm.cv_by_cat['04'])}・06 ${pct(lm.cv_by_cat['06'])}・07 ${pct(lm.cv_by_cat['07'])}）` : '');
@@ -7291,6 +7320,48 @@ document.addEventListener('keydown', e => {
     if(id) openPdfDetail(id);
   }
 });
+
+// 第一次進到公文更名：還沒選「我是」就跳出來問一次（選了或按「之後再選」都不會再問）
+function maybeAskPdfPm(){
+  let asked = false;
+  try{ asked = !!localStorage.getItem('pdfPmAsked'); }catch(e){}
+  const names = (((PDF_STATE.status || {}).settings || {}).pm_names) || [];
+  if(asked || pdfPm() || !names.length) return;
+  document.getElementById('pdfPmPickBtns').innerHTML = names.map(n =>
+    `<button class="btn btn-primary" style="padding:12px;font-size:15px;" onclick="setPdfPm('${pdfEsc(n)}');closePdfPmPick(false)">👤 我是 ${pdfEsc(n)}</button>`).join('');
+  document.getElementById('pdfPmPickOverlay').classList.add('show');
+}
+function closePdfPmPick(skip){
+  try{ localStorage.setItem('pdfPmAsked', '1'); }catch(e){}
+  document.getElementById('pdfPmPickOverlay').classList.remove('show');
+  if(!skip) showToast(`已設定為 ${pdfPm()}，之後只會顯示你的公文`);
+}
+
+async function openPdfCorrections(){
+  const ov = document.getElementById('pdfCorrOverlay');
+  const body = document.getElementById('pdfCorrBody');
+  body.innerHTML = '<div class="login-note">載入中…</div>';
+  ov.classList.add('show');
+  try{
+    const res = await fetch(API_BASE + '/api/pdf-rename/corrections?days=14', {cache: 'no-store'});
+    const d = await res.json();
+    if(!res.ok) throw new Error(d.error || '讀取失敗');
+    const pm = pdfPm();
+    const items = (d.items || []).filter(x => !pm || (x.by || '') === pm || (x.uploader || '').includes(pm));
+    const cnt = {};
+    items.forEach(x => x.corrections.forEach(c => { if(c.field !== 'name') cnt[c.label] = (cnt[c.label] || 0) + 1; }));
+    const sum = Object.entries(cnt).map(([k, n]) => `${k} ${n} 次`).join('・');
+    body.innerHTML = `<div class="pdf-sub" style="font-size:13px;margin-bottom:10px;">最近 14 天${pm ? `（${pdfEsc(pm)}）` : ''}共 <b>${items.length}</b> 份改過${sum ? `：${sum}` : ''}。每天 19:00 會把這些修正加倍學進模型，同樣的錯就比較不會再出現。</div>`
+      + (items.length ? items.map(x => `<div class="pdf-corr-item">
+          <div class="pdf-corr-head"><b>${pdfEsc(x.final_name)}</b><span class="pdf-sub" style="margin:0;">${pdfEsc(x.by)}・${pdfEsc(pdfFmtTime(x.at))}</span></div>
+          ${x.corrections.filter(c => c.field !== 'name' || x.corrections.length === 1).map(c => `<div class="pdf-corr-row"><span class="pdf-corr-label">${pdfEsc(c.label)}</span>
+            <span class="pdf-corr-from">${pdfEsc(c.from || '（空）')}</span> → <span class="pdf-corr-to">${pdfEsc(c.to || '（空）')}</span></div>`).join('')}
+          <div class="pdf-sub">原檔：${pdfEsc(x.src_name)}</div></div>`).join('')
+        : '<div class="pdf-empty"><b>👍</b>最近沒有需要修正的檔案。</div>');
+  }catch(e){
+    body.innerHTML = `<div class="login-note">⚠ ${pdfEsc(e.message)}</div>`;
+  }
+}
 
 function closePdfDetailModal(){
   document.getElementById('pdfDetailModalOverlay').classList.remove('show');
