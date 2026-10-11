@@ -1218,7 +1218,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         </div>
         <div class="panel" style="margin-top:16px;">
           <div class="panel-title">📌 已預約的場勘／放樣 <span class="module-tag tag-cloud" style="margin-left:6px;" id="surveySlotCountTag">共 0 筆</span>
-            <span style="margin-left:8px;font-size:11px;color:var(--text-muted);font-weight:400;">來自廠商時段協調，近 7 天前起；點一列看詳細、提醒業務通知屋主</span></div>
+            <span style="margin-left:8px;font-size:11px;color:var(--text-muted);font-weight:400;">來自廠商時段協調，只列今天以後（過了的會移到歷史紀錄）；點一列看詳細、提醒業務通知屋主</span></div>
           <div id="surveySlotRows"><div class="login-note">載入中…</div></div>
         </div>
       </div>
@@ -3646,7 +3646,7 @@ function renderSurveySlotList(){
   const fromStr = fmtISODate(from.getFullYear(), from.getMonth(), from.getDate());
   const today = todayStr();
   const list = (typeof SLOT_BOOKINGS !== 'undefined' ? SLOT_BOOKINGS : [])
-    .filter(b => (b.type || []).some(t => t === '場勘' || t === '放樣') && b.date >= fromStr && matchesGlobalVendorScope(b.vendor))
+    .filter(b => (b.type || []).some(t => t === '場勘' || t === '放樣') && b.date >= today && matchesGlobalVendorScope(b.vendor))
     .sort((a, b) => (a.date + (a.start_time || '')).localeCompare(b.date + (b.start_time || '')));
   const tag = document.getElementById('surveySlotCountTag');
   if(tag) tag.textContent = '共 ' + list.length + ' 筆';
