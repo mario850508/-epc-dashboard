@@ -76,7 +76,7 @@ function renderCaseDetail(err){
     <div style="font-size:13px;font-weight:700;margin:16px 0 6px;">📨 提醒業務通知屋主</div>
     <input id="cdNote" class="quick-mark-input" placeholder="給業務的備註（選填，例如：請提醒屋主準備好門禁）">
     <button type="button" class="btn btn-primary" id="cdRemindBtn" style="width:100%;justify-content:center;padding:11px;margin-top:10px;" onclick="sendCaseReminder(false)">${
-      b.rep_name && b.rep_bound ? '用機器人傳給 ' + escHtml(b.rep_name) : '產生提醒（轉傳給代辦同事）'}</button>
+      b.rep_name && b.rep_bound ? '用機器人傳給 ' + escHtml(b.rep_name) : '產生提醒'}</button>
     ${b.rep_name && b.rep_bound ? '<button type="button" class="btn btn-ghost" style="width:100%;justify-content:center;padding:9px;margin-top:6px;font-size:12px;" onclick="sendCaseReminder(true)">改轉傳給其他人（業務離職／由別人處理）</button>' : ''}
     <div id="cdResult"></div>`
     : `<div style="font-size:12px;color:#6B7280;margin-top:14px;">${o.kind && o.date ? '這個日期已經過了，不能發提醒。' : '這個案件還沒有排定日期，所以沒有可以提醒的行程。'}</div>`;
