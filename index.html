@@ -311,6 +311,9 @@
   .chip[data-evt]{cursor:pointer;}
   .chip[data-evt]:hover{outline:1px solid currentColor;}
   .day-detail-row.clickable{cursor:pointer;}
+  .type-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;border:1px solid var(--border);background:#fff;font-size:11.5px;cursor:pointer;color:var(--text-muted);font-family:inherit;}
+  .type-chip:hover{border-color:var(--primary);}
+  .type-chip.on{border-color:var(--primary);background:var(--primary-soft);color:var(--text);font-weight:700;}
   .day-detail-row.clickable:hover{background:var(--surface-2);}
 
   .epc-bottom{display:block;margin-top:16px;}
@@ -1174,6 +1177,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
       <div class="subview active" id="tab-epc-week">
         <div class="panel">
           <div class="panel-title" id="weekRangeTitle">近一週安排</div>
+          <div class="cal-type-filter" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
           <div id="weekRows">
             <div class="login-note">載入中…</div>
           </div>
@@ -2154,13 +2158,8 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             <div class="cal-month" id="calMonthLabel">2026年8月</div>
             <button class="icon-btn" onclick="changeCalMonth(1)">›</button>
           </div>
-          <div class="legend">
-            <div class="legend-item"><span class="dot dot-ship"></span>模組/變流器出貨</div>
-            <div class="legend-item"><span class="dot dot-rebar"></span>植筋</div>
-            <div class="legend-item"><span class="dot dot-enter"></span>進場</div>
-            <div class="legend-item"><span class="dot dot-meter"></span>掛表</div>
-            <div class="legend-item"><span class="dot dot-survey"></span>場勘</div>
-            <div class="legend-item"><span class="dot dot-stake"></span>放樣</div>
+          <div class="legend" style="align-items:center;">
+            <div class="cal-type-filter" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
             <div class="legend-item"><span style="color:#D64545;font-weight:700;">●</span>國定假日</div>
           </div>
         </div>
@@ -6230,6 +6229,36 @@ function calShortLabel(caseStr, vendor){
   const code = caseAbbrCode(caseStr);
   return (vendor || '') + ' ' + code + (digits ? digits[0] : '');
 }
+// 2026-10-11：行程種類篩選（排程日曆／當日排程／近一週共用）。沒選＝全部顯示，可複選，記在瀏覽器。
+const CAL_GROUPS = [
+  {key: 'ship', label: '出貨', dot: 'dot-ship'}, {key: 'rebar', label: '植筋', dot: 'dot-rebar'},
+  {key: 'enter', label: '進場', dot: 'dot-enter'}, {key: 'meter', label: '掛表', dot: 'dot-meter'},
+  {key: 'survey', label: '場勘', dot: 'dot-survey'}, {key: 'stake', label: '放樣', dot: 'dot-stake'},
+];
+const CAL_TYPE_GROUP = {'ship-module': 'ship', 'ship-inverter': 'ship', 'ship-both': 'ship', enter: 'enter',
+  meter: 'meter', 'meter-planned': 'meter', rebar: 'rebar', survey: 'survey', stake: 'stake'};
+const CAL_TYPE_SCOPE_KEY = 'epc_cal_type_scope';
+let CAL_TYPE_SCOPE = (() => {
+  try{ const a = JSON.parse(localStorage.getItem(CAL_TYPE_SCOPE_KEY) || '[]'); return new Set(Array.isArray(a) ? a : []); }
+  catch(e){ return new Set(); }
+})();
+function matchesCalTypeScope(type){ return CAL_TYPE_SCOPE.size === 0 || CAL_TYPE_SCOPE.has(CAL_TYPE_GROUP[type]); }
+function renderCalTypeFilter(){
+  const html = `<button type="button" class="type-chip ${CAL_TYPE_SCOPE.size === 0 ? 'on' : ''}" onclick="toggleCalGroup('all')">全部</button>`
+    + CAL_GROUPS.map(g => `<button type="button" class="type-chip ${CAL_TYPE_SCOPE.has(g.key) ? 'on' : ''}" onclick="toggleCalGroup('${g.key}')"><span class="dot ${g.dot}"></span>${g.label}</button>`).join('');
+  document.querySelectorAll('.cal-type-filter').forEach(el => { el.innerHTML = html; });
+}
+function toggleCalGroup(key){
+  if(key === 'all') CAL_TYPE_SCOPE.clear();
+  else if(CAL_TYPE_SCOPE.has(key)) CAL_TYPE_SCOPE.delete(key);
+  else CAL_TYPE_SCOPE.add(key);
+  try{ localStorage.setItem(CAL_TYPE_SCOPE_KEY, JSON.stringify(Array.from(CAL_TYPE_SCOPE))); }catch(e){}
+  renderCalTypeFilter();
+  renderCalendar();
+  renderWeekList();
+}
+document.addEventListener('DOMContentLoaded', renderCalTypeFilter);
+
 function collectCalendarEvents(){
   const map = new Map();
   function add(date, type, r, recordId, extra){
@@ -6306,7 +6335,7 @@ function collectCalendarEvents(){
     have.add(dupKey);
     add(r.planned_date, 'survey', r, 'survey:' + r.case, {});
   });
-  const out = Array.from(map.values()).filter(e => matchesGlobalVendorScope(e.vendor));
+  const out = Array.from(map.values()).filter(e => matchesGlobalVendorScope(e.vendor) && matchesCalTypeScope(e.type));
   window.CAL_EVENT_MAP = {};
   out.forEach(e => { window.CAL_EVENT_MAP[e.id] = e; });
   return out;
