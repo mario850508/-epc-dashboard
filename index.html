@@ -544,6 +544,11 @@
     .cal-cell{min-height:60px;padding:4px;}
     .chip{font-size:9px;padding:1px 4px;}
     .cal-month{font-size:14px;min-width:auto;}
+    .cal-grid{grid-template-columns:repeat(7,minmax(0,1fr));}
+    .cal-cell{display:block;min-height:58px;padding:3px;overflow:hidden;}
+    .cal-cell .chip{display:inline-block;font-size:0;width:9px;height:9px;padding:0;margin:1px;border-radius:50%;background:currentColor;pointer-events:none;vertical-align:top;}
+    .cal-cell .cal-date{margin-bottom:1px;}
+    .cal-dow{padding:6px 0;}
     .note-add-row, .note-add-row-wide, .pending-toolbar{flex-wrap:wrap;}
     .note-add-row-wide input:first-child{flex:1 1 100%;}
     /* iOS Safari 會在 input font-size 小於 16px 時自動放大畫面，統一調成 16px 避免這個狀況 */
@@ -6364,6 +6369,10 @@ function selectCalDay(dateStr){
   const cell = document.querySelector(`#calGrid .cal-cell[data-date="${dateStr}"]`);
   if(cell) cell.classList.add('cal-cell-selected');
   renderDayDetail(dateStr);
+  if(window.innerWidth <= 860){
+    const t = document.getElementById('dayDetailTitle');
+    if(t) t.scrollIntoView({behavior: 'smooth', block: 'start'});
+  }
 }
 function renderDayDetail(dateStr){
   const title = document.getElementById('dayDetailTitle');
