@@ -6646,7 +6646,8 @@ function pdfLoadBar(on, fromCache){
   // 很快就載完的（背景自動更新）不顯示，避免閃一下
   PDF_STATE.loadDelay = setTimeout(() => { draw(); PDF_STATE.loadTimer = setInterval(draw, 1000); }, 1200);
 }
-async function loadPdfRename(){
+async function loadPdfRename(silent){
+  silent = silent === true;   // 背景自動更新：不顯示載入條、失敗不跳提示
   let fromCache = false;
   if(!PDF_STATE.items.length && !PDF_STATE.status){
     try{
@@ -6662,7 +6663,7 @@ async function loadPdfRename(){
   }
   const pmSel0 = document.getElementById('pdfPmSel');
   if(pmSel0 && !pmSel0.options.length) pmSel0.innerHTML = pdfPmOptions();
-  pdfLoadBar(true, fromCache || PDF_STATE.items.length > 0);
+  if(!silent) pdfLoadBar(true, fromCache || PDF_STATE.items.length > 0);
   try{
     const [sRes, iRes] = await Promise.all([
       fetch(API_BASE + '/api/pdf-rename/status', {cache: 'no-store'}),
@@ -6680,9 +6681,9 @@ async function loadPdfRename(){
     if(document.getElementById('tab-pdf-line').classList.contains('active')){ renderPdfLineList(); }
   }catch(e){
     if(!PDF_STATE.items.length) document.getElementById('pdfList').innerHTML = `<div class="login-note">⚠ 讀取失敗：${pdfEsc(e.message)}（伺服器剛啟動的話等一分鐘再按 🔄）</div>`;
-    else showToast('更新清單失敗：' + e.message + '（先顯示上次的資料）');
+    else if(!silent) showToast('更新清單失敗：' + e.message + '（先顯示上次的資料）');
   }
-  pdfLoadBar(false);
+  if(!silent) pdfLoadBar(false);
   schedulePdfPoll();
 }
 
@@ -6693,9 +6694,16 @@ function schedulePdfPoll(){
   if(!view || !view.classList.contains('active')) return;
   const pr = PDF_STATE.progress || {};
   const busy = PDF_STATE.items.some(x => x.status === '待辨識' || x.status === '辨識中') || pr.running;
-  if(!busy) return;
-  PDF_STATE.timer = setTimeout(pr.running ? pollPdfProgress : loadPdfRename, pr.running ? 3000 : 20000);
+  // 沒在辨識時每 30 秒也看一下有沒有 LINE 新送來的檔案（後端有快取，很快）
+  PDF_STATE.timer = setTimeout(pr.running ? pollPdfProgress : () => document.hidden ? schedulePdfPoll() : loadPdfRename(true),
+                               pr.running ? 3000 : (busy ? 20000 : 30000));
 }
+
+// 切回這個分頁時馬上更新一次
+document.addEventListener('visibilitychange', () => {
+  const view = document.getElementById('view-pdf');
+  if(document.visibilityState === 'visible' && view && view.classList.contains('active')) loadPdfRename(true);
+});
 
 async function pollPdfProgress(){
   const before = PDF_STATE.progress || {};
@@ -6703,7 +6711,7 @@ async function pollPdfProgress(){
     const res = await fetch(API_BASE + '/api/pdf-rename/progress', {cache: 'no-store'});
     const pr = await res.json();
     PDF_STATE.progress = pr;
-    if(!pr.running || pr.done !== before.done){ loadPdfRename(); return; }
+    if(!pr.running || pr.done !== before.done){ loadPdfRename(true); return; }
     renderPdfProgress();
     updatePdfRowSteps();
   }catch(e){}
