@@ -772,6 +772,7 @@
   .pdf-card-btns{display:flex;gap:6px;margin-top:8px;}
   .pdf-card-btns .btn{flex:1;margin:0 !important;padding:9px !important;font-size:13px !important;}
   .pdf-toolbar-right{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .pdf-pm-sel.need{border-color:#F0A020;background:#FFF4DF;box-shadow:0 0 0 3px rgba(240,160,32,.18);}
   .pdf-pm-sel{padding:8px 12px;border:1px solid var(--border);border-radius:20px;font-size:13.5px;font-family:inherit;background:var(--surface);font-weight:600;color:var(--text);}
   @media (max-width:760px){ .pdf-toolbar-right{width:100%;} .pdf-pm-sel{flex:1 1 100%;} }
   .pdf-dup{font-size:11.5px;font-weight:700;color:#C9383D;margin-top:4px;white-space:nowrap;}
@@ -1112,7 +1113,8 @@
       <div class="subview" id="tab-pdf-line">
         <div class="panel" style="margin-bottom:14px;">
           <div class="panel-title">📂 LINE 收件資料夾（每位 PM 一個，背景自動辨識）</div>
-          <div class="pdf-sub" style="margin-bottom:10px;">LINE 官方帳號把廠商群組的檔案下載到每位 PM 自己的資料夾。在這裡設定資料夾路徑，PM 電腦上的背景程式每分鐘檢查一次，有新的 PDF、照片（JPG/PNG，自動轉成 PDF）、Word／Excel 就自動送去辨識（重複的檔案不會重複辨識）。路徑隨時可以在這裡改，不用重裝。</div>
+          <div class="pdf-sub" style="margin-bottom:10px;">✅ LINE 廠商群組的檔案現在由 LINE 收件機器人（line-pdf-collector）收到後<b>直接送進主控台</b>，依群組分給家豪／敏萱／宇哲，不需要在電腦上設定資料夾。<br>
+          這裡只在「電腦上另外有一個要監看的資料夾」時才需要填；PM 電腦安裝背景程式主要是為了<b>自動歸檔到 G 槽</b>（資料夾路徑留空＝只負責歸檔）。</div>
           <div style="overflow-x:auto;"><table class="pdf-rules-table" style="min-width:720px;">
             <thead><tr><th style="width:13%;">PM</th><th>資料夾路徑（PM 電腦上的完整路徑）</th><th style="width:7%;">啟用</th><th style="width:30%;">這台電腦的狀態</th><th style="width:30px;"></th></tr></thead>
             <tbody id="pdfWatcherRows"></tbody>
@@ -6565,12 +6567,13 @@ function pdfMine(x){
 }
 function pdfItems(){ return PDF_STATE.items.filter(pdfMine); }
 function pdfPmOptions(){
-  const ws = (((PDF_STATE.status || {}).settings || {}).watchers || []).filter(w => w.pm && w.folder).map(w => w.pm);
+  const st = (PDF_STATE.status || {}).settings || {};
+  const ws = [...(st.pm_names || []), ...(st.watchers || []).filter(w => w.pm && w.folder).map(w => w.pm)];
   const seen = PDF_STATE.items.flatMap(x => (x.uploader || '').split('、').map(t => t.trim())).filter(t => t && !/自動|主控台/.test(t));
   const names = [...new Set([...ws, ...seen])];
   const cur = pdfPm();
   if(cur && !names.includes(cur)) names.push(cur);
-  return `<option value="">👥 全部 PM</option>` + names.map(n => `<option value="${pdfEsc(n)}" ${n === cur ? 'selected' : ''}>👤 我是 ${pdfEsc(n)}（只看我的）</option>`).join('');
+  return `<option value="">${cur ? '👥 全部 PM' : '👤 選擇我是誰（只看自己的檔案）'}</option>` + names.map(n => `<option value="${pdfEsc(n)}" ${n === cur ? 'selected' : ''}>👤 我是 ${pdfEsc(n)}（只看我的）</option>`).join('');
 }
 function pdfFmtTime(iso){
   if(!iso) return '';
@@ -6866,7 +6869,7 @@ function pdfRowIssue(x){
 function renderPdfList(){
   const items = pdfItems();
   const pmSel = document.getElementById('pdfPmSel');
-  if(pmSel) pmSel.innerHTML = pdfPmOptions();
+  if(pmSel){ pmSel.innerHTML = pdfPmOptions(); pmSel.classList.toggle('need', !pdfPm()); }
   const q = PDF_STATE.q || '';
   document.getElementById('pdfChips').innerHTML = PDF_FILTERS.map(([k, label]) =>
     `<div class="pdf-chip ${PDF_STATE.filter === k ? 'active' : ''}" onclick="setPdfFilter('${k}')">${label}（${items.filter(x => pdfMatch(x, k)).length}）</div>`).join('');
