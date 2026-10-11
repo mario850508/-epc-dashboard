@@ -771,6 +771,9 @@
   .pdf-newname.pending{font-weight:500;color:var(--text-muted);font-size:13px;}
   .pdf-card-btns{display:flex;gap:6px;margin-top:8px;}
   .pdf-card-btns .btn{flex:1;margin:0 !important;padding:9px !important;font-size:13px !important;}
+  .pdf-toolbar-right{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .pdf-pm-sel{padding:8px 12px;border:1px solid var(--border);border-radius:20px;font-size:13.5px;font-family:inherit;background:var(--surface);font-weight:600;color:var(--text);}
+  @media (max-width:760px){ .pdf-toolbar-right{width:100%;} .pdf-pm-sel{flex:1 1 100%;} }
   .pdf-dup{font-size:11.5px;font-weight:700;color:#C9383D;margin-top:4px;white-space:nowrap;}
   .pdf-dup.keep{color:#B8720A;}
   .pdf-del{border:none;background:none;cursor:pointer;font-size:15px;opacity:.45;padding:4px 6px;margin-left:2px;vertical-align:middle;}
@@ -1088,7 +1091,10 @@
         <div class="panel pdf-list-panel">
           <div class="pdf-toolbar">
             <div class="pdf-chips" id="pdfChips"></div>
-            <input class="pdf-search" id="pdfSearch" type="search" placeholder="🔍 搜尋案號、簡稱、檔名、PM…" oninput="PDF_STATE.q = this.value.trim(); renderPdfList();">
+            <div class="pdf-toolbar-right">
+              <select class="pdf-pm-sel" id="pdfPmSel" onchange="setPdfPm(this.value)" title="三位 PM 共用：選自己就只看自己收到／上傳的檔案"></select>
+              <input class="pdf-search" id="pdfSearch" type="search" placeholder="🔍 搜尋案號、簡稱、檔名、PM…" oninput="PDF_STATE.q = this.value.trim(); renderPdfList();">
+            </div>
           </div>
           <div id="pdfBatchBar"></div>
           <div id="pdfList"><div class="login-note">載入中…</div></div>
@@ -6535,8 +6541,36 @@ const PDF_FILTERS = [
 let PDF_STATE = {items: [], status: null, filter: '待確認', current: null, timer: null, q: '', selected: new Set(), order: []};
 
 function pdfEsc(v){ return certEsc(v); }
+// 「我是」：三位 PM 共用主控台，各自只看自己收到／上傳的檔案（空白＝看全部）
+function pdfPm(){
+  try{ return localStorage.getItem('pdfPm') || ''; }catch(e){ return PDF_STATE.pm || ''; }
+}
+function setPdfPm(v){
+  PDF_STATE.pm = v;
+  try{ localStorage.setItem('pdfPm', v); }catch(e){}
+  PDF_STATE.selected.clear();
+  renderPdfStatus(); renderPdfList(); renderPdfSide(); renderPdfProgress();
+}
 function pdfUser(){
+  const pm = pdfPm();
+  if(pm) return pm;
   try{ return localStorage.getItem('slotSchedulerName') || ''; }catch(e){ return ''; }
+}
+// 這份是不是「我的」：收件人（好幾位 PM 都收到時用「、」隔開）或來源有我的名字；沒有收件人的舊檔案大家都看得到
+function pdfMine(x){
+  const pm = pdfPm();
+  if(!pm) return true;
+  const who = (x.uploader || '').split('、').map(t => t.trim()).filter(Boolean);
+  return !who.length || who.includes(pm) || (x.source || '').includes(pm);
+}
+function pdfItems(){ return PDF_STATE.items.filter(pdfMine); }
+function pdfPmOptions(){
+  const ws = (((PDF_STATE.status || {}).settings || {}).watchers || []).filter(w => w.pm && w.folder).map(w => w.pm);
+  const seen = PDF_STATE.items.flatMap(x => (x.uploader || '').split('、').map(t => t.trim())).filter(t => t && !/自動|主控台/.test(t));
+  const names = [...new Set([...ws, ...seen])];
+  const cur = pdfPm();
+  if(cur && !names.includes(cur)) names.push(cur);
+  return `<option value="">👥 全部 PM</option>` + names.map(n => `<option value="${pdfEsc(n)}" ${n === cur ? 'selected' : ''}>👤 我是 ${pdfEsc(n)}（只看我的）</option>`).join('');
 }
 function pdfFmtTime(iso){
   if(!iso) return '';
@@ -6649,7 +6683,7 @@ function updatePdfRowSteps(){
 function renderPdfSide(){
   const el = document.getElementById('pdfSide');
   if(!el) return;
-  const items = PDF_STATE.items;
+  const items = pdfItems();
   const today = pdfFmtTime(new Date().toISOString()).slice(0, 10);
   const isToday = v => v && pdfFmtTime(v).slice(0, 10) === today;
   const recv = items.filter(x => isToday(x.uploaded_at)).length;
@@ -6687,7 +6721,8 @@ function renderPdfSide(){
 
 function renderPdfStatus(){
   const s = PDF_STATE.status || {};
-  const c = s.counts || {};
+  const c = {};
+  for(const x of pdfItems()) c[x.status] = (c[x.status] || 0) + 1;   // 依「我是」篩選後的數量
   const st = s.settings || {};
   const stat = (label, num, filter, cls) =>
     `<div class="pdf-stat ${cls || ''} ${PDF_STATE.filter === filter ? 'sel' : ''}" onclick="setPdfFilter('${filter}')"><div class="pdf-stat-num">${num}</div><div class="pdf-stat-label">${label}</div></div>`;
@@ -6803,7 +6838,7 @@ function pdfSelectable(x){ return x.status !== '辨識中'; }
 // 重複：同案號＋同類型＋同日期的其他檔案（辨識失敗的不算）。每組保留一份：已歸檔＞已確認＞待確認，同狀態留最早收到的
 function pdfDupGroups(){
   const groups = {};
-  for(const x of PDF_STATE.items){
+  for(const x of pdfItems()){
     if(!x.case_no || !x.doc_type || x.status === '辨識失敗' || x.status === '辨識中' || x.status === '待辨識') continue;
     (groups[`${x.case_no}|${x.doc_type}|${x.doc_date}`] ||= []).push(x);
   }
@@ -6829,7 +6864,9 @@ function pdfRowIssue(x){
 }
 
 function renderPdfList(){
-  const items = PDF_STATE.items;
+  const items = pdfItems();
+  const pmSel = document.getElementById('pdfPmSel');
+  if(pmSel) pmSel.innerHTML = pdfPmOptions();
   const q = PDF_STATE.q || '';
   document.getElementById('pdfChips').innerHTML = PDF_FILTERS.map(([k, label]) =>
     `<div class="pdf-chip ${PDF_STATE.filter === k ? 'active' : ''}" onclick="setPdfFilter('${k}')">${label}（${items.filter(x => pdfMatch(x, k)).length}）</div>`).join('');
@@ -6921,10 +6958,10 @@ async function deletePdfBatch(){
 function togglePdfSelect(id, on){
   if(on) PDF_STATE.selected.add(id); else PDF_STATE.selected.delete(id);
   document.querySelectorAll(`#pdfList input[data-id="${id}"]`).forEach(el => { el.checked = on; });
-  renderPdfBatchBar(PDF_STATE.items.filter(x => pdfMatch(x, PDF_STATE.filter) && pdfSearchHit(x, PDF_STATE.q || '')));
+  renderPdfBatchBar(pdfItems().filter(x => pdfMatch(x, PDF_STATE.filter) && pdfSearchHit(x, PDF_STATE.q || '')));
 }
 function selectPdfHigh(min){
-  PDF_STATE.items.filter(x => pdfMatch(x, PDF_STATE.filter) && pdfSearchHit(x, PDF_STATE.q || '') && pdfReady(x) && (x.confidence || 0) >= min && !x.same_type.length)
+  pdfItems().filter(x => pdfMatch(x, PDF_STATE.filter) && pdfSearchHit(x, PDF_STATE.q || '') && pdfReady(x) && (x.confidence || 0) >= min && !x.same_type.length)
     .filter(x => !(((PDF_STATE.dups || {}).keepOf || {})[x.id]))
     .forEach(x => PDF_STATE.selected.add(x.id));
   renderPdfList();
@@ -6957,8 +6994,9 @@ async function quickConfirmPdf(id, btnEl){
   try{
     const res = await fetch(API_BASE + `/api/pdf-rename/${id}/confirm`, {method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({case_no: x.case_no, doc_type: x.doc_type, doc_date: x.doc_date, final_name: x.final_name || x.suggested_name,
-                            archive: arcOn, user: pdfUser() || '主控台'})});
+                            archive: arcOn, user: pdfUser() || '主控台', expect_status: x.status})});
     const data = await res.json();
+    if(res.status === 409){ showToast(data.error); loadPdfRename(); return; }
     if(!res.ok) throw new Error(data.error || '確認失敗');
     showToast(`已確認：${data.final_name}` + (arcOn ? '，會自動歸檔' : '') + (data.writeback ? '｜' + data.writeback.split('\n').filter(l => l.startsWith('✓')).join('、') : ''));
     if(!arcOn) downloadPdf(id);   // 沒開自動歸檔：直接用新檔名下載
@@ -6996,7 +7034,7 @@ async function confirmPdfBatch(){
     try{
       const res = await fetch(API_BASE + `/api/pdf-rename/${x.id}/confirm`, {method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({case_no: x.case_no, doc_type: x.doc_type, doc_date: x.doc_date, final_name: x.final_name || x.suggested_name,
-                              archive: arcOn, user: pdfUser() || '主控台'})});
+                              archive: arcOn, user: pdfUser() || '主控台', expect_status: x.status})});
       const data = await res.json();
       if(!res.ok) throw new Error(data.error || '失敗');
       ok++;
@@ -7309,6 +7347,7 @@ async function confirmPdf(goNext){
     doc_date: document.getElementById('pdfFormDate').value,
     final_name: document.getElementById('pdfFormName').value.trim(),
     user: pdfUser() || '主控台',
+    expect_status: x.status,   // 打開時的狀態：期間被別的 PM 確認了，後端會擋下來
   };
   body.ids = {};
   document.querySelectorAll('.pdf-id-input').forEach(el => { if(el.value.trim()) body.ids[el.dataset.field] = [el.value.trim()]; });
