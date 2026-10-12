@@ -1126,7 +1126,7 @@
         <div class="panel" style="margin-bottom:14px;">
           <div class="panel-title">📂 LINE 收件資料夾（每位 PM 一個，背景自動辨識）</div>
           <div class="pdf-sub" style="margin-bottom:10px;">✅ LINE 廠商群組的檔案現在由 LINE 收件機器人（line-pdf-collector）收到後<b>直接送進主控台</b>，依群組分給家豪／敏萱／宇哲，不需要在電腦上設定資料夾。<br>
-          這裡只在「電腦上另外有一個要監看的資料夾」時才需要填；PM 電腦安裝背景程式主要是為了<b>自動歸檔到 G 槽</b>（資料夾路徑留空＝只負責歸檔）。</div>
+          填了資料夾，這位 PM 的 LINE 檔案會再下載一份<b>原檔</b>（原檔名，前面加收件時間）到那台電腦的資料夾留底，永遠不刪；自己丟進這個資料夾的檔案也會自動送辨識。PM 電腦安裝背景程式也是為了<b>自動歸檔到 G 槽</b>（資料夾路徑留空＝只負責歸檔）。</div>
           <div style="overflow-x:auto;"><table class="pdf-rules-table" style="min-width:720px;">
             <thead><tr><th style="width:13%;">PM</th><th>資料夾路徑（PM 電腦上的完整路徑）</th><th style="width:7%;">啟用</th><th style="width:30%;">這台電腦的狀態</th><th style="width:30px;"></th></tr></thead>
             <tbody id="pdfWatcherRows"></tbody>
@@ -6784,7 +6784,7 @@ function renderPdfSide(){
     const h = ws[w.pm] || {};
     const age = h.at ? (Date.now() - new Date(h.at)) / 60000 : Infinity;
     const cls = !h.at ? '' : age > 5 ? 'bad' : (h.last_error || h.archive_error ? 'warn' : 'ok');
-    const txt = !h.at ? '還沒連線' : age > 5 ? `最後回報 ${pdfFmtTime(h.at).slice(5)}（電腦可能關機）` : (h.last_error || h.archive_error || (h.archive_only ? `只負責歸檔・已歸檔 ${h.archived_total || 0} 份` : `運作中・已送出 ${h.uploaded_total || 0} 份`));
+    const txt = !h.at ? '還沒連線' : age > 5 ? `最後回報 ${pdfFmtTime(h.at).slice(5)}（電腦可能關機）` : (h.last_error || h.archive_error || (h.archive_only ? `只負責歸檔・已歸檔 ${h.archived_total || 0} 份` : `運作中・已備份原檔 ${h.saved_total || 0} 份`));
     return `<div class="pdf-side-row" onclick="showPdfTab('pdf-line')"><span class="pdf-dot ${cls}"></span><b>${pdfEsc(w.pm)}</b><span class="grow pdf-sub" style="margin:0;" title="${pdfEsc(txt)}">${pdfEsc(txt)}</span></div>`;
   }).join('');
   const recent = items.filter(x => x.status === '已確認' || x.status === '已歸檔')
@@ -7748,13 +7748,13 @@ function pdfWatcherStatus(pm){
     ? (st.archive_only ? '<span style="color:var(--success);font-weight:700;">✓ 運作中（只負責歸檔）</span>'
        : st.folder_ok ? '<span style="color:var(--success);font-weight:700;">✓ 運作中</span>' : '<span style="color:#C9383D;font-weight:700;">⚠ 找不到資料夾</span>')
     : `<span style="color:var(--text-muted);font-weight:700;">● ${mins < 60 ? mins + ' 分鐘' : Math.round(mins / 60) + ' 小時'}前回報（電腦可能關機）</span>`;
-  const bits = [st.host && `電腦：${pdfEsc(st.host)}`, `這次開機已送 ${st.uploaded_total || 0} 份`, st.last_upload && `最近：${pdfEsc(st.last_upload)}`].filter(Boolean);
+  const bits = [st.host && `電腦：${pdfEsc(st.host)}`, !st.archive_only && `這次開機已備份 LINE 原檔 ${st.saved_total || 0} 份、資料夾送辨識 ${st.uploaded_total || 0} 份`, st.last_upload && `最近：${pdfEsc(st.last_upload)}`].filter(Boolean);
   return `${head}<div class="pdf-sub">${bits.join('・')}</div>${st.last_error ? `<div class="pdf-sub" style="color:#C9383D;">${pdfEsc(st.last_error)}</div>` : ''}`;
 }
 
 function pdfWatcherRow(w){
   return `<tr><td><input class="w-pm" value="${pdfEsc(w.pm || '')}" placeholder="名字"></td>
-    <td><input class="w-folder" value="${pdfEsc(w.folder || '')}" placeholder="LINE 下載資料夾；留空＝這台只負責歸檔（例如家裡電腦）"></td>
+    <td><input class="w-folder" value="${pdfEsc(w.folder || '')}" placeholder="LINE 原檔備份資料夾（原檔會下載一份到這裡）；留空＝這台只負責歸檔"></td>
     <td style="text-align:center;"><input type="checkbox" class="w-on" ${w.enabled !== false ? 'checked' : ''} style="width:auto;"></td>
     <td>${w.pm ? pdfWatcherStatus(w.pm) : ''}</td>
     <td><button class="modal-close" onclick="this.closest('tr').remove()">✕</button></td></tr>`;
