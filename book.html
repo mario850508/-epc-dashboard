@@ -538,6 +538,7 @@ function render(){
       <div class="sub">請跟屋主確認好時間後再送出，送出後這個時段就會鎖定、其他案件不能再卡進來</div>
       <div class="info-row"><span class="info-label">案號</span><span>${TASK.case}${TASK.alias?('　'+TASK.alias):''}</span></div>
       <div class="info-row"><span class="info-label">項目</span><span class="pill">${(TASK.type||[]).join('+')}</span></div>
+      ${(TASK.companions || []).length ? `<div class="info-row"><span class="info-label">同時預約</span><span>${TASK.companions.join('、')}（一次預約，兩案同一時段）</span></div>` : ''}
 
       <label class="alt-toggle">
         <input type="checkbox" id="altToggle" onchange="onAltToggle()">

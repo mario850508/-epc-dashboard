@@ -2607,6 +2607,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
               <input type="text" class="quick-mark-input" id="slotBookingAlias">
             </div>
           </div>
+          <div id="slotBookingCompanions" style="margin-bottom:14px;"></div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">備註（選填）</label>
           <textarea class="quick-mark-input" id="slotBookingNote" rows="2" style="margin-bottom:12px;resize:vertical;"></textarea>
           <div id="slotBookingError" style="display:none;background:#FDECEC;color:#D64545;border-radius:10px;padding:10px 12px;font-size:12px;margin-bottom:14px;line-height:1.6;"></div>
@@ -2640,6 +2641,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             </div>
           </div>
           <div id="slotTaskOwnerInfo" style="display:none;font-size:11.5px;color:var(--text-muted);margin:-8px 0 14px;">🏠 屋主聯絡資訊（來自租賃合約，業務預約頁可直接帶入）：<span id="slotTaskOwnerInfoText"></span></div>
+          <div id="slotTaskCompanions" style="margin-bottom:14px;"></div>
           <input type="hidden" id="slotTaskOwnerName">
           <input type="hidden" id="slotTaskOwnerPhone">
           <div style="display:flex;gap:10px;margin-bottom:14px;">
@@ -8376,7 +8378,7 @@ async function generateOpsPdf(id, keepModalOpen){
 // 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
 // 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
 </script>
-<script src="slots.js?v=10"></script>
+<script src="slots.js?v=11"></script>
 <script>
 // ===================================================================
 // 採購專區：變流器出廠證明歸檔紀錄（2026-10-07）

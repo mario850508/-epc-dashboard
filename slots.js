@@ -237,7 +237,7 @@ function renderSlotTasks(){
     <div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
       <span class="vendor-pill ${VENDOR_CLASS[t.vendor]||'vendor-other'}" style="flex-shrink:0;">${t.vendor}</span>
       ${typeChipsHtml(t.type)}
-      <span style="font-size:12.5px;flex:1;min-width:140px;">${t.case||''}${t.alias?('　'+t.alias):''}</span>
+      <span style="font-size:12.5px;flex:1;min-width:140px;">${t.case||''}${t.alias?('　'+t.alias):''}${(t.companions || []).length ? `<br><span style="font-size:11px;color:#6B21A8;">🔗 同時預約：${t.companions.map(escHtml).join('、')}</span>` : ''}</span>
       <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">候選：${t.candidate_dates.map(d=>fmtDate(d)).join('、')}</span>
       ${t.assignee ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">指派：${t.assignee}${isBoundName(t.assignee) ? ' <span style="color:#16A34A;font-weight:700;">✓LINE</span>' : ` <span style="color:#D97706;font-weight:700;cursor:pointer;" title="按一下複製綁定連結給業務" onclick="copyRepBindLink('${t.assignee.replace(/'/g, '')}')">⚠️未綁LINE</span>`}</span>` : ''}
       ${t.deadline ? (() => { const over = new Date(t.deadline) < new Date(); return `<span style="font-size:11px;font-weight:700;flex-shrink:0;color:${over ? '#D64545' : '#B45309'};">⏰ ${fmtDeadline(t.deadline)}${over ? '（已逾期）' : ''}</span>`; })() : ''}
@@ -355,6 +355,46 @@ async function loadSlotTasksQuiet(){
   }catch(err){ console.error('載入時段任務失敗（不影響其他頁面）', err); }
 }
 
+
+// ---- 2026-10-12：同時預約另一個案件（兩案是同一個案場拆開的，一次預約兩案）----
+// 預約成立時（業務／屋主自己預約、窗口直接預約），主案跟這裡選的案件各建一筆同時段的預約。
+const COMPANIONS = {slotTask: [], slotBooking: []};
+const COMP_RES = {slotTask: [], slotBooking: []};
+const compTimers = {};
+function renderCompanions(prefix){
+  const box = document.getElementById(prefix + 'Companions');
+  if(!box) return;
+  const list = COMPANIONS[prefix];
+  box.innerHTML = `<label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">🔗 同時預約的其他案件（選填：兩案是同一個案場拆開的，一次預約兩案）</label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">${list.map((c, i) => `<span style="background:#F3E8FF;color:#6B21A8;border-radius:12px;padding:3px 10px;font-size:12px;">${escHtml(c)} <a style="cursor:pointer;color:#B42318;" onclick="removeCompanion('${prefix}',${i})">✕</a></span>`).join('')}</div>
+    <input type="text" class="quick-mark-input" id="${prefix}CompQ" placeholder="輸入案號或別名搜尋，例如：苗栗25" autocomplete="off" oninput="searchCompanion('${prefix}', this.value)">
+    <div id="${prefix}CompRes"></div>`;
+}
+function removeCompanion(prefix, i){ COMPANIONS[prefix].splice(i, 1); renderCompanions(prefix); }
+function searchCompanion(prefix, q){
+  clearTimeout(compTimers[prefix]);
+  const res = document.getElementById(prefix + 'CompRes');
+  if(!q.trim()){ COMP_RES[prefix] = []; if(res) res.innerHTML = ''; return; }
+  compTimers[prefix] = setTimeout(async () => {
+    try{
+      const r = await fetch(API_BASE + '/api/case-search?include_certified=1&q=' + encodeURIComponent(q.trim()), {cache: 'no-store'});
+      const d = await r.json();
+      COMP_RES[prefix] = d.results || [];
+      const el = document.getElementById(prefix + 'CompRes');
+      if(el) el.innerHTML = COMP_RES[prefix].length ? '<div style="border:1px solid var(--border);border-radius:10px;margin-top:4px;max-height:160px;overflow-y:auto;background:#fff;">' + COMP_RES[prefix].map((c, i) =>
+        `<div style="padding:7px 10px;font-size:12.5px;cursor:pointer;border-bottom:1px solid var(--border);" onclick="addCompanion('${prefix}',${i})"><b>${escHtml(c.case)}</b> ${escHtml(c.alias || '')} <span style="color:var(--text-muted);">${escHtml(c.vendor || '')}</span></div>`).join('') + '</div>' : '';
+    }catch(e){}
+  }, 350);
+}
+function addCompanion(prefix, i){
+  const c = COMP_RES[prefix][i]; if(!c) return;
+  const main = (document.getElementById(prefix === 'slotTask' ? 'slotTaskCase' : 'slotBookingCase') || {}).value || '';
+  if(c.case === main.trim()){ showToast('這是主案，不用再選一次'); return; }
+  if(!COMPANIONS[prefix].includes(c.case)) COMPANIONS[prefix].push(c.case);
+  COMP_RES[prefix] = [];
+  renderCompanions(prefix);
+}
+
 let SLOT_TASK_EDIT_ID = null;
 let SLOT_TASK_EDIT_CREATORS = [];
 // 2026-10-12：預約掛表的任務，安排人員預設勾 May（負責後續掛表事項的人，使用者指定；仍可手動取消）。
@@ -371,6 +411,7 @@ function applyMeterDefaultScheduler(){
 }
 function openSlotTaskModal(){
   SLOT_TASK_EDIT_ID = null;
+  COMPANIONS.slotTask = []; renderCompanions('slotTask');
   METER_SCHEDULER_AUTO = false;
   const _mt = document.querySelector('#slotTaskModalOverlay .modal-title'); if(_mt) _mt.textContent = '📨 指派給業務';
   const _mb = document.querySelector('#slotTaskModalOverlay .btn-primary'); if(_mb) _mb.textContent = '建立任務並產生連結';
@@ -430,6 +471,7 @@ function editSlotTask(recordId){
   setv('slotTaskVendor', t.vendor);
   setv('slotTaskCase', t.case); setv('slotTaskAlias', t.alias); setv('slotTaskAssignee', t.assignee);
   updateAssigneeBindLine();
+  COMPANIONS.slotTask = [...(t.companions || [])]; renderCompanions('slotTask');
   setv('slotTaskOwnerName', t.owner_name); setv('slotTaskOwnerPhone', t.owner_phone);
   document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = (t.type || []).includes(c.value); });
   updateSlotTypeLabel('slot-task-type-check', 'slotTaskTypeLabel');
@@ -653,7 +695,7 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks' + (editing ? '/' + encodeURIComponent(editing) : ''), {
       method: editing ? 'PATCH' : 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', ...(estDelegate ? {owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2} : {owner_win_start: '09:00', owner_win_end: '17:00', owner_win2_start: '', owner_win2_end: ''}), owner_name: ownerName, owner_phone: ownerPhone, deadline}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, companions: COMPANIONS.slotTask, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', ...(estDelegate ? {owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2} : {owner_win_start: '09:00', owner_win_end: '17:00', owner_win2_start: '', owner_win2_end: ''}), owner_name: ownerName, owner_phone: ownerPhone, deadline}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
@@ -948,7 +990,7 @@ function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, c
               ${canCancel && !b.cancelled ? `<input type="checkbox" class="bn-sel" data-id="${b.record_id}" data-vendor="${escHtml(vendor)}" ${BATCH_SEL.has(b.record_id) ? 'checked' : ''} onchange="toggleBatchSel(this)" title="勾選後可以「一起通知廠商」" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;">` : ''}
               ${typeChipsHtml(b.type)}
               <span style="font-weight:700;font-size:12.5px;flex-shrink:0;">${b.start_time}-${b.end_time}</span>
-              <span style="font-size:12.5px;flex:1;min-width:120px;">${b.case||''}${b.alias?('　'+b.alias):''}</span>
+              <span style="font-size:12.5px;flex:1;min-width:120px;">${b.case||''}${b.alias?('　'+b.alias):''}${b.companions ? `<span style="font-size:11px;color:#6B21A8;margin-left:6px;">🔗 同時：${escHtml(b.companions)}</span>` : ''}</span>
               <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">${b.registrant||''}</span>
               ${b.cancelled ? `<span class="chip" style="flex-shrink:0;background:#FDECEC;color:#B42318;">❌ 已取消</span>` : ''}
               <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="showSlotBookingDetail('${b.record_id}')">📄 查看填單</button>
@@ -1211,6 +1253,7 @@ function openCancelBooking(recordId){
     <div style="font-size:13px;font-weight:700;margin:14px 0 6px;">之後要重新約嗎？</div>
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-bottom:6px;cursor:pointer;"><input type="radio" name="cbReopen" value="1" checked style="margin-top:3px;"> 要，任務退回「指派任務」，之後再重新約時間（業務／屋主連結會恢復成可以選時間）</label>
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;cursor:pointer;"><input type="radio" name="cbReopen" value="0" style="margin-top:3px;"> 不用，這個任務就結束（連結會顯示已取消）</label>
+    ${b.companions ? `<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:14px;cursor:pointer;color:#6B21A8;"><input type="checkbox" id="cbSiblings" checked style="margin-top:3px;"> 🔗 一起取消同時預約的案件：${escHtml(b.companions)}</label>` : ''}
     <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-top:14px;cursor:pointer;"><input type="checkbox" id="cbNotify" checked> 用 LINE 通知業務${p.rep ? ' ' + escHtml(p.rep) : ''}（附「複製給屋主的取消訊息」按鈕）</label>
     ${b.vendor_notified_at ? '<div style="font-size:12px;color:#D97706;margin-top:10px;">⚠️ 這筆已經通知過廠商，取消後記得也跟廠商說一聲。</div>' : ''}
     <button type="button" id="cbSubmit" class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:16px;background:#DC2626;border-color:#DC2626;" onclick="submitCancelBooking('${recordId}')">確定取消這筆預約</button>
@@ -1230,6 +1273,20 @@ async function submitCancelBooking(recordId){
     const d = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
     window._cbMsg = d.owner_message || '';
+    // 同時預約的其他案件一起取消（不重複發通知）
+    const me = SLOT_BOOKINGS.find(x => x.record_id === recordId);
+    const sib = document.getElementById('cbSiblings');
+    if(me && me.companions && sib && sib.checked){
+      const names = me.companions.split('、').map(x => x.trim()).filter(Boolean);
+      for(const sb of SLOT_BOOKINGS.filter(x => x.record_id !== recordId && x.vendor === me.vendor && x.date === me.date && x.start_time === me.start_time && x.end_time === me.end_time && names.includes(x.case))){
+        try{
+          await fetch(API_BASE + '/api/vendor-slots/' + encodeURIComponent(sb.record_id) + '/cancel', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({reason: document.getElementById('cbReason').value.trim(), reopen: false, quiet: true}),
+          });
+        }catch(e){ console.error('同時預約的案件取消失敗', e); }
+      }
+    }
     btn.style.display = 'none';
     document.getElementById('cbResult').innerHTML = `
       <div style="margin-top:14px;padding:12px 14px;background:#ECFDF3;border:1px solid #BFE6CF;border-radius:12px;font-size:13px;line-height:1.7;">
@@ -1551,6 +1608,7 @@ wireSlotCaseSearch('slotBookingCase', 'slotBookingCaseResults', 'slotBookingAlia
 
 // ---- 預約時段 modal ----
 function openSlotBookingModal(){
+  COMPANIONS.slotBooking = []; renderCompanions('slotBooking');
   const sel = document.getElementById('slotBookingVendor');
   // 2026-10-01 拿掉「開放時段」概念後，廠商選單直接列出全部廠商，日期改用
   // 自由選的 <input type="date">，選好廠商/日期才會顯示當天已卡的時段。
@@ -1611,7 +1669,7 @@ async function confirmSlotBooking(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/bookings', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, date, start_time, end_time, type, registrant, case: caseNo, alias, note}),
+      body: JSON.stringify({vendor, date, start_time, end_time, type, registrant, case: caseNo, alias, note, companions: COMPANIONS.slotBooking}),
     });
     const data = await res.json().catch(()=>({}));
     if(res.status === 409){
@@ -1622,7 +1680,7 @@ async function confirmSlotBooking(){
     }
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
     closeSlotBookingModal();
-    showToast('已預約成功');
+    showToast((data.companion_failed || []).length ? '主案已預約，但這些案件沒建成功：' + data.companion_failed.join('、') : '已預約成功');
     loadVendorSlots();
   }catch(err){
     showToast('儲存失敗：' + err.message);
