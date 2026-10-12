@@ -78,6 +78,11 @@ function repHelp(){ return `不會操作、或想改時間的話，直接回覆$
 // 某天可以選的開始時間：在屋主可選時段內、作業時間不跟施工團隊其他預約重疊
 function startOptions(date){
   const dur = D.duration_min;
+  if(D.fixed && D.windows && D.windows.length){   // PM 設定的固定時間：只有這一個選項（不整點也照列）
+    const [fa, fb] = D.windows[0].map(toMin);
+    const fb2 = (D.busy_slots || []).filter(b => b.date === date).map(b => [toMin(b.start_time), toMin(b.end_time)]);
+    return [{start: fmtMin(fa), end: fmtMin(fb), ok: !fb2.some(([bs, be]) => fa < be && bs < fb)}];
+  }
   const wins = (D.windows && D.windows.length ? D.windows : [[D.window_start, D.window_end]]).map(([a, b]) => [toMin(a), toMin(b)]);
   const busy = (D.busy_slots || []).filter(b => b.date === date).map(b => [toMin(b.start_time), toMin(b.end_time)]);
   const out = [];

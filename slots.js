@@ -719,7 +719,8 @@ async function showOwnerMessage(){
     const text = `您好，我是陽光伏特家的業務${d.assignee || ''}。\n`
       + `我們要幫您安排「${(d.items || []).join('、')}」，想請您直接點下面的連結，選一個您方便的時間（大約需要 ${slotDurationLabel(d.duration_min)}）：\n${link}\n\n`
       + `可選日期：${(d.candidate_dates || []).map(x => fmtDate(x) + '（' + fmtWeekday(x) + '）').join('、')}\n`
-      + `可選時段：${(d.windows && d.windows.length ? d.windows : [[d.window_start, d.window_end]]).map(w => w[0] + '–' + w[1]).join('、')}\n`
+      + (d.fixed ? `預約時間：${d.windows[0][0]}–${d.windows[0][1]}（請選好日期，並確認這個時間可以）\n`
+         : `可選時段：${(d.windows && d.windows.length ? d.windows : [[d.window_start, d.window_end]]).map(w => w[0] + '–' + w[1]).join('、')}\n`)
       + `如果不方便操作，直接回覆我就可以了，謝謝您！`;
     document.getElementById('slotSummaryTitle').textContent = '🏠 傳給屋主的訊息（請業務轉傳，測試中）';
     const bindNote = document.getElementById('slotSummaryBindNote');
