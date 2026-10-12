@@ -89,7 +89,7 @@ function slotTaskFilterMatch(t){
   const f = SLOT_TASK_FILTER;
   if(f.vendors.length && !f.vendors.includes(t.vendor)) return false;
   if(f.reps.length && !f.reps.includes(t.assignee)) return false;
-  if(f.schedulers.length && !f.schedulers.includes(t.creator)) return false;
+  if(f.schedulers.length && !splitNames(t.creator).some(n => f.schedulers.includes(n))) return false;
   return true;
 }
 function onSlotTaskFilterChange(el){
@@ -111,7 +111,7 @@ function renderSlotTaskFilterBar(pending, shownCount){
   const vendors = [...new Set([...pending.map(t => t.vendor), ...SLOT_TASK_FILTER.vendors].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
   const zh = (a, b) => a.localeCompare(b, 'zh-Hant');
   const reps = [...new Set([...pending.map(t => t.assignee), ...SLOT_TASK_FILTER.reps].filter(Boolean))].sort(zh);
-  const schedulers = [...new Set([...pending.map(t => t.creator), ...SLOT_TASK_FILTER.schedulers].filter(Boolean))].sort(zh);
+  const schedulers = [...new Set([...pending.flatMap(t => splitNames(t.creator)), ...SLOT_TASK_FILTER.schedulers].filter(Boolean))].sort(zh);
   const dd = (id, emptyLabel, kind, options, selected) => `
     <div class="quick-mark-input-wrap" style="min-width:170px;max-width:260px;">
       <div class="quick-mark-input slot-type-trigger" id="${id}Trigger" onclick="toggleSlotTypeDropdown('${id}Panel')">
@@ -407,15 +407,19 @@ function deadlineTimeOptionsHtml(){
 // 2026-10-05：安排人員（建立任務的同仁）。業務完成安排／回傳其他時間／期限快到時，
 // 後端會用 LINE 通知這個人（名字對應「業務LINE綁定」表）。名單只含已綁定 LINE 的人。
 let SLOT_SCHEDULERS = [];
+// 安排人員可以複選（2026-10-12）：建立人欄位存成「A、B」，後端每位都通知。
+function splitNames(s){ return String(s || '').split(/[、,，;；]+/).map(x => x.trim()).filter(Boolean); }
+function getSlotCreators(){ return [...document.querySelectorAll('#slotTaskCreator input:checked')].map(i => i.value).join('、'); }
 function populateSlotCreatorSelect(){
-  const sel = document.getElementById('slotTaskCreator');
-  if(!sel) return;
-  const cur = sel.value;
-  let saved = '';
-  try{ saved = localStorage.getItem('slotSchedulerName') || ''; }catch(e){}
-  sel.innerHTML = '<option value="">（不通知）</option>' + SLOT_SCHEDULERS.map(n => `<option value="${n}">${n}</option>`).join('');
-  const want = cur || saved;
-  if(SLOT_SCHEDULERS.includes(want)) sel.value = want;
+  const box = document.getElementById('slotTaskCreator');
+  if(!box) return;
+  const cur = [...box.querySelectorAll('input:checked')].map(i => i.value);
+  let saved = [];
+  try{ saved = splitNames(localStorage.getItem('slotSchedulerNames') || localStorage.getItem('slotSchedulerName') || ''); }catch(e){}
+  const want = new Set(cur.length ? cur : saved);
+  box.innerHTML = SLOT_SCHEDULERS.length
+    ? SLOT_SCHEDULERS.map(n => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="checkbox" value="${escHtml(n)}" ${want.has(n) ? 'checked' : ''}>${escHtml(n)}</label>`).join('')
+    : '<span style="font-size:12px;color:var(--text-muted);">還沒有已綁定 LINE 的安排人員</span>';
 }
 async function loadSlotSchedulers(){
   try{
@@ -519,10 +523,11 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: (document.getElementById('slotTaskCreator') || {}).value || '', candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', owner_name: ownerName, owner_phone: ownerPhone, deadline}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', owner_name: ownerName, owner_phone: ownerPhone, deadline}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
+    try{ localStorage.setItem('slotSchedulerNames', getSlotCreators()); }catch(e){}
     closeSlotTaskModal();
     loadVendorSlots();
     window.LAST_SLOT_TASK_RECORD_ID = data.record_id || null;
@@ -659,7 +664,7 @@ function slotBookingFilterMatch(b){
   if(SLOT_TYPE_FILTER && !(b.type || []).includes(SLOT_TYPE_FILTER)) return false;
   if(f.vendors.length && !f.vendors.includes(b.vendor)) return false;
   if(f.reps.length && !f.reps.includes(p.rep)) return false;
-  if(f.schedulers.length && !f.schedulers.includes(p.scheduler)) return false;
+  if(f.schedulers.length && !splitNames(p.scheduler).some(n => f.schedulers.includes(n))) return false;
   return true;
 }
 function onSlotBookingFilterChange(el){
@@ -690,7 +695,7 @@ function renderSlotBookingFilterBars(barId, typeBarId, pool, shownCount){
   const uniq = (arr, extra) => [...new Set([...arr, ...extra].filter(Boolean))].sort(zh);
   const vendors = uniq(pool.map(b => b.vendor), f.vendors);
   const reps = uniq(pool.map(b => bookingPeople(b).rep), f.reps);
-  const schedulers = uniq(pool.map(b => bookingPeople(b).scheduler), f.schedulers);
+  const schedulers = uniq(pool.flatMap(b => splitNames(bookingPeople(b).scheduler)), f.schedulers);
   const dd = (id, emptyLabel, kind, options, selected) => `
     <div class="quick-mark-input-wrap" style="min-width:170px;max-width:260px;">
       <div class="quick-mark-input slot-type-trigger" id="${id}Trigger" onclick="toggleSlotTypeDropdown('${id}Panel')">

@@ -2698,9 +2698,9 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             <span style="font-size:12px;color:var(--text-muted);">到</span>
             <select class="quick-mark-input" id="slotTaskOwnerWinEnd" style="flex:1;"></select>
           </div>
-          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">安排人員（業務完成安排、期限快到時，LINE 通知這位同仁；選「不通知」就不發）</label>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">安排人員（業務完成安排、期限快到時，LINE 通知這位同仁；可複選多位，都不勾就不發）</label>
           <div style="display:flex;gap:8px;margin-bottom:6px;">
-            <select class="quick-mark-input" id="slotTaskCreator" style="flex:1;"></select>
+            <div class="quick-mark-input" id="slotTaskCreator" style="flex:1;height:auto;display:flex;flex-wrap:wrap;gap:8px 16px;padding:10px 12px;"></div>
             <button type="button" class="btn btn-ghost" style="padding:6px 10px;font-size:12px;white-space:nowrap;" onclick="copySchedulerBindLink()">複製綁定連結</button>
           </div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:18px;">名單是已綁定 LINE 的安排人員。新同仁要先用手機 LINE 打開「綁定連結」、輸入名字綁定一次。</div>
