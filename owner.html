@@ -102,6 +102,8 @@ async function init(){
     const data = await res.json().catch(() => ({}));
     if(!res.ok){ app.innerHTML = `<div class="card"><div class="lead">${esc(data.error || '找不到這個預約，請直接聯絡您的業務。')}</div></div>`; return; }
     D = data;
+    if(D.group && D.group.contact){ CONTACT = {name: D.group.contact.name || '', phone: D.group.contact.phone || '', note: ''}; }
+    if(new URLSearchParams(location.search).get('go') === 'alt' && D.status === 'wait_confirm') mode = 'alt';
     render();
   }catch(err){
     app.innerHTML = '<div class="card"><div class="lead">載入失敗，請檢查網路後重新整理。</div></div>';
@@ -189,6 +191,7 @@ function render(){
       <div class="help">${repHelp()}</div></div>`;
     return;
   }
+  if(D.group && (D.status === 'g_open' || D.status === 'g_replied')){ renderGroup(); return; }
   if(D.status === 'wait_confirm' && mode !== 'alt'){
     const c = D.chosen_slot;
     app.innerHTML = headerHtml() + `<div class="card"><h1>我們幫您安排在這個時間，可以嗎？</h1>
@@ -199,6 +202,7 @@ function render(){
       <div class="err" id="err"></div>
       <button class="btn-ghost" onclick="mode='alt';render()">這個時間不方便，我要提供其他日期</button>
       <div class="help">${repHelp()}</div></div>`;
+    restoreContact();
     return;
   }
   if(D.status === 'wait_pm' && !mode){
@@ -351,6 +355,82 @@ async function submitAlt(){
   if(!c){ showErr('請填寫您的姓名和聯絡電話'); return; }
   const data = await post('/propose', {slots, ...c}, '送出我方便的日期');
   if(data){ D.status = 'wait_pm'; D.proposed = data.slots; mode = ''; render(); }
+}
+
+
+// ================= 聯合排程（2026-10-12）=================
+// 屋主先回覆「廠商預計哪幾天來、我哪個時段方便」（第一期望不行看第二期望，都不行自己提供日期）；
+// 窗口排好每案的時間後，屋主才會看到「確認時間」畫面（沿用上面的 wait_confirm）。
+let G = {step: 0, pref: null, avail: null, custom: [{date: '', avail: 'all'}], edit: false};
+const NTH = ['第一', '第二', '第三', '第四'];
+function gHeaderHtml(){
+  return `<div class="card">
+    <h1>您好！我們要為您安排：<br>${D.items.map(esc).join('、')}</h1>
+    ${D.address ? `<div class="lead" style="margin:2px 0 6px;">📍 施工地址：<b>${esc(D.address)}</b></div>` : ''}
+    <div class="muted">這個項目大約需要 <b>${durLabel(D.duration_min)}</b>${D.rep_name ? `｜您的業務：<b>${esc(D.rep_name)}</b>` : ''}</div>
+  </div>`;
+}
+function gContactHtml(){
+  return `<label for="ownerName">姓名</label><input id="ownerName" autocomplete="name" placeholder="例如：王小明">
+    <label for="ownerPhone">聯絡電話</label><input id="ownerPhone" type="tel" autocomplete="tel" placeholder="例如：0912-345-678">
+    <label for="ownerNote">想告訴我們的事（選填）</label><textarea id="ownerNote" placeholder="例如：上午要上班、下午才在家"></textarea>
+    <button class="btn" id="submitBtn" onclick="gSubmit()">送出我方便的時段</button><div class="err" id="err"></div>`;
+}
+function gAvailOpts(p){
+  const o = [['all', '全天都可以', p.parts.all]];
+  if(p.parts.am) o.push(['am', '只有上午可以', p.parts.am]);
+  if(p.parts.pm) o.push(['pm', '只有下午可以', p.parts.pm]);
+  return o;
+}
+function renderGroup(){
+  const app = document.getElementById('app');
+  const g = D.group, n = g.prefs.length;
+  if(D.status === 'g_replied' && !G.edit){
+    app.innerHTML = gHeaderHtml() + `<div class="card ok-box"><div class="ok-icon">✅</div><h1>已收到您的回覆，謝謝您！</h1>
+      <div class="lead">您回覆的是：<br><b>${esc(g.reply_text)}</b></div>
+      <div class="muted" style="margin-top:12px;">我們會把同一區的案子一起安排，排好每一案的時間後，會再請您確認，確認之後預約才算成立。</div>
+      <button class="btn-ghost" onclick="G.edit=true;G.step=0;G.pref=null;G.avail=null;renderGroup()">想修改我的回覆</button></div>
+      <div class="help">${repHelp()}</div>`;
+    return;
+  }
+  let body;
+  if(G.step < n){
+    const p = g.prefs[G.step];
+    body = `<div class="step" style="margin-top:0;"><span class="n">${G.step + 1}</span>${NTH[G.step]}期望日：${dateLabel(p.date)}</div>
+      <div class="lead">施工團隊預計這天到現場（可作業時段：${esc(p.parts.all)}）。<br>這一天您哪個時段方便讓我們過去？</div>
+      <div class="grid" style="grid-template-columns:1fr;margin-top:12px;">
+        ${gAvailOpts(p).map(([k, l, t]) => `<button class="opt ${G.pref === G.step + 1 && G.avail === k ? 'active' : ''}" onclick="gPick(${G.step + 1}, '${k}')">${l}<small>${esc(t)}</small></button>`).join('')}
+        <button class="opt" onclick="gNo()">這一天都不方便<small>${G.step + 1 < n ? '看下一個日期' : '我提供其他可以的日期'}</small></button>
+      </div>
+      ${G.pref === G.step + 1 ? '<div class="muted" style="margin-top:12px;">✅ 已選好，請填寫聯絡資料後送出：</div>' + gContactHtml() : ''}
+      ${G.step > 0 ? '<button class="btn-ghost" onclick="gBack()">← 回上一個日期</button>' : ''}`;
+  }else{
+    body = `<div class="step" style="margin-top:0;"><span class="n">${n + 1}</span>請提供您方便的其他日期</div>
+      <div class="muted">可以加好幾天，每一天選哪個時段方便。我們排好後會再請您確認。</div>
+      ${G.custom.map((c, i) => `<div class="alt-row" style="margin-top:10px;">
+        <input type="date" value="${esc(c.date)}" onchange="G.custom[${i}].date=this.value">
+        <select onchange="G.custom[${i}].avail=this.value"><option value="all" ${c.avail === 'all' ? 'selected' : ''}>全天</option><option value="am" ${c.avail === 'am' ? 'selected' : ''}>上午</option><option value="pm" ${c.avail === 'pm' ? 'selected' : ''}>下午</option></select>
+        ${G.custom.length > 1 ? `<button class="alt-del" onclick="saveContact();G.custom.splice(${i},1);renderGroup()">✕</button>` : ''}
+      </div>`).join('')}
+      <button class="btn-ghost" style="margin-top:0;" onclick="saveContact();G.custom.push({date:'',avail:'all'});renderGroup()">＋ 再加一天</button>
+      ${gContactHtml()}
+      <button class="btn-ghost" onclick="gBack()">← 回上一個日期</button>`;
+  }
+  app.innerHTML = gHeaderHtml() + `<div class="card">${body}</div><div class="help">${repHelp()}</div>`;
+  restoreContact();
+}
+function gPick(pref, avail){ saveContact(); G.pref = pref; G.avail = avail; renderGroup(); }
+function gNo(){ saveContact(); G.pref = null; G.avail = null; G.step += 1; renderGroup(); }
+function gBack(){ saveContact(); G.step = Math.max(0, G.step - 1); G.pref = null; G.avail = null; renderGroup(); }
+async function gSubmit(){
+  const c = readContact();
+  if(!c){ showErr('請填寫您的姓名和聯絡電話'); return; }
+  const n = D.group.prefs.length;
+  const custom = G.step >= n ? G.custom.filter(x => x.date) : [];
+  if(G.step < n && G.pref === null){ showErr('請先選一個您方便的時段'); return; }
+  if(G.step >= n && !custom.length){ showErr('請至少選一天您方便的日期'); return; }
+  const data = await post('/group-reply', {pref: G.step < n ? G.pref : null, avail: G.step < n ? G.avail : null, custom, ...c}, '送出我方便的時段');
+  if(data){ D.status = 'g_replied'; D.group.reply_text = data.reply_text; G.edit = false; render(); }
 }
 
 init();
