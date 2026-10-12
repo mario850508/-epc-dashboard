@@ -6590,7 +6590,7 @@ const PDF_FILTERS = [
   ['待確認', '待確認'], ['queue', '待辨識・辨識中'], ['已確認', '已確認'],
   ['辨識失敗', '辨識失敗'], ['已歸檔', '已歸檔'], ['all', '全部'],
 ];
-let PDF_STATE = {items: [], status: null, filter: '待確認', current: null, timer: null, q: '', selected: new Set(), order: []};
+let PDF_STATE = {items: [], status: null, filter: '待確認', current: null, timer: null, q: '', selected: new Set(), order: [], autoOpen: new Set()};
 
 function pdfEsc(v){ return certEsc(v); }
 // 「我是」：三位 PM 共用主控台，各自只看自己收到／上傳的檔案（空白＝看全部）
@@ -6693,6 +6693,7 @@ async function loadPdfRename(silent){
     PDF_STATE.items = (i.items || []).map(pdfNormalizeItem);
     PDF_STATE.progress = s.progress || null;
     pdfRenderAll();
+    pdfAutoOpenUploaded();
     maybeAskPdfPm();
     try{ localStorage.setItem(PDF_CACHE_KEY, JSON.stringify({at: Date.now(), status: s, items: i.items || []})); }catch(e){}
     if(document.getElementById('tab-pdf-line').classList.contains('active')){ renderPdfLineList(); }
@@ -6713,7 +6714,7 @@ function schedulePdfPoll(){
   const busy = PDF_STATE.items.some(x => x.status === '待辨識' || x.status === '辨識中') || pr.running;
   // 沒在辨識時每 30 秒也看一下有沒有 LINE 新送來的檔案（後端有快取，很快）
   PDF_STATE.timer = setTimeout(pr.running ? pollPdfProgress : () => document.hidden ? schedulePdfPoll() : loadPdfRename(true),
-                               pr.running ? 3000 : (busy ? 20000 : 30000));
+                               pr.running ? 3000 : (busy ? (PDF_STATE.autoOpen.size ? 5000 : 20000) : 30000));
 }
 
 // 切回這個分頁時馬上更新一次
@@ -7222,7 +7223,7 @@ async function uploadPdfFiles(fileList){
       const res = await fetch(API_BASE + '/api/pdf-rename/upload', {method: 'POST', body: fd});
       const data = await res.json();
       const r = (data.results || [])[0];
-      if(r && r.ok) ok++;
+      if(r && r.ok){ ok++; if(r.id) PDF_STATE.autoOpen.add(r.id); }
       else failed.push(`${f.name}（${(r && r.error) || data.error || '上傳失敗'}）`);
     }catch(e){
       failed.push(`${f.name}（${e.message}）`);
@@ -7480,9 +7481,27 @@ async function openPdfCorrections(){
   }
 }
 
+// 手動上傳的檔案辨識完，自動打開編輯畫面（一次一份；關掉後下一份辨識好了再開）
+function pdfAutoOpenUploaded(){
+  const ids = PDF_STATE.autoOpen;
+  if(!ids || !ids.size) return;
+  for(const id of [...ids]){
+    const x = PDF_STATE.items.find(i => i.id === id);
+    if(!x) continue;
+    if(x.status === '已確認' || x.status === '已歸檔'){ ids.delete(id); showToast(`已自動確認：${x.final_name || x.src_name}`); }
+  }
+  if(document.getElementById('pdfDetailModalOverlay').classList.contains('show')) return;
+  const ready = [...ids].map(id => PDF_STATE.items.find(i => i.id === id)).find(x => x && (x.status === '待確認' || x.status === '辨識失敗'));
+  if(!ready) return;
+  ids.delete(ready.id);
+  if(ready.status === '待確認' && PDF_STATE.filter !== '待確認' && PDF_STATE.filter !== 'all'){ PDF_STATE.filter = '待確認'; renderPdfList(); }
+  openPdfDetail(ready.id);
+}
+
 function closePdfDetailModal(){
   document.getElementById('pdfDetailModalOverlay').classList.remove('show');
   PDF_STATE.current = null;
+  setTimeout(pdfAutoOpenUploaded, 300);   // 還有剛上傳、已辨識好的就接著開
 }
 
 let pdfCaseSearchTimer = null;
