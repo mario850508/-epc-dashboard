@@ -356,8 +356,21 @@ async function loadSlotTasksQuiet(){
 
 let SLOT_TASK_EDIT_ID = null;
 let SLOT_TASK_EDIT_CREATORS = [];
+// 2026-10-12：預約掛表的任務，安排人員預設勾 May（負責後續掛表事項的人，使用者指定；仍可手動取消）。
+// METER_SCHEDULER_AUTO 記「是我們自動勾的」，取消掛表時才跟著取消；使用者自己勾的 May 不會被動到。
+const METER_DEFAULT_SCHEDULER = 'May';
+let METER_SCHEDULER_AUTO = false;
+function applyMeterDefaultScheduler(){
+  if(SLOT_TASK_EDIT_ID) return;   // 編輯既有任務時不動安排人員
+  const box = document.querySelector('#slotTaskCreator input[value="' + METER_DEFAULT_SCHEDULER + '"]');
+  if(!box) return;
+  const meter = getCheckedSlotTypes('slot-task-type-check').includes('掛表');
+  if(meter && !box.checked && !METER_SCHEDULER_AUTO){ box.checked = true; METER_SCHEDULER_AUTO = true; }
+  else if(!meter && METER_SCHEDULER_AUTO){ box.checked = false; METER_SCHEDULER_AUTO = false; }
+}
 function openSlotTaskModal(){
   SLOT_TASK_EDIT_ID = null;
+  METER_SCHEDULER_AUTO = false;
   const _mt = document.querySelector('#slotTaskModalOverlay .modal-title'); if(_mt) _mt.textContent = '📨 指派給業務';
   const _mb = document.querySelector('#slotTaskModalOverlay .btn-primary'); if(_mb) _mb.textContent = '建立任務並產生連結';
   document.getElementById('slotTaskVendor').innerHTML = ALL_VENDOR_NAMES.map(v => `<option value="${v}">${v}</option>`).join('');
@@ -526,6 +539,7 @@ function populateSlotCreatorSelect(){
   box.innerHTML = SLOT_SCHEDULERS.length
     ? SLOT_SCHEDULERS.map(n => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="checkbox" value="${escHtml(n)}" ${want.has(n) ? 'checked' : ''}>${escHtml(n)}</label>`).join('')
     : '<span style="font-size:12px;color:var(--text-muted);">還沒有已綁定 LINE 的安排人員</span>';
+  applyMeterDefaultScheduler();   // 名單晚到時，掛表任務的預設人員也要補勾
 }
 async function loadSlotSchedulers(){
   try{
@@ -1308,6 +1322,7 @@ function onSlotBookingTypeChange(){
 }
 function onSlotTaskTypeChange(){
   updateSlotTypeLabel('slot-task-type-check', 'slotTaskTypeLabel');
+  applyMeterDefaultScheduler();
   if(!slotDeadlineTouched) setDefaultSlotDeadline();
   if(document.getElementById('slotTaskEstDelegate').checked){
     setSlotTaskEstDurationFromMinutes(getSlotTaskTypeDurationSum());
