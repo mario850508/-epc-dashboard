@@ -52,6 +52,7 @@ function showSlotsTab(tab){
   document.getElementById('slots-tab-'+tab).classList.add('active');
   document.querySelectorAll('#view-slots .tab').forEach(t=>t.classList.remove('active'));
   document.querySelector('#view-slots .tab[data-slots-tab="'+tab+'"]').classList.add('active');
+  if(tab === 'joint' && typeof loadJoint === 'function') loadJoint();
 }
 
 // 2026-10-01 調整：「完成安排」分頁原本同時顯示「已完成的任務紀錄」跟
@@ -72,7 +73,7 @@ function slotLabelText(s){
 // 待窗口確認＝業務已回傳備選時段，窗口跟廠商確認後在這裡選一個；待業務確認＝
 // 已選定、等業務打開連結按確認。標籤/側邊欄會顯示待處理數量。
 function updateSlotTaskBadges(){
-  const n = SLOT_TASKS.filter(t => t.status !== '已完成' && t.stage === '待窗口確認').length;
+  const n = SLOT_TASKS.filter(t => t.status !== '已完成' && t.stage === '待窗口確認' && !t.group_id).length;
   const tab = document.querySelector('#view-slots .tab[data-slots-tab="pending"]');
   if(tab) tab.textContent = '📋 指派任務' + (n ? '　🔴 ' + n + ' 待處理' : '');
   const nav = document.querySelector('.nav-item[data-view="slots"]');
@@ -203,7 +204,7 @@ function renderSlotTasks(){
   loadBoundNames();
   const pendingContainer = document.getElementById('slotTasksPendingContainer');
   if(!pendingContainer) return;
-  const allPending = SLOT_TASKS.filter(t => t.status !== '已完成');
+  const allPending = SLOT_TASKS.filter(t => t.status !== '已完成' && !t.group_id);   // 聯合排程的案件在「🧩 聯合排程」處理
   const pending = allPending.filter(slotTaskFilterMatch);
   renderSlotTaskFilterBar(allPending, pending.length);
   const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship','進場':'chip-enter'};
