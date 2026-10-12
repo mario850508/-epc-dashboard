@@ -80,7 +80,7 @@ function startOptions(date){
   const dur = D.duration_min, ws = toMin(D.window_start), we = toMin(D.window_end);
   const busy = (D.busy_slots || []).filter(b => b.date === date).map(b => [toMin(b.start_time), toMin(b.end_time)]);
   const out = [];
-  for(let s = ws; s + dur <= we; s += 30){
+  for(let s = Math.ceil(ws / 60) * 60; s + dur <= we; s += 60){   // 只列整點開始（2026-10-12）
     out.push({start: fmtMin(s), end: fmtMin(s + dur), ok: !busy.some(([bs, be]) => s < be && bs < s + dur)});
   }
   return out;
