@@ -359,10 +359,11 @@ async function submitAlt(){
 
 
 // ================= 聯合排程（2026-10-12）=================
-// 屋主先回覆「廠商預計哪幾天來、我哪個時段方便」（第一期望不行看第二期望，都不行自己提供日期）；
-// 窗口排好每案的時間後，屋主才會看到「確認時間」畫面（沿用上面的 wait_confirm）。
-let G = {step: 0, pref: null, avail: null, custom: [{date: '', avail: 'all'}], edit: false};
+// 屋主先回覆「廠商預計哪幾天來、我哪一天哪個時段方便」：第一期望那組日期（可能 2～3 天）可以選好幾天、各自選時段；
+// 這組都不行才看第二期望；都不行再自己提供日期。窗口排好每案的時間後，屋主才會看到「確認時間」畫面（沿用上面的 wait_confirm）。
+let G = {ti: 0, picks: {}, custom: [{date: '', avail: 'all'}], edit: false};
 const NTH = ['第一', '第二', '第三', '第四'];
+function gTiers(){ return [...new Set(D.group.prefs.map(p => p.tier))].sort((a, b) => a - b); }
 function gHeaderHtml(){
   return `<div class="card">
     <h1>您好！我們要為您安排：<br>${D.items.map(esc).join('、')}</h1>
@@ -377,35 +378,38 @@ function gContactHtml(){
     <button class="btn" id="submitBtn" onclick="gSubmit()">送出我方便的時段</button><div class="err" id="err"></div>`;
 }
 function gAvailOpts(p){
-  const o = [['all', '全天都可以', p.parts.all]];
-  if(p.parts.am) o.push(['am', '只有上午可以', p.parts.am]);
-  if(p.parts.pm) o.push(['pm', '只有下午可以', p.parts.pm]);
+  const o = [['all', '全天', p.parts.all]];
+  if(p.parts.am) o.push(['am', '只有上午', p.parts.am]);
+  if(p.parts.pm) o.push(['pm', '只有下午', p.parts.pm]);
   return o;
 }
 function renderGroup(){
   const app = document.getElementById('app');
-  const g = D.group, n = g.prefs.length;
+  const g = D.group, tiers = gTiers();
   if(D.status === 'g_replied' && !G.edit){
     app.innerHTML = gHeaderHtml() + `<div class="card ok-box"><div class="ok-icon">✅</div><h1>已收到您的回覆，謝謝您！</h1>
       <div class="lead">您回覆的是：<br><b>${esc(g.reply_text)}</b></div>
       <div class="muted" style="margin-top:12px;">我們會把同一區的案子一起安排，排好每一案的時間後，會再請您確認，確認之後預約才算成立。</div>
-      <button class="btn-ghost" onclick="G.edit=true;G.step=0;G.pref=null;G.avail=null;renderGroup()">想修改我的回覆</button></div>
+      <button class="btn-ghost" onclick="G.edit=true;G.ti=0;G.picks={};renderGroup()">想修改我的回覆</button></div>
       <div class="help">${repHelp()}</div>`;
     return;
   }
   let body;
-  if(G.step < n){
-    const p = g.prefs[G.step];
-    body = `<div class="step" style="margin-top:0;"><span class="n">${G.step + 1}</span>${NTH[G.step]}期望日：${dateLabel(p.date)}</div>
-      <div class="lead">施工團隊預計這天到現場（可作業時段：${esc(p.parts.all)}）。<br>這一天您哪個時段方便讓我們過去？</div>
-      <div class="grid" style="grid-template-columns:1fr;margin-top:12px;">
-        ${gAvailOpts(p).map(([k, l, t]) => `<button class="opt ${G.pref === G.step + 1 && G.avail === k ? 'active' : ''}" onclick="gPick(${G.step + 1}, '${k}')">${l}<small>${esc(t)}</small></button>`).join('')}
-        <button class="opt" onclick="gNo()">這一天都不方便<small>${G.step + 1 < n ? '看下一個日期' : '我提供其他可以的日期'}</small></button>
-      </div>
-      ${G.pref === G.step + 1 ? '<div class="muted" style="margin-top:12px;">✅ 已選好，請填寫聯絡資料後送出：</div>' + gContactHtml() : ''}
-      ${G.step > 0 ? '<button class="btn-ghost" onclick="gBack()">← 回上一個日期</button>' : ''}`;
+  if(G.ti < tiers.length){
+    const days = g.prefs.filter(p => p.tier === tiers[G.ti]);
+    const hasPick = Object.keys(G.picks).length > 0;
+    body = `<div class="step" style="margin-top:0;"><span class="n">${G.ti + 1}</span>${NTH[G.ti]}期望日期</div>
+      <div class="lead">施工團隊預計在下面${days.length > 1 ? '這幾天其中一天' : '這一天'}到現場。${days.length > 1 ? '<b>可以選好幾天</b>，' : ''}請在您方便的${days.length > 1 ? '日期' : '日子'}選擇方便的時段：</div>
+      ${days.map(p => `<div style="margin-top:14px;"><div style="font-weight:800;font-size:16px;margin-bottom:8px;">${dateLabel(p.date)}</div>
+        <div class="grid" style="grid-template-columns:repeat(${gAvailOpts(p).length},1fr);">
+          ${gAvailOpts(p).map(([k, l, t]) => `<button class="opt ${G.picks[p.date] === k ? 'active' : ''}" onclick="gToggle('${p.date}', '${k}')">${l}<small>${esc(t)}</small></button>`).join('')}
+        </div></div>`).join('')}
+      <div class="muted" style="margin-top:10px;">沒有選的日期，就代表那天不方便。</div>
+      ${hasPick ? '<div class="muted" style="margin-top:12px;">✅ 已選好，請填寫聯絡資料後送出：</div>' + gContactHtml() : ''}
+      <button class="btn-ghost" onclick="gNo()">以上日期都不方便${G.ti + 1 < tiers.length ? '（看下一組日期）' : '（我提供其他日期）'}</button>
+      ${G.ti > 0 ? '<button class="btn-ghost" onclick="gBack()">← 回上一組日期</button>' : ''}`;
   }else{
-    body = `<div class="step" style="margin-top:0;"><span class="n">${n + 1}</span>請提供您方便的其他日期</div>
+    body = `<div class="step" style="margin-top:0;"><span class="n">${tiers.length + 1}</span>請提供您方便的其他日期</div>
       <div class="muted">可以加好幾天，每一天選哪個時段方便。我們排好後會再請您確認。</div>
       ${G.custom.map((c, i) => `<div class="alt-row" style="margin-top:10px;">
         <input type="date" value="${esc(c.date)}" onchange="G.custom[${i}].date=this.value">
@@ -414,22 +418,24 @@ function renderGroup(){
       </div>`).join('')}
       <button class="btn-ghost" style="margin-top:0;" onclick="saveContact();G.custom.push({date:'',avail:'all'});renderGroup()">＋ 再加一天</button>
       ${gContactHtml()}
-      <button class="btn-ghost" onclick="gBack()">← 回上一個日期</button>`;
+      <button class="btn-ghost" onclick="gBack()">← 回上一組日期</button>`;
   }
   app.innerHTML = gHeaderHtml() + `<div class="card">${body}</div><div class="help">${repHelp()}</div>`;
   restoreContact();
 }
-function gPick(pref, avail){ saveContact(); G.pref = pref; G.avail = avail; renderGroup(); }
-function gNo(){ saveContact(); G.pref = null; G.avail = null; G.step += 1; renderGroup(); }
-function gBack(){ saveContact(); G.step = Math.max(0, G.step - 1); G.pref = null; G.avail = null; renderGroup(); }
+function gToggle(date, avail){ saveContact(); if(G.picks[date] === avail) delete G.picks[date]; else G.picks[date] = avail; renderGroup(); }
+function gNo(){ saveContact(); G.picks = {}; G.ti += 1; renderGroup(); }
+function gBack(){ saveContact(); G.ti = Math.max(0, G.ti - 1); G.picks = {}; renderGroup(); }
 async function gSubmit(){
   const c = readContact();
   if(!c){ showErr('請填寫您的姓名和聯絡電話'); return; }
-  const n = D.group.prefs.length;
-  const custom = G.step >= n ? G.custom.filter(x => x.date) : [];
-  if(G.step < n && G.pref === null){ showErr('請先選一個您方便的時段'); return; }
-  if(G.step >= n && !custom.length){ showErr('請至少選一天您方便的日期'); return; }
-  const data = await post('/group-reply', {pref: G.step < n ? G.pref : null, avail: G.step < n ? G.avail : null, custom, ...c}, '送出我方便的時段');
+  const tiers = gTiers();
+  const inCustom = G.ti >= tiers.length;
+  const picks = inCustom ? [] : Object.keys(G.picks).map(d => ({date: d, avail: G.picks[d]}));
+  const custom = inCustom ? G.custom.filter(x => x.date) : [];
+  if(!inCustom && !picks.length){ showErr('請先選一個您方便的日期與時段'); return; }
+  if(inCustom && !custom.length){ showErr('請至少選一天您方便的日期'); return; }
+  const data = await post('/group-reply', {tier: inCustom ? null : tiers[G.ti], picks, custom, ...c}, '送出我方便的時段');
   if(data){ D.status = 'g_replied'; D.group.reply_text = data.reply_text; G.edit = false; render(); }
 }
 

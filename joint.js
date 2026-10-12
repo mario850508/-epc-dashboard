@@ -8,6 +8,10 @@ let JOINT_EDIT = {};         // {task_id: {start, end}}
 let JOINT_DATE = '';
 let JOINT_FORM = null;       // 新增視窗的狀態
 
+function jtPrefsText(prefs, withWins){
+  const tiers = [...new Set((prefs || []).map(p => p.tier))].sort((a, b) => a - b);
+  return tiers.map((t, i) => ['第一', '第二', '第三'][i] + '期望：' + prefs.filter(p => p.tier === t).map(p => fmtDate(p.date) + '（' + fmtWeekday(p.date) + '）' + (withWins ? p.windows.map(w => w[0] + '–' + w[1]).join('、') : '')).join('、')).join('｜');
+}
 function jtTimeOpts(sel){
   let h = '<option value="">—</option>';
   for(let m = 7 * 60; m <= 20 * 60; m += 30){
@@ -47,7 +51,7 @@ function renderJointList(){
       <div style="flex:1;min-width:220px;">
         <div style="font-weight:700;font-size:13.5px;">${escHtml(g.title)} ${jtStatusChip(g.status)}</div>
         <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px;">${(g.cases || []).map(escHtml).join('、')}</div>
-        <div style="font-size:11.5px;color:var(--text-muted);">期望日：${(g.prefs || []).map(p => fmtDate(p.date) + '（' + fmtWeekday(p.date) + '）').join('、')}｜回覆 ${g.counts.replied}/${g.counts.total}｜確認 ${g.counts.confirmed}/${g.counts.total}</div>
+        <div style="font-size:11.5px;color:var(--text-muted);">${jtPrefsText(g.prefs, false)}｜回覆 ${g.counts.replied}/${g.counts.total}｜確認 ${g.counts.confirmed}/${g.counts.total}</div>
       </div>
       <button class="btn btn-warm-primary" style="padding:6px 14px;font-size:12px;" onclick="openJointDetail('${g.id}')">開啟</button>
     </div>`).join('');
@@ -69,13 +73,14 @@ function jtOverlay(id, width){
   document.body.appendChild(ov);
   return ov.firstElementChild;
 }
+function jtNewDay(){ return {date: '', w1: ['09:00', '12:00'], w2on: true, w2: ['13:00', '17:00']}; }
 function openJointCreate(){
   let saved = [];
   try{ saved = splitNames(localStorage.getItem('slotSchedulerNames') || ''); }catch(e){}
   const tmr = new Date(Date.now() + 86400000);
   JOINT_FORM = {
     vendor: '三創', types: ['放樣'], cases: [], q: '', results: [],
-    prefs: [{date: '', w1: ['09:00', '12:00'], w2on: true, w2: ['13:00', '17:00']}],
+    tiers: [{days: [jtNewDay()]}],   // 第一期望（可有 1～3 個日期）；第二期望選填
     dur: 60, gap: 30, creators: saved.length ? saved : [],
     dlDate: tmr.getFullYear() + '-' + String(tmr.getMonth() + 1).padStart(2, '0') + '-' + String(tmr.getDate()).padStart(2, '0'), dlTime: '18:00',
   };
@@ -90,28 +95,37 @@ function renderJointCreate(){
   const F = JOINT_FORM;
   const box = jtOverlay('jointCreateOverlay', 560);
   const lab = t => `<div style="font-size:12px;font-weight:700;margin:14px 0 6px;">${t}</div>`;
-  const prefRow = (p, i) => `
-    <div style="border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;">
+  const dayRow = (p, ti, di) => `
+    <div style="border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <b style="font-size:12.5px;">${['第一', '第二', '第三', '第四'][i]}期望日</b>
-        <input type="date" class="quick-mark-input" style="flex:1;" value="${p.date}" onchange="JOINT_FORM.prefs[${i}].date=this.value">
-        ${i > 0 ? `<button class="btn btn-ghost" style="padding:4px 9px;" onclick="JOINT_FORM.prefs.splice(${i},1);renderJointCreate()">✕</button>` : ''}
+        <b style="font-size:12.5px;">日期 ${di + 1}</b>
+        <input type="date" class="quick-mark-input" style="flex:1;" value="${p.date}" onchange="JOINT_FORM.tiers[${ti}].days[${di}].date=this.value">
+        ${(ti > 0 || di > 0) ? `<button class="btn btn-ghost" style="padding:4px 9px;" onclick="jtRemoveDay(${ti},${di})">✕</button>` : ''}
       </div>
       <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
         <span style="font-size:11.5px;color:var(--text-muted);width:62px;">廠商時段</span>
-        <select class="quick-mark-input" style="flex:1;" onchange="JOINT_FORM.prefs[${i}].w1[0]=this.value">${jtTimeOpts(p.w1[0])}</select>到
-        <select class="quick-mark-input" style="flex:1;" onchange="JOINT_FORM.prefs[${i}].w1[1]=this.value">${jtTimeOpts(p.w1[1])}</select>
+        <select class="quick-mark-input" style="flex:1;" onchange="JOINT_FORM.tiers[${ti}].days[${di}].w1[0]=this.value">${jtTimeOpts(p.w1[0])}</select>到
+        <select class="quick-mark-input" style="flex:1;" onchange="JOINT_FORM.tiers[${ti}].days[${di}].w1[1]=this.value">${jtTimeOpts(p.w1[1])}</select>
       </div>
-      <label style="display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer;margin-bottom:6px;"><input type="checkbox" ${p.w2on ? 'checked' : ''} onchange="JOINT_FORM.prefs[${i}].w2on=this.checked;renderJointCreate()"> 加第二個時段（中間是午休，屋主不能選）</label>
+      <label style="display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer;margin-bottom:6px;"><input type="checkbox" ${p.w2on ? 'checked' : ''} onchange="JOINT_FORM.tiers[${ti}].days[${di}].w2on=this.checked;renderJointCreate()"> 加第二個時段（中間是午休，屋主不能選）</label>
       ${p.w2on ? `<div style="display:flex;gap:6px;align-items:center;">
         <span style="font-size:11.5px;color:var(--text-muted);width:62px;">下午</span>
-        <select class="quick-mark-input" style="flex:1;" onchange="JOINT_FORM.prefs[${i}].w2[0]=this.value">${jtTimeOpts(p.w2[0])}</select>到
-        <select class="quick-mark-input" style="flex:1;" onchange="JOINT_FORM.prefs[${i}].w2[1]=this.value">${jtTimeOpts(p.w2[1])}</select></div>` : ''}
+        <select class="quick-mark-input" style="flex:1;" onchange="JOINT_FORM.tiers[${ti}].days[${di}].w2[0]=this.value">${jtTimeOpts(p.w2[0])}</select>到
+        <select class="quick-mark-input" style="flex:1;" onchange="JOINT_FORM.tiers[${ti}].days[${di}].w2[1]=this.value">${jtTimeOpts(p.w2[1])}</select></div>` : ''}
+    </div>`;
+  const tierBox = (t, ti) => `
+    <div style="border:2px solid ${ti === 0 ? '#BFD3FF' : '#FDE0A8'};border-radius:14px;padding:12px;margin-bottom:12px;background:${ti === 0 ? '#F5F8FF' : '#FFFBF1'};">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <b style="font-size:13.5px;">${['第一', '第二'][ti]}期望${ti === 0 ? '（優先：屋主先看這組，可以有 1～3 個日期）' : '（第一期望都不行，才會看這組）'}</b>
+        ${ti > 0 ? `<button class="btn btn-ghost" style="padding:3px 9px;font-size:11px;" onclick="JOINT_FORM.tiers.splice(${ti},1);renderJointCreate()">移除</button>` : ''}
+      </div>
+      ${t.days.map((d, di) => dayRow(d, ti, di)).join('')}
+      ${t.days.length < 3 ? `<button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="JOINT_FORM.tiers[${ti}].days.push(jtNewDay());renderJointCreate()">＋ 再加一個日期</button>` : ''}
     </div>`;
   box.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-size:17px;font-weight:800;">🧩 新增聯合排程</div>
       <button type="button" onclick="document.getElementById('jointCreateOverlay').remove()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button></div>
-    <div style="font-size:12px;color:var(--text-muted);margin:6px 0 0;line-height:1.7;">把同一廠商、同一項目的幾個案件綁在一起：屋主先回覆哪個時段方便，你再統一排出每案的時間，讓廠商一天跑完。</div>
+    <div style="font-size:12px;color:var(--text-muted);margin:6px 0 0;line-height:1.7;">把同一廠商、同一項目的幾個案件綁在一起：屋主先回覆哪幾天、哪個時段方便，你再統一排出每案的時間，讓廠商一天跑完。</div>
     ${lab('廠商')}
     <select class="quick-mark-input" onchange="JOINT_FORM.vendor=this.value">${ALL_VENDOR_NAMES.map(v => `<option ${v === F.vendor ? 'selected' : ''}>${v}</option>`).join('')}</select>
     ${lab('項目')}
@@ -120,9 +134,9 @@ function renderJointCreate(){
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">${F.cases.map((c, i) => `<span style="background:#EEF3FF;border-radius:12px;padding:3px 10px;font-size:12px;">${escHtml(c)} <a style="cursor:pointer;color:#B42318;" onclick="JOINT_FORM.cases.splice(${i},1);renderJointCreate()">✕</a></span>`).join('') || '<span style="font-size:12px;color:var(--text-muted);">還沒選案件</span>'}</div>
     <input class="quick-mark-input" id="jtCaseQ" placeholder="輸入案號或別名…" value="${escHtml(F.q)}" oninput="jtSearchCase(this.value)" autocomplete="off">
     <div id="jtCaseRes">${jtResultsHtml()}</div>
-    ${lab('期望日與廠商可作業時段（第一期望優先，屋主都不行才看第二期望）')}
-    ${F.prefs.map(prefRow).join('')}
-    ${F.prefs.length < 4 ? '<button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="JOINT_FORM.prefs.push({date:\'\',w1:[\'09:00\',\'12:00\'],w2on:true,w2:[\'13:00\',\'17:00\']});renderJointCreate()">＋ 再加一個期望日</button>' : ''}
+    ${lab('期望日與廠商可作業時段')}
+    ${F.tiers.map(tierBox).join('')}
+    ${F.tiers.length < 2 ? '<button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="JOINT_FORM.tiers.push({days:[jtNewDay()]});renderJointCreate()">＋ 加第二期望（第一期望都不行時才看）</button>' : ''}
     ${lab('每案預計作業時間／案件之間的緩衝')}
     <div style="display:flex;gap:8px;align-items:center;">
       <input type="number" class="quick-mark-input" style="flex:1;" min="15" step="15" value="${F.dur}" onchange="JOINT_FORM.dur=parseInt(this.value,10)||60"><span style="font-size:12px;">分鐘／案</span>
@@ -133,6 +147,12 @@ function renderJointCreate(){
     ${lab('安排人員（屋主回覆、確認時，LINE 通知這些同仁）')}
     <div style="display:flex;flex-wrap:wrap;gap:8px 16px;">${(typeof SLOT_SCHEDULERS !== 'undefined' ? SLOT_SCHEDULERS : []).map(n => `<label style="display:flex;gap:5px;align-items:center;font-size:13px;cursor:pointer;"><input type="checkbox" ${F.creators.includes(n) ? 'checked' : ''} onchange="jtToggleCreator('${escHtml(n)}',this.checked)">${escHtml(n)}</label>`).join('') || '<span style="font-size:12px;color:var(--text-muted);">名單載入中…</span>'}</div>
     <button type="button" class="btn btn-primary" id="jtCreateBtn" style="width:100%;justify-content:center;padding:11px;margin-top:18px;" onclick="submitJointCreate()">建立聯合排程</button>`;
+}
+function jtRemoveDay(ti, di){
+  const t = JOINT_FORM.tiers[ti];
+  t.days.splice(di, 1);
+  if(!t.days.length) JOINT_FORM.tiers.splice(ti, 1);
+  renderJointCreate();
 }
 function jtToggleType(t, on){
   const F = JOINT_FORM;
@@ -172,21 +192,28 @@ function jtAddCase(i){
 }
 async function submitJointCreate(){
   const F = JOINT_FORM;
-  const prefs = [];
-  for(const p of F.prefs){
-    if(!p.date) continue;
-    const wins = [[p.w1[0], p.w1[1]]];
-    if(p.w2on) wins.push([p.w2[0], p.w2[1]]);
-    if(wins.some(w => !w[0] || !w[1] || w[0] >= w[1])){ showToast('時段的開始時間要早於結束時間'); return; }
-    if(p.w2on && wins[1][0] < wins[0][1]){ showToast('第二個時段要從第一個時段結束之後開始'); return; }
-    prefs.push({date: p.date, windows: wins});
+  const tiers = [];
+  const seen = new Set();
+  for(const t of F.tiers){
+    const days = [];
+    for(const p of t.days){
+      if(!p.date) continue;
+      if(seen.has(p.date)){ showToast('日期 ' + p.date + ' 重複了'); return; }
+      seen.add(p.date);
+      const wins = [[p.w1[0], p.w1[1]]];
+      if(p.w2on) wins.push([p.w2[0], p.w2[1]]);
+      if(wins.some(w => !w[0] || !w[1] || w[0] >= w[1])){ showToast('時段的開始時間要早於結束時間'); return; }
+      if(p.w2on && wins[1][0] < wins[0][1]){ showToast('第二個時段要從第一個時段結束之後開始'); return; }
+      days.push({date: p.date, windows: wins});
+    }
+    if(days.length) tiers.push({days});
   }
-  if(!F.types.length || F.cases.length < 2 || !prefs.length){ showToast('請選項目、至少兩個案件，並設定第一期望日'); return; }
+  if(!F.types.length || F.cases.length < 2 || !tiers.length){ showToast('請選項目、至少兩個案件，並設定第一期望日'); return; }
   const btn = document.getElementById('jtCreateBtn');
   btn.disabled = true; btn.textContent = '建立中…';
   try{
     const res = await fetch(API_BASE + '/api/joint-schedules', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
-      vendor: F.vendor, type: F.types, cases: F.cases, prefs, duration_min: F.dur, gap_min: F.gap, creator: F.creators.join('、'),
+      vendor: F.vendor, type: F.types, cases: F.cases, tiers, duration_min: F.dur, gap_min: F.gap, creator: F.creators.join('、'),
       deadline: F.dlDate ? F.dlDate + 'T' + (F.dlTime || '18:00') + ':00+08:00' : null})});
     const d = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
@@ -275,7 +302,7 @@ function renderJointDetail(){
   box.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-size:17px;font-weight:800;">🧩 ${escHtml(g.title)} ${jtStatusChip(g.status)}</div>
       <button type="button" onclick="document.getElementById('jointDetailOverlay').remove()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button></div>
-    <div style="font-size:12px;color:var(--text-muted);margin:6px 0 10px;line-height:1.7;">期望日：${g.prefs.map((p, i) => ['第一', '第二', '第三', '第四'][i] + ' ' + fmtDate(p.date) + '（' + fmtWeekday(p.date) + '）' + p.windows.map(w => w[0] + '–' + w[1]).join('、')).join('｜')}｜回覆 ${g.counts.replied}/${g.counts.total}｜確認 ${g.counts.confirmed}/${g.counts.total}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin:6px 0 10px;line-height:1.7;">${jtPrefsText(g.prefs, true)}｜回覆 ${g.counts.replied}/${g.counts.total}｜確認 ${g.counts.confirmed}/${g.counts.total}</div>
     <table style="width:100%;border-collapse:collapse;"><thead><tr style="font-size:11.5px;color:var(--text-muted);text-align:left;"><th style="padding:4px 6px;">案件</th><th style="padding:4px 6px;">狀態</th><th style="padding:4px 6px;">屋主回覆</th><th style="padding:4px 6px;"></th></tr></thead>
       <tbody>${memberRows}</tbody></table>
     ${editor}
