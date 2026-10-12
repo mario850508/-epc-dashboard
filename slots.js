@@ -853,6 +853,77 @@ function renderSlotBookingFilterBars(barId, typeBarId, pool, shownCount){
   openIds.forEach(id => { const x = document.getElementById(id); if(x) x.classList.add('show'); });
 }
 
+// 2026-10-12：「一起通知廠商」——勾選同一家廠商的多筆預約，合成一張卡片（依日期時間排序，每筆有撥號／地圖按鈕）。
+const BATCH_SEL = new Set();
+function toggleBatchSel(el){
+  if(el.checked) BATCH_SEL.add(el.dataset.id); else BATCH_SEL.delete(el.dataset.id);
+  updateBatchButtons();
+}
+function selectAllBatch(vendor){
+  const boxes = [...document.querySelectorAll('.bn-sel')].filter(c => c.dataset.vendor === vendor);
+  const all = boxes.every(c => c.checked);
+  boxes.forEach(c => { c.checked = !all; if(c.checked) BATCH_SEL.add(c.dataset.id); else BATCH_SEL.delete(c.dataset.id); });
+  updateBatchButtons();
+}
+function updateBatchButtons(){
+  document.querySelectorAll('.bn-vendor-btn').forEach(btn => {
+    const n = [...document.querySelectorAll('.bn-sel')].filter(c => c.dataset.vendor === btn.dataset.vendor && c.checked).length;
+    btn.style.display = n ? '' : 'none';
+    btn.textContent = '📤 一起通知廠商（' + n + '）';
+  });
+}
+function closeBatchNotice(){ const ov = document.getElementById('batchNoticeOverlay'); if(ov) ov.remove(); }
+function openBatchVendorNotice(vendor){
+  const ids = SLOT_BOOKINGS.filter(b => b.vendor === vendor && BATCH_SEL.has(b.record_id) && !b.cancelled)
+    .sort((a, b) => (a.date + (a.start_time || '')).localeCompare(b.date + (b.start_time || '')));
+  if(!ids.length){ showToast('請先勾選要一起通知的預約'); return; }
+  closeBatchNotice();
+  const ov = document.createElement('div');
+  ov.id = 'batchNoticeOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.onclick = e => { if(e.target === ov) closeBatchNotice(); };
+  const missing = ids.filter(b => (b.owner_phone || '').replace(/\D/g, '').length < 8);
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:22px;max-width:480px;width:100%;color:#1B2333;max-height:92vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:17px;font-weight:800;">📤 一起通知廠商｜${escHtml(vendor)}</div>
+      <button type="button" onclick="closeBatchNotice()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button>
+    </div>
+    <div style="font-size:12.5px;color:#6B7280;margin:6px 0 10px;line-height:1.7;">這 ${ids.length} 筆會合成「一張」卡片，依日期時間排序；每筆有屋主姓名、備註、📞 撥號、📍 地圖按鈕。</div>
+    <div style="border:1px solid var(--border);border-radius:10px;padding:4px 10px;">${ids.map((b, i) => `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px;">
+      <b>${i + 1}.</b> ${fmtDate(b.date)}（${fmtWeekday(b.date)}）${escHtml(b.start_time || '')}–${escHtml(b.end_time || '')}　${escHtml(b.case || '')} ${escHtml(b.alias || '')}
+      <div style="font-size:11.5px;color:var(--text-muted);">屋主：${escHtml([b.owner_name, b.owner_phone].filter(Boolean).join('　') || '（沒有資料）')}</div></div>`).join('')}</div>
+    ${missing.length ? `<div style="font-size:12px;color:#B45309;margin-top:8px;">⚠ 這些案件沒有屋主電話，卡片上不會有撥號按鈕：${missing.map(b => escHtml(b.case)).join('、')}</div>` : ''}
+    <div style="font-size:13px;font-weight:700;margin:14px 0 6px;">給廠商的備註（選填，會放在卡片最下面）</div>
+    <textarea id="bnNote" class="quick-mark-input" rows="2" placeholder="例如：請提前一天跟屋主確認"></textarea>
+    <button type="button" class="btn btn-primary" id="bnSubmit" style="width:100%;justify-content:center;padding:11px;margin-top:14px;" onclick="submitBatchNotice('${vendor}')">產生通知</button>
+    <div id="bnResult"></div></div>`;
+  document.body.appendChild(ov);
+}
+async function submitBatchNotice(vendor){
+  const ids = SLOT_BOOKINGS.filter(b => b.vendor === vendor && BATCH_SEL.has(b.record_id) && !b.cancelled).map(b => b.record_id);
+  const btn = document.getElementById('bnSubmit');
+  btn.disabled = true; btn.textContent = '產生中…';
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/batch-vendor-notice', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids, note: document.getElementById('bnNote').value.trim()}),
+    });
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    window._vnPlain = d.plain_text || '';
+    window._vnLink = d.liff_url || '';
+    btn.style.display = 'none';
+    document.getElementById('bnResult').innerHTML = `
+      <div style="margin-top:14px;padding:12px 14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;font-size:13px;line-height:1.7;">
+        ✅ 已合成 ${d.count} 筆。<b>下一步：用手機 LINE 開啟下面的連結</b>，預覽卡片後按「選擇廠商群組並傳送」。傳送成功後，這幾筆都會記下「已通知廠商」。
+      </div>
+      ${d.liff_url ? `<a href="${d.liff_url}" target="_blank" rel="noopener" class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin-top:10px;text-decoration:none;">📱 在 LINE 開啟並選擇群組</a>
+      <button type="button" class="btn btn-ghost" style="width:100%;justify-content:center;padding:10px;margin-top:8px;" onclick="copyVnText(window._vnLink, '已複製連結，可以貼到 LINE 給自己再點開')">複製連結（在電腦上時，傳到自己的 LINE 再點）</button>` : ''}
+      <button type="button" class="btn btn-ghost" style="width:100%;justify-content:center;padding:10px;margin-top:8px;" onclick="copyVnText(window._vnPlain, '已複製文字版通知')">複製文字版（備用）</button>`;
+  }catch(err){
+    showToast('產生失敗：' + err.message);
+    btn.disabled = false; btn.textContent = '產生通知';
+  }
+}
 function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, canCancel){
   if(!container) return;
   if(poolSize === 0){ container.innerHTML = `<div class="login-note">${emptyMsg}</div>`; return; }
@@ -874,6 +945,7 @@ function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, c
       const sortedBookings = [...byVendor[vendor][date]].sort((a,b)=>(a.start_time||'').localeCompare(b.start_time||''));
       const rows = sortedBookings.map(b => `
             <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+              ${canCancel && !b.cancelled ? `<input type="checkbox" class="bn-sel" data-id="${b.record_id}" data-vendor="${escHtml(vendor)}" ${BATCH_SEL.has(b.record_id) ? 'checked' : ''} onchange="toggleBatchSel(this)" title="勾選後可以「一起通知廠商」" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;">` : ''}
               ${typeChipsHtml(b.type)}
               <span style="font-weight:700;font-size:12.5px;flex-shrink:0;">${b.start_time}-${b.end_time}</span>
               <span style="font-size:12.5px;flex:1;min-width:120px;">${b.case||''}${b.alias?('　'+b.alias):''}</span>
@@ -901,12 +973,15 @@ function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, c
         <div class="panel-title">
           <span class="vendor-pill ${vendorClass}">${vendor}</span>
           <div class="panel-title-actions">
+            ${canCancel ? `<button class="btn btn-ghost notes-trigger-btn" onclick="selectAllBatch('${vendor}')">☑ 全選</button>
+            <button class="btn btn-primary notes-trigger-btn bn-vendor-btn" data-vendor="${escHtml(vendor)}" style="display:none;" onclick="openBatchVendorNotice('${vendor}')">📤 一起通知廠商</button>` : ''}
             <button class="btn btn-ghost notes-trigger-btn" onclick="copySlotSummary('${vendor}')">📋 複製清單</button>
           </div>
         </div>
         ${dayBlocks}
       </div>`;
   }).join('');
+  updateBatchButtons();
 }
 
 function renderVendorSlots(){
