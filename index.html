@@ -661,6 +661,12 @@
   .pdf-st-已確認{background:var(--success-soft);color:var(--success);}
   .pdf-st-已歸檔{background:var(--surface-2);color:var(--text-muted);}
   .pdf-st-辨識失敗{background:#FDE4E4;color:#C9383D;}
+  .pdf-done{display:flex;flex-direction:column;gap:4px;align-items:flex-start;}
+  .pdf-done .pdf-st{cursor:help;}
+  .pdf-done-ok{background:var(--success-soft);color:var(--success);}
+  .pdf-done-wait{background:#FFF0D6;color:#B8720A;}
+  .pdf-done-bad{background:#FDE4E4;color:#C9383D;}
+  .pdf-done-na{background:var(--surface-2);color:var(--text-muted);}
   .pdf-detail{display:grid;grid-template-columns:1.25fr 1fr;gap:16px;}
   .pdf-detail iframe{width:100%;height:72vh;border:1px solid var(--border);border-radius:10px;background:#f4f4f4;}
   .pdf-form label{font-size:12px;font-weight:600;display:block;margin:10px 0 5px;}
@@ -6997,7 +7003,7 @@ function renderPdfList(){
       <td>${pdfTypeTag(x)}</td>
       <td style="white-space:nowrap;">${pdfEsc(x.doc_date) || '<span class="pdf-sub">—</span>'}</td>
       <td>${pdfConfBadge(x.confidence)}</td>
-      <td><span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span>${pdfDupTag(x)}</td>
+      <td>${pdfStatusCell(x)}${pdfDupTag(x)}</td>
       <td style="white-space:nowrap;">${btn(x)}<button class="pdf-del" title="刪除" onclick="event.stopPropagation();deletePdf('${x.id}')">🗑</button></td>
     </tr>`).join('')}</tbody></table></div>`;
   // 手機：卡片
@@ -7006,7 +7012,7 @@ function renderPdfList(){
       <div class="pdf-card-main">
         <div class="pdf-card-top">
           <div class="pdf-card-title">${x.case_no ? pdfEsc(x.case_no) : '<span style="color:#C9383D;">案號待選</span>'}</div>
-          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">${pdfConfBadge(x.confidence)}<span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span>${pdfDupTag(x)}</div>
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">${pdfConfBadge(x.confidence)}${pdfStatusCell(x)}${pdfDupTag(x)}</div>
         </div>
         <div class="pdf-card-meta">${pdfTypeTag(x)}<span>${pdfEsc(x.doc_date) || ''}</span></div>
         ${newName(x)}
@@ -7022,6 +7028,35 @@ function pdfRowStep(x){
   return `<div class="pdf-row-step" data-step-for="${x.id}" ${x.status === '待辨識' ? 'data-queued="1"' : ''}></div>`;
 }
 
+// 已確認／已歸檔：分開顯示「雲端歸檔」跟「Airtable 更新」兩件事有沒有完成（從寫回結果的每一行判斷）
+const PDF_ARCHIVE_LINE = /^(歸檔：|⚠ 歸檔失敗|⚠ 同類型已存在|已選擇仍要歸檔)/;
+function pdfDoneState(x){
+  const lines = String(x.writeback || '').split('\n').map(t => t.trim()).filter(Boolean);
+  const arcLines = lines.filter(t => PDF_ARCHIVE_LINE.test(t));
+  const atLines = lines.filter(t => !PDF_ARCHIVE_LINE.test(t));
+  const lastArc = arcLines[arcLines.length - 1] || '';
+  let cloud;
+  if(x.status === '已歸檔') cloud = ['ok', '☁ 已歸檔至雲端'];
+  else if(/^⚠ 同類型已存在/.test(lastArc)) cloud = ['bad', '☁ 同類型已存在'];
+  else if(x.no_archive) cloud = ['na', '☁ 不歸檔'];
+  else if(/^⚠ 歸檔失敗/.test(lastArc)) cloud = ['bad', '☁ 歸檔失敗'];
+  else cloud = ['wait', '☁ 等待歸檔'];
+  let at;
+  if(atLines.some(t => t.startsWith('✗'))) at = ['bad', 'Airtable 更新失敗'];
+  else if(atLines.some(t => t.startsWith('⚠'))) at = ['wait', 'Airtable 待確認'];
+  else if(atLines.some(t => t.startsWith('✓'))) at = ['ok', 'Airtable 已更新'];
+  else if(atLines.length) at = ['na', 'Airtable 無需更新'];
+  else at = ['na', 'Airtable 未更新'];
+  return {cloud, at, cloudTip: arcLines.join('\n') || cloud[1], atTip: atLines.join('\n') || '確認時沒有寫回 Airtable'};
+}
+function pdfDoneTags(x){
+  if(x.status !== '已確認' && x.status !== '已歸檔') return '';
+  const d = pdfDoneState(x);
+  return `<div class="pdf-done"><span class="pdf-st pdf-done-${d.cloud[0]}" title="${pdfEsc(d.cloudTip)}">${d.cloud[1]}</span><span class="pdf-st pdf-done-${d.at[0]}" title="${pdfEsc(d.atTip)}">${d.at[1]}</span></div>`;
+}
+function pdfStatusCell(x){
+  return pdfDoneTags(x) || `<span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span>`;
+}
 function pdfDupTag(x){
   const d = ((PDF_STATE.dups || {}).keepOf || {})[x.id];
   if(!d) return '';
@@ -7297,7 +7332,7 @@ function openPdfDetail(id){
       : (x.file_ext && x.file_ext !== '.pdf') ? `<div class="login-note">${x.file_ext === '.docx' ? 'Word' : 'Excel'} 檔無法在這裡預覽，<a href="javascript:void(0)" onclick="downloadPdf('${x.id}')">下載來看</a>。<br>右邊「辨識出的文字」是從檔案讀到的內容。</div>`
       : `<iframe src="${pdfEsc(x.file_url)}#view=FitH"></iframe><a class="pdf-open-new" href="${pdfEsc(x.file_url)}" target="_blank" rel="noopener">↗ 在新分頁開啟（可以放大看）</a>`}</div>
     <div class="pdf-form">
-      <div><span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span> ${pdfConfBadge(x.confidence)}
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${pdfDoneTags(x) ? pdfDoneTags(x).replace('pdf-done"', 'pdf-done" style="flex-direction:row;"') : `<span class="pdf-st pdf-st-${pdfEsc(x.status)}">${pdfEsc(x.status)}</span>`} ${pdfConfBadge(x.confidence)}
         ${x.confirmed_by ? `<span class="pdf-sub">　${pdfEsc(x.confirmed_by)}・${pdfEsc(pdfFmtTime(x.confirmed_at))}</span>` : ''}</div>
       ${x.error ? `<div class="pdf-issue">✗ ${pdfEsc(x.error)}</div>` : ''}
       ${issues}
