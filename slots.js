@@ -397,6 +397,7 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskEstDelegate').checked = false;
   document.getElementById('slotTaskEstRange').style.display = 'flex';
   document.getElementById('slotTaskEstDurationWrap').style.display = 'none';
+  document.getElementById('slotTaskWindowWrap').style.display = 'none';
   applySlotTaskTimeDefault();
   document.getElementById('slotTaskModalOverlay').classList.add('show');
 }
@@ -472,6 +473,17 @@ function onSlotTaskWin2Change(){
     if(!document.getElementById('slotTaskOwnerWin2Start').value) document.getElementById('slotTaskOwnerWin2Start').value = '13:00';
     if(!document.getElementById('slotTaskOwnerWin2End').value) document.getElementById('slotTaskOwnerWin2End').value = '17:00';
   }
+}
+function formWindows(){
+  const w = [[document.getElementById('slotTaskOwnerWinStart').value || '09:00', document.getElementById('slotTaskOwnerWinEnd').value || '17:00']];
+  const w2 = getSlotWin2();
+  if(w2.owner_win2_start && w2.owner_win2_end) w.push([w2.owner_win2_start, w2.owner_win2_end]);
+  return w;
+}
+function slotWindowsOf(t){
+  const w = [[t.owner_win_start || '09:00', t.owner_win_end || '17:00']];
+  if(t.owner_win2_start && t.owner_win2_end) w.push([t.owner_win2_start, t.owner_win2_end]);
+  return w;
 }
 function getSlotWin2(){
   if(!document.getElementById('slotTaskOwnerWin2On').checked) return {owner_win2_start: '', owner_win2_end: ''};
@@ -572,6 +584,7 @@ function onSlotTaskEstDelegateChange(){
   const delegate = document.getElementById('slotTaskEstDelegate').checked;
   document.getElementById('slotTaskEstRange').style.display = delegate ? 'none' : 'flex';
   document.getElementById('slotTaskEstDurationWrap').style.display = delegate ? 'flex' : 'none';
+  document.getElementById('slotTaskWindowWrap').style.display = delegate ? 'block' : 'none';
   if(delegate){
     setSlotTaskEstDurationFromMinutes(getSlotTaskTypeDurationSum());
   } else {
@@ -612,7 +625,7 @@ async function confirmSlotTask(){
     return;
   }
   const win2 = getSlotWin2();
-  if(win2.owner_win2_start){
+  if(estDelegate && win2.owner_win2_start){
     const w1s = document.getElementById('slotTaskOwnerWinStart').value || '09:00', w1e = document.getElementById('slotTaskOwnerWinEnd').value || '17:00';
     if(!(w1s < w1e)){ showToast('第一個時段的結束時間要晚於開始時間'); return; }
     if(!win2.owner_win2_end || !(win2.owner_win2_start < win2.owner_win2_end)){ showToast('第二個時段的結束時間要晚於開始時間'); return; }
@@ -625,7 +638,7 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks' + (editing ? '/' + encodeURIComponent(editing) : ''), {
       method: editing ? 'PATCH' : 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2, owner_name: ownerName, owner_phone: ownerPhone, deadline}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', ...(estDelegate ? {owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2} : {owner_win_start: '09:00', owner_win_end: '17:00', owner_win2_start: '', owner_win2_end: ''}), owner_name: ownerName, owner_phone: ownerPhone, deadline}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
@@ -635,7 +648,7 @@ async function confirmSlotTask(){
     window.LAST_SLOT_TASK_RECORD_ID = editing || data.record_id || null;
     SLOT_TASK_EDIT_ID = null;
     if(editing) showToast('已儲存修改（連結不變，已傳出去的連結仍然有效）');
-    showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path, estStart, estEnd, durationMin, estDelegate, deadline);
+    showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path, estStart, estEnd, durationMin, estDelegate, deadline, estDelegate ? formWindows() : null);
   }catch(err){
     showToast((SLOT_TASK_EDIT_ID ? '儲存失敗：' : '建立失敗：') + err.message);
   }finally{
@@ -649,7 +662,7 @@ async function confirmSlotTask(){
 // 結束時間自動帶出來。estDelegate=true 時訊息顯示「預估時長」，否則（有
 // 完整起訖時間）顯示「預估時間」區間；之後從任務清單「📎 複製訊息」重新
 // 產生時一樣會帶（因為 durationMin 已經存在任務紀錄裡了，不像以前會不見）。
-function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, estStart, estEnd, durationMin, estDelegate, deadline){
+function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, estStart, estEnd, durationMin, estDelegate, deadline, windows){
   const link = window.location.origin + path;
   const typeLabel = (type||[]).join('+');
   let estLine = '';
@@ -657,6 +670,9 @@ function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, 
     estLine = `\n預估時長：${slotDurationLabel(durationMin)}（僅供參考，實際時間依現場工班作業時間為主）`;
   } else if(estStart && estEnd){
     estLine = `\n預估時間：${estStart}-${estEnd}（僅供參考，實際時間依現場工班作業時間為主）`;
+  }
+  if(estDelegate && windows && windows.length){
+    estLine += `\n可選時段：${windows.map(w => w[0] + '–' + w[1]).join('、')}（請在這些時段內選開始時間）`;
   }
   const text = `【${vendor} ${typeLabel}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}${estLine}${deadline ? `\n⏰ 請於 ${fmtDeadline(deadline)} 前回覆給我` : ''}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
   document.getElementById('slotSummaryTitle').textContent = '📨 傳給業務的訊息';
@@ -733,7 +749,7 @@ function copySlotTaskMessage(recordId){
     estE = String(Math.floor(endMin / 60)).padStart(2,'0') + ':' + String(endMin % 60).padStart(2,'0');
     delegate = false;
   }
-  showSlotTaskMessage(t.vendor, t.case, t.alias, t.type, t.candidate_dates, path, estS, estE, t.duration_min, delegate, t.deadline);
+  showSlotTaskMessage(t.vendor, t.case, t.alias, t.type, t.candidate_dates, path, estS, estE, t.duration_min, delegate, t.deadline, delegate ? slotWindowsOf(t) : null);
 }
 async function deleteSlotTask(recordId){
   if(!confirm('確定要刪除這個任務嗎？（連結會立刻失效，如果業務已經在填的話會失敗）')) return;

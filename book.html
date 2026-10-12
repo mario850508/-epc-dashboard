@@ -568,6 +568,7 @@ function render(){
         </div>
       </div>
       <div class="busy-hint" id="busyHint"></div>
+      ${TASK.windows && TASK.windows.length ? `<div class="sub" style="margin-top:6px;">🕘 可選時段：${TASK.windows.map(w => w[0] + '–' + w[1]).join('、')}（開始時間只能選這些時段內，灰色的不能選）</div>` : ''}
       <div class="sub" style="margin-top:6px;margin-bottom:16px;">⏱️ 選好開始時間後，結束時間會依預估作業時長自動帶入，仍可自行調整</div>
       </div>
 
@@ -901,12 +902,16 @@ function refreshTimeOptions(){
 function applyBusyToSelects(startSel, endSel, date){
   const busy = date ? getBusyRanges(date) : [];
   const startMin = startSel.value ? toMin(startSel.value) : null;
+  // 2026-10-12：PM 設了「可選時段」（交由業務安排）→ 主表單的開始時間只能選時段內、且作業做得完的
+  const wins = (startSel.id === 'startTime' && TASK && TASK.windows && TASK.windows.length) ? TASK.windows.map(([a, b]) => [toMin(a), toMin(b)]) : null;
+  const dur = wins ? getTaskDuration() : 0;
   [...startSel.options].forEach(o => {
     if(!o.value) return;
     const m = toMin(o.value);
     const blocked = busy.some(([s, e]) => m >= s && m < e);
-    o.disabled = blocked;
-    o.textContent = blocked ? o.value + '　已被預約' : o.value;
+    const outWin = !!wins && !wins.some(([a, b]) => m >= a && m + dur <= b);
+    o.disabled = blocked || outWin;
+    o.textContent = blocked ? o.value + '　已被預約' : (outWin ? o.value + '　非可選時段' : o.value);
   });
   [...endSel.options].forEach(o => {
     if(!o.value) return;
