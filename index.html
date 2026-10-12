@@ -2693,10 +2693,20 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             <div style="flex:1;"><select class="quick-mark-input" id="slotTaskDeadlineTime" onchange="slotDeadlineTouched=true"></select></div>
           </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">屋主版可選時段（測試中：業務若改傳「屋主版連結」，屋主只能選這段時間內、且作業要在結束前做完）</label>
-          <div style="display:flex;gap:10px;margin-bottom:18px;align-items:center;">
-            <select class="quick-mark-input" id="slotTaskOwnerWinStart" style="flex:1;"></select>
-            <span style="font-size:12px;color:var(--text-muted);">到</span>
-            <select class="quick-mark-input" id="slotTaskOwnerWinEnd" style="flex:1;"></select>
+          <div style="margin-bottom:18px;">
+            <div style="display:flex;gap:10px;margin-bottom:8px;align-items:center;">
+              <select class="quick-mark-input" id="slotTaskOwnerWinStart" style="flex:1;"></select>
+              <span style="font-size:12px;color:var(--text-muted);">到</span>
+              <select class="quick-mark-input" id="slotTaskOwnerWinEnd" style="flex:1;"></select>
+            </div>
+            <label style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer;margin-bottom:8px;">
+              <input type="checkbox" id="slotTaskOwnerWin2On" onchange="onSlotTaskWin2Change()"> 加第二個時段（中間是工班休息時間，屋主不能選）
+            </label>
+            <div id="slotTaskOwnerWin2Row" style="display:none;gap:10px;align-items:center;">
+              <select class="quick-mark-input" id="slotTaskOwnerWin2Start" style="flex:1;"></select>
+              <span style="font-size:12px;color:var(--text-muted);">到</span>
+              <select class="quick-mark-input" id="slotTaskOwnerWin2End" style="flex:1;"></select>
+            </div>
           </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">安排人員（業務完成安排、期限快到時，LINE 通知這位同仁；可複選多位，都不勾就不發）</label>
           <div style="display:flex;gap:8px;margin-bottom:6px;">
@@ -8307,7 +8317,7 @@ async function generateOpsPdf(id, keepModalOpen){
 // 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
 // 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
 </script>
-<script src="slots.js?v=4"></script>
+<script src="slots.js?v=5"></script>
 <script>
 // ===================================================================
 // 採購專區：變流器出廠證明歸檔紀錄（2026-10-07）

@@ -377,6 +377,11 @@ function openSlotTaskModal(){
   ['slotTaskOwnerWinStart', 'slotTaskOwnerWinEnd'].forEach(id => { document.getElementById(id).innerHTML = slotTimeOptionsHtml(); });
   document.getElementById('slotTaskOwnerWinStart').value = '09:00';
   document.getElementById('slotTaskOwnerWinEnd').value = '17:00';
+  ['slotTaskOwnerWin2Start', 'slotTaskOwnerWin2End'].forEach(id => { document.getElementById(id).innerHTML = slotTimeOptionsHtml(); });
+  document.getElementById('slotTaskOwnerWin2Start').value = '13:00';
+  document.getElementById('slotTaskOwnerWin2End').value = '17:00';
+  document.getElementById('slotTaskOwnerWin2On').checked = false;
+  document.getElementById('slotTaskOwnerWin2Row').style.display = 'none';
   document.getElementById('slotTaskCaseResults').classList.remove('show');
   document.getElementById('slotTaskTypeDropdown').classList.remove('show');
   document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = false; });
@@ -437,6 +442,10 @@ function editSlotTask(recordId){
     setv('slotTaskEstStart', ''); setv('slotTaskEstEnd', '');
   }
   setv('slotTaskOwnerWinStart', t.owner_win_start || '09:00'); setv('slotTaskOwnerWinEnd', t.owner_win_end || '17:00');
+  const has2 = !!(t.owner_win2_start && t.owner_win2_end);
+  document.getElementById('slotTaskOwnerWin2On').checked = has2;
+  document.getElementById('slotTaskOwnerWin2Row').style.display = has2 ? 'flex' : 'none';
+  if(has2){ setv('slotTaskOwnerWin2Start', t.owner_win2_start); setv('slotTaskOwnerWin2End', t.owner_win2_end); }
   // 回覆期限
   slotDeadlineTouched = true;
   if(t.deadline){
@@ -452,6 +461,21 @@ function editSlotTask(recordId){
   SLOT_TASK_EDIT_CREATORS = splitNames(t.creator);
   populateSlotCreatorSelect();
   loadSlotSchedulers();   // 名單載入後會依 SLOT_TASK_EDIT_CREATORS 重新勾選
+}
+// 2026-10-12：屋主可選時段可以加第二段（例如 09:00–12:00、13:00–17:00，中間午休屋主不能選）
+function onSlotTaskWin2Change(){
+  const on = document.getElementById('slotTaskOwnerWin2On').checked;
+  document.getElementById('slotTaskOwnerWin2Row').style.display = on ? 'flex' : 'none';
+  if(on){
+    const s = document.getElementById('slotTaskOwnerWinStart'), e = document.getElementById('slotTaskOwnerWinEnd');
+    if(s.value === '09:00' && e.value === '17:00'){ e.value = '12:00'; }   // 預設拆成上午＋下午
+    if(!document.getElementById('slotTaskOwnerWin2Start').value) document.getElementById('slotTaskOwnerWin2Start').value = '13:00';
+    if(!document.getElementById('slotTaskOwnerWin2End').value) document.getElementById('slotTaskOwnerWin2End').value = '17:00';
+  }
+}
+function getSlotWin2(){
+  if(!document.getElementById('slotTaskOwnerWin2On').checked) return {owner_win2_start: '', owner_win2_end: ''};
+  return {owner_win2_start: document.getElementById('slotTaskOwnerWin2Start').value, owner_win2_end: document.getElementById('slotTaskOwnerWin2End').value};
 }
 function backToEditSlotTask(){
   const id = window.LAST_SLOT_TASK_RECORD_ID;
@@ -587,6 +611,13 @@ async function confirmSlotTask(){
     showToast('請把廠商/項目類型/案號填好，候選日期至少填一天');
     return;
   }
+  const win2 = getSlotWin2();
+  if(win2.owner_win2_start){
+    const w1s = document.getElementById('slotTaskOwnerWinStart').value || '09:00', w1e = document.getElementById('slotTaskOwnerWinEnd').value || '17:00';
+    if(!(w1s < w1e)){ showToast('第一個時段的結束時間要晚於開始時間'); return; }
+    if(!win2.owner_win2_end || !(win2.owner_win2_start < win2.owner_win2_end)){ showToast('第二個時段的結束時間要晚於開始時間'); return; }
+    if(win2.owner_win2_start < w1e){ showToast('第二個時段要從第一個時段結束之後開始（中間是休息時間）'); return; }
+  }
   const btn = document.querySelector('#slotTaskModalOverlay .btn-primary');
   const originalText = btn.textContent;
   const editing = SLOT_TASK_EDIT_ID;
@@ -594,7 +625,7 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks' + (editing ? '/' + encodeURIComponent(editing) : ''), {
       method: editing ? 'PATCH' : 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', owner_name: ownerName, owner_phone: ownerPhone, deadline}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2, owner_name: ownerName, owner_phone: ownerPhone, deadline}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
@@ -658,7 +689,7 @@ async function showOwnerMessage(){
     const text = `您好，我是陽光伏特家的業務${d.assignee || ''}。\n`
       + `我們要幫您安排「${(d.items || []).join('、')}」，想請您直接點下面的連結，選一個您方便的時間（大約需要 ${slotDurationLabel(d.duration_min)}）：\n${link}\n\n`
       + `可選日期：${(d.candidate_dates || []).map(x => fmtDate(x) + '（' + fmtWeekday(x) + '）').join('、')}\n`
-      + `可選時段：${d.window_start}–${d.window_end} 之間\n`
+      + `可選時段：${(d.windows && d.windows.length ? d.windows : [[d.window_start, d.window_end]]).map(w => w[0] + '–' + w[1]).join('、')}\n`
       + `如果不方便操作，直接回覆我就可以了，謝謝您！`;
     document.getElementById('slotSummaryTitle').textContent = '🏠 傳給屋主的訊息（請業務轉傳，測試中）';
     const bindNote = document.getElementById('slotSummaryBindNote');

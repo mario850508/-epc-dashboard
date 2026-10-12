@@ -77,12 +77,15 @@ function repHelp(){ return `不會操作、或想改時間的話，直接回覆$
 
 // 某天可以選的開始時間：在屋主可選時段內、作業時間不跟施工團隊其他預約重疊
 function startOptions(date){
-  const dur = D.duration_min, ws = toMin(D.window_start), we = toMin(D.window_end);
+  const dur = D.duration_min;
+  const wins = (D.windows && D.windows.length ? D.windows : [[D.window_start, D.window_end]]).map(([a, b]) => [toMin(a), toMin(b)]);
   const busy = (D.busy_slots || []).filter(b => b.date === date).map(b => [toMin(b.start_time), toMin(b.end_time)]);
   const out = [];
-  for(let s = Math.ceil(ws / 60) * 60; s + dur <= we; s += 60){   // 只列整點開始（2026-10-12）
-    out.push({start: fmtMin(s), end: fmtMin(s + dur), ok: !busy.some(([bs, be]) => s < be && bs < s + dur)});
-  }
+  wins.forEach(([ws, we]) => {   // 每個可選時段各列一排整點開始（中間的休息時間不會出現）
+    for(let s = Math.ceil(ws / 60) * 60; s + dur <= we; s += 60){
+      out.push({start: fmtMin(s), end: fmtMin(s + dur), ok: !busy.some(([bs, be]) => s < be && bs < s + dur)});
+    }
+  });
   return out;
 }
 
