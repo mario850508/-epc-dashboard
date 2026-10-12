@@ -240,6 +240,7 @@ function renderSlotTasks(){
       <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">候選：${t.candidate_dates.map(d=>fmtDate(d)).join('、')}</span>
       ${t.assignee ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">指派：${t.assignee}${isBoundName(t.assignee) ? ' <span style="color:#16A34A;font-weight:700;">✓LINE</span>' : ` <span style="color:#D97706;font-weight:700;cursor:pointer;" title="按一下複製綁定連結給業務" onclick="copyRepBindLink('${t.assignee.replace(/'/g, '')}')">⚠️未綁LINE</span>`}</span>` : ''}
       ${t.deadline ? (() => { const over = new Date(t.deadline) < new Date(); return `<span style="font-size:11px;font-weight:700;flex-shrink:0;color:${over ? '#D64545' : '#B45309'};">⏰ ${fmtDeadline(t.deadline)}${over ? '（已逾期）' : ''}</span>`; })() : ''}
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="editSlotTask('${t.record_id}')">✏️ 編輯</button>
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="adjustSlotDeadline('${t.record_id}')">⏰ 期限</button>
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="copySlotTaskMessage('${t.record_id}')">📎 複製訊息</button>
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="openOwnerMessageFor('${t.record_id}')">🏠 屋主版</button>
@@ -339,6 +340,7 @@ function showSlotChosenMessage(t){
   const previewBtn = document.getElementById('slotSummaryPreviewBtn');
   previewBtn.dataset.link = link;
   previewBtn.style.display = 'block';
+  document.getElementById('slotSummaryBackBtn').style.display = 'flex';
   document.getElementById('slotSummaryModalOverlay').classList.add('show');
 }
 async function loadSlotTasksQuiet(){
@@ -352,7 +354,12 @@ async function loadSlotTasksQuiet(){
   }catch(err){ console.error('載入時段任務失敗（不影響其他頁面）', err); }
 }
 
+let SLOT_TASK_EDIT_ID = null;
+let SLOT_TASK_EDIT_CREATORS = [];
 function openSlotTaskModal(){
+  SLOT_TASK_EDIT_ID = null;
+  const _mt = document.querySelector('#slotTaskModalOverlay .modal-title'); if(_mt) _mt.textContent = '📨 指派給業務';
+  const _mb = document.querySelector('#slotTaskModalOverlay .btn-primary'); if(_mb) _mb.textContent = '建立任務並產生連結';
   document.getElementById('slotTaskVendor').innerHTML = ALL_VENDOR_NAMES.map(v => `<option value="${v}">${v}</option>`).join('');
   document.getElementById('slotTaskCase').value = '';
   document.getElementById('slotTaskAlias').value = '';
@@ -388,6 +395,69 @@ function openSlotTaskModal(){
   applySlotTaskTimeDefault();
   document.getElementById('slotTaskModalOverlay').classList.add('show');
 }
+// 2026-10-12：編輯還沒完成預約的任務。重用「指派給業務」視窗，帶入目前的內容，按「儲存修改」。
+function editSlotTask(recordId){
+  const t = SLOT_TASKS.find(x => x.record_id === recordId);
+  if(!t){ showToast('找不到這個任務，請重新整理'); return; }
+  openSlotTaskModal();
+  SLOT_TASK_EDIT_ID = recordId;
+  document.querySelector('#slotTaskModalOverlay .modal-title').textContent = '✏️ 編輯指派任務';
+  document.querySelector('#slotTaskModalOverlay .btn-primary').textContent = '儲存修改';
+  const setv = (id, v) => { const el = document.getElementById(id); if(el) el.value = v == null ? '' : v; };
+  if(t.vendor && ![...document.getElementById('slotTaskVendor').options].some(o => o.value === t.vendor)){
+    document.getElementById('slotTaskVendor').insertAdjacentHTML('beforeend', `<option value="${escHtml(t.vendor)}">${escHtml(t.vendor)}</option>`);
+  }
+  setv('slotTaskVendor', t.vendor);
+  setv('slotTaskCase', t.case); setv('slotTaskAlias', t.alias); setv('slotTaskAssignee', t.assignee);
+  updateAssigneeBindLine();
+  setv('slotTaskOwnerName', t.owner_name); setv('slotTaskOwnerPhone', t.owner_phone);
+  document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = (t.type || []).includes(c.value); });
+  updateSlotTypeLabel('slot-task-type-check', 'slotTaskTypeLabel');
+  // 候選日期
+  const rows = document.getElementById('slotTaskDateRows');
+  rows.innerHTML = '';
+  (t.candidate_dates.length ? t.candidate_dates : ['']).forEach((d, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;';
+    row.innerHTML = `<input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;" value="${d}">` + (i ? '<button class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="this.parentElement.remove()">✕</button>' : '');
+    rows.appendChild(row);
+  });
+  // 預估時間：有開始時間＋時長＝填具體時間；只有時長＝交由業務安排
+  const hasStart = !!(t.est_start && t.duration_min);
+  document.getElementById('slotTaskEstDelegate').checked = !hasStart && !!t.duration_min;
+  onSlotTaskEstDelegateChange();
+  if(hasStart){
+    const [h, m] = t.est_start.split(':').map(Number);
+    const endMin = h * 60 + m + t.duration_min;
+    setv('slotTaskEstStart', t.est_start);
+    setv('slotTaskEstEnd', String(Math.floor(endMin / 60)).padStart(2, '0') + ':' + String(endMin % 60).padStart(2, '0'));
+  } else if(t.duration_min){
+    setSlotTaskEstDurationFromMinutes(t.duration_min);
+  } else {
+    setv('slotTaskEstStart', ''); setv('slotTaskEstEnd', '');
+  }
+  setv('slotTaskOwnerWinStart', t.owner_win_start || '09:00'); setv('slotTaskOwnerWinEnd', t.owner_win_end || '17:00');
+  // 回覆期限
+  slotDeadlineTouched = true;
+  if(t.deadline){
+    const d = new Date(t.deadline);
+    if(!isNaN(d)){
+      setv('slotTaskDeadlineDate', d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'));
+      setv('slotTaskDeadlineTime', String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'));
+    }
+  } else {
+    setv('slotTaskDeadlineDate', '');
+  }
+  // 安排人員（可複選）：等名單載入後再勾
+  SLOT_TASK_EDIT_CREATORS = splitNames(t.creator);
+  populateSlotCreatorSelect();
+  loadSlotSchedulers();   // 名單載入後會依 SLOT_TASK_EDIT_CREATORS 重新勾選
+}
+function backToEditSlotTask(){
+  const id = window.LAST_SLOT_TASK_RECORD_ID;
+  closeSlotSummaryModal();
+  if(id) editSlotTask(id); else openSlotTaskModal();
+}
 // 2026-10-01 新增：勾選「交由業務安排」時，PM 不填具體的開始/結束時間，
 // 改填一個「預計花費時間」（小時+分鐘兩個數字輸入，可以直接打數字或用
 // 上下箭頭增減，預設帶入目前勾選項目類型的總時長），業務到 book.html
@@ -416,7 +486,7 @@ function populateSlotCreatorSelect(){
   const cur = [...box.querySelectorAll('input:checked')].map(i => i.value);
   let saved = [];
   try{ saved = splitNames(localStorage.getItem('slotSchedulerNames') || localStorage.getItem('slotSchedulerName') || ''); }catch(e){}
-  const want = new Set(cur.length ? cur : saved);
+  const want = new Set(cur.length ? cur : (SLOT_TASK_EDIT_ID ? SLOT_TASK_EDIT_CREATORS : saved));
   box.innerHTML = SLOT_SCHEDULERS.length
     ? SLOT_SCHEDULERS.map(n => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="checkbox" value="${escHtml(n)}" ${want.has(n) ? 'checked' : ''}>${escHtml(n)}</label>`).join('')
     : '<span style="font-size:12px;color:var(--text-muted);">還沒有已綁定 LINE 的安排人員</span>';
@@ -519,10 +589,11 @@ async function confirmSlotTask(){
   }
   const btn = document.querySelector('#slotTaskModalOverlay .btn-primary');
   const originalText = btn.textContent;
-  btn.textContent = '建立中…'; btn.disabled = true;
+  const editing = SLOT_TASK_EDIT_ID;
+  btn.textContent = editing ? '儲存中…' : '建立中…'; btn.disabled = true;
   try{
-    const res = await fetch(API_BASE + '/api/vendor-slots/tasks', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+    const res = await fetch(API_BASE + '/api/vendor-slots/tasks' + (editing ? '/' + encodeURIComponent(editing) : ''), {
+      method: editing ? 'PATCH' : 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', owner_name: ownerName, owner_phone: ownerPhone, deadline}),
     });
     const data = await res.json().catch(()=>({}));
@@ -530,10 +601,12 @@ async function confirmSlotTask(){
     try{ localStorage.setItem('slotSchedulerNames', getSlotCreators()); }catch(e){}
     closeSlotTaskModal();
     loadVendorSlots();
-    window.LAST_SLOT_TASK_RECORD_ID = data.record_id || null;
+    window.LAST_SLOT_TASK_RECORD_ID = editing || data.record_id || null;
+    SLOT_TASK_EDIT_ID = null;
+    if(editing) showToast('已儲存修改（連結不變，已傳出去的連結仍然有效）');
     showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path, estStart, estEnd, durationMin, estDelegate, deadline);
   }catch(err){
-    showToast('建立失敗：' + err.message);
+    showToast((SLOT_TASK_EDIT_ID ? '儲存失敗：' : '建立失敗：') + err.message);
   }finally{
     btn.textContent = originalText; btn.disabled = false;
   }
@@ -563,6 +636,7 @@ function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, 
   previewBtn.textContent = '👀 預覽業務填單畫面';
   previewBtn.style.display = 'block';
   document.getElementById('slotSummaryOwnerBtn').style.display = window.LAST_SLOT_TASK_RECORD_ID ? 'flex' : 'none';
+  document.getElementById('slotSummaryBackBtn').style.display = window.LAST_SLOT_TASK_RECORD_ID ? 'flex' : 'none';
   document.getElementById('slotSummaryModalOverlay').classList.add('show');
 }
 // 2026-10-02 新增：傳送給業務之前先自己看一眼業務會看到的畫面長什麼樣子。
@@ -600,6 +674,7 @@ async function showOwnerMessage(){
     previewBtn.textContent = '👀 預覽屋主畫面（只看，不要送出）';
     previewBtn.style.display = 'block';
     document.getElementById('slotSummaryOwnerBtn').style.display = 'none';
+    document.getElementById('slotSummaryBackBtn').style.display = 'flex';
     document.getElementById('slotSummaryModalOverlay').classList.add('show');
   }catch(err){
     showToast('產生屋主版訊息失敗：' + err.message);
@@ -1068,6 +1143,7 @@ function copySlotSummary(vendor){
   document.getElementById('slotSummaryPreviewBtn').style.display = 'none'; // 複製清單沒有對應的 book.html 連結可以預覽
   const bn2 = document.getElementById('slotSummaryBindNote'); if(bn2) bn2.innerHTML = '';
   document.getElementById('slotSummaryOwnerBtn').style.display = 'none';
+  document.getElementById('slotSummaryBackBtn').style.display = 'none';
   document.getElementById('slotSummaryModalOverlay').classList.add('show');
 }
 function closeSlotSummaryModal(){
