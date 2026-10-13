@@ -809,8 +809,10 @@ function copySlotTaskMessage(recordId){
   }
   showSlotTaskMessage(t.vendor, t.case, t.alias, t.type, t.candidate_dates, path, estS, estE, t.duration_min, delegate, t.deadline, delegate ? slotWindowsOf(t) : null);
 }
-async function deleteSlotTask(recordId){
-  if(!confirm('確定要刪除這個任務嗎？（連結會立刻失效，如果業務已經在填的話會失敗）')) return;
+function deleteSlotTask(recordId){
+  confirmDanger('確定要刪除這個任務嗎？<br><span style="font-size:12.5px;font-weight:500;color:#6B7280;">連結會立刻失效，如果業務已經在填的話會失敗。</span>', () => deleteSlotTaskNow(recordId), '是，刪除');
+}
+async function deleteSlotTaskNow(recordId){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(recordId), {method:'DELETE'});
     if(!res.ok) throw new Error('HTTP ' + res.status);
@@ -1409,8 +1411,10 @@ async function submitCancelBooking(recordId){
   }
 }
 
-async function deleteSlotBooking(recordId){
-  if(!confirm('確定要刪除這筆預約嗎？')) return;
+function deleteSlotBooking(recordId){
+  confirmDanger('確定要刪除這筆預約嗎？<br><span style="font-size:12.5px;font-weight:500;color:#6B7280;">刪除後無法復原；想保留紀錄請改用「取消預約」。</span>', () => deleteSlotBookingNow(recordId), '是，刪除');
+}
+async function deleteSlotBookingNow(recordId){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/' + encodeURIComponent(recordId), {method:'DELETE'});
     if(!res.ok) throw new Error('HTTP ' + res.status);

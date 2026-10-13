@@ -353,8 +353,10 @@ async function confirmJointPlan(){
     btn.disabled = false; btn.textContent = '✅ 確認行程，產生給屋主的確認卡';
   }
 }
-async function cancelJoint(id){
-  if(!confirm('確定取消這個聯合排程？（還沒確認的案件任務會一起取消，屋主連結失效）')) return;
+function cancelJoint(id){
+  confirmDanger('確定取消這個聯合排程？<br><span style="font-size:12.5px;font-weight:500;color:#6B7280;">還沒確認的案件任務會一起取消，屋主連結失效。</span>', () => cancelJointNow(id), '是，取消');
+}
+async function cancelJointNow(id){
   try{
     const res = await fetch(API_BASE + '/api/joint-schedules/' + encodeURIComponent(id) + '/cancel', {method: 'POST'});
     if(!res.ok) throw new Error('HTTP ' + res.status);
