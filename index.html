@@ -2395,18 +2395,15 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           <table>
             <thead>
               <tr>
-                <th>案號</th>
-                <th>設備</th>
-                <th>型號 × 數量</th>
-                <th>訂單成立</th>
-                <th>到貨/進場</th>
-                <th>狀態</th>
+                <th>案號（點開看詳細）</th>
+                <th>🟦 模組（元晶）</th>
+                <th>🔌 變流器（碩天）</th>
                 <th>出貨給</th>
                 <th>備註</th>
               </tr>
             </thead>
             <tbody id="orderRows">
-              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>
+              <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>
             </tbody>
           </table>
           <div class="login-note">
@@ -8823,7 +8820,7 @@ function setOrderEquip(eq){ orderEquip = eq; loadOrders(); }
 
 async function loadOrders(){
   const q = (document.getElementById('orderSearchInput').value || '').trim();
-  const params = new URLSearchParams({q, status: orderStatus, equipment: orderEquip});
+  const params = new URLSearchParams({q, status: q ? 'all' : orderStatus, equipment: orderEquip});   // 搜尋時顯示這案全部狀態（模組＋變流器一起）
   try{
     const res = await fetch(API_BASE + '/api/procurement/orders?' + params.toString());
     const data = await res.json();
@@ -8841,43 +8838,108 @@ function renderOrders(){
   if(!ORDER_DATA){ return; }
   if(ORDER_DATA.error){
     document.getElementById('orderRows').innerHTML =
-      '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入失敗,請按「重新整理」再試一次</td></tr>';
+      '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入失敗,請按「重新整理」再試一次</td></tr>';
     return;
   }
+  const searching = !!(document.getElementById('orderSearchInput').value || '').trim();
   const counts = ORDER_DATA.counts || {};
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  document.getElementById('orderStatusBtns').innerHTML = ORDER_STATUSES.map(st =>
-    `<button class="cert-filter-btn ${orderStatus === st ? 'active' : ''}" onclick="setOrderStatus('${st}')">${st === 'all' ? '全部' : st} ${st === 'all' ? total : (counts[st] || 0)}</button>`).join('')
-    + '<span style="font-size:11px;color:var(--text-muted);align-self:center;">(數字為型號列數)</span>';
+  document.getElementById('orderStatusBtns').innerHTML = searching
+    ? '<span style="font-size:12px;color:var(--text-muted);">🔎 搜尋時顯示這案「全部狀態」的模組＋變流器訂單，不分已成立／已出貨；點案號可看詳細資料與審訖圖。</span>'
+    : ORDER_STATUSES.map(st =>
+      `<button class="cert-filter-btn ${orderStatus === st ? 'active' : ''}" onclick="setOrderStatus('${st}')">${st === 'all' ? '全部' : st} ${st === 'all' ? total : (counts[st] || 0)}</button>`).join('')
+      + '<span style="font-size:11px;color:var(--text-muted);align-self:center;">(數字為型號列數)</span>';
   document.getElementById('orderSources').innerHTML = (ORDER_DATA.sources || []).map(src =>
     `${certEsc(src.vendor)}:${certEsc(src.source_file)}(檔案更新 ${certEsc((src.source_modified || '').replace('T', ' ').slice(0, 16))})`).join('｜');
 
   const rows = ORDER_DATA.rows || [];
-  document.getElementById('orderCountTag').textContent = `共 ${ORDER_DATA.total} 筆訂單`;
-  if(rows.length === 0){
+  // 同一案的模組、變流器訂單合成一列
+  const byCase = new Map();
+  rows.forEach(g => {
+    if(!byCase.has(g.case_no)) byCase.set(g.case_no, {case_no: g.case_no, alias: g.alias, mods: [], invs: [], epcs: [], notes: [], recv: new Set()});
+    const c = byCase.get(g.case_no);
+    (g.equipment === '模組' ? c.mods : c.invs).push(g);
+    if(g.epc && !c.epcs.includes(g.epc)) c.epcs.push(g.epc);
+    g.notes.forEach(n => { if(!c.notes.includes(n)) c.notes.push(n); });
+    if(g.receiver) c.recv.add(g.receiver + '|' + (g.phone || '') + '|' + (g.ship_to || ''));
+    if(!c.alias && g.alias) c.alias = g.alias;
+  });
+  const cases = [...byCase.values()];
+  document.getElementById('orderCountTag').textContent = `共 ${cases.length} 案（${ORDER_DATA.total} 筆訂單）`;
+  if(cases.length === 0){
     document.getElementById('orderRows').innerHTML =
-      '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合條件的訂單</td></tr>';
+      '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合條件的訂單</td></tr>';
     return;
   }
   const statusCls = {'已成立': 'ops-status-pending', '已出貨': 'ops-status-done', '取消': 'ops-status-pdf', '可能撤案': 'ops-status-pdf'};
   const vendorCls = v => VENDOR_CLASS[v] || 'vendor-other';
-  document.getElementById('orderRows').innerHTML = rows.map(g => `
+  const orderBlock = g => `<div style="margin-bottom:8px;">
+      ${g.items.map(it => `<div>${certEsc(it.model)} <b>× ${certEsc(it.qty)}</b></div>`).join('')}
+      <div><span class="ops-status-pill ${statusCls[g.status] || 'ops-status-pdf'}">${certEsc(g.status)}</span>
+        <span class="cert-src" style="display:inline;">下單 ${certEsc(g.order_date || '—')}${g.arrival ? '・到貨/進場 ' + certEsc(g.arrival) : ''}${g.shipped_at ? '・出貨 ' + certEsc(g.shipped_at) : ''}</span></div>
+      ${g.warranty && g.warranty !== '不需要' ? `<div class="cert-src">十年延保:${certEsc(g.warranty)}</div>` : ''}</div>`;
+  const cell = list => list.length ? list.map(orderBlock).join('') : '<span class="cert-src">沒有訂單</span>';
+  document.getElementById('orderRows').innerHTML = cases.map(c => `
     <tr>
-      <td><div class="case-id">${certEsc(g.case_no)}</div><div class="case-alias">${certEsc(g.alias || '')}</div></td>
-      <td style="white-space:nowrap;">${g.equipment === '模組' ? '🟦 模組' : '🔌 變流器'}<div class="cert-src">${certEsc(g.vendor)}</div></td>
-      <td style="font-size:12.5px;">${g.items.map(it => `<div>${certEsc(it.model)} <b>× ${certEsc(it.qty)}</b></div>`).join('')}
-        ${g.warranty && g.warranty !== '不需要' ? `<div class="cert-src">十年延保:${certEsc(g.warranty)}</div>` : ''}</td>
-      <td style="white-space:nowrap;">${certEsc(g.order_date || '—')}${g.paid_at ? `<div class="cert-src">匯款 ${certEsc(g.paid_at)}</div>` : ''}</td>
-      <td style="font-size:12.5px;">${certEsc(g.arrival || '—')}${g.shipped_at ? `<div class="cert-src">碩天出貨 ${certEsc(g.shipped_at)}</div>` : ''}</td>
-      <td><span class="ops-status-pill ${statusCls[g.status] || 'ops-status-pdf'}">${certEsc(g.status)}</span></td>
+      <td><div class="case-id cert-case-link" onclick="openOrderCase('${certEsc(c.case_no).replace(/'/g, '')}')" title="點開看訂單資訊＋審訖圖" style="cursor:pointer;">${certEsc(c.case_no)} 🔍</div><div class="case-alias">${certEsc(c.alias || '')}</div></td>
+      <td style="font-size:12.5px;">${cell(c.mods)}</td>
+      <td style="font-size:12.5px;">${cell(c.invs)}</td>
       <td style="font-size:12.5px;">
-        ${g.epc ? `<span class="vendor-pill ${vendorCls(g.epc)}">${certEsc(g.epc)}</span>` : ''}
-        <div>${certEsc(g.receiver || '')} ${g.phone ? `<span class="cert-src" style="display:inline;">${certEsc(g.phone)}</span>` : ''}</div>
-        <div class="cert-src">${certEsc(g.ship_to || '')}</div>
-      </td>
-      <td style="font-size:12px;max-width:220px;">${g.notes.map(n => `<div>${certEsc(n)}</div>`).join('')}</td>
+        ${c.epcs.map(e => `<span class="vendor-pill ${vendorCls(e)}">${certEsc(e)}</span>`).join(' ')}
+        ${[...c.recv].map(x => { const [r, p, st] = x.split('|'); return `<div>${certEsc(r)} ${p ? `<span class="cert-src" style="display:inline;">${certEsc(p)}</span>` : ''}</div><div class="cert-src">${certEsc(st)}</div>`; }).join('')}</td>
+      <td style="font-size:12px;max-width:220px;">${c.notes.map(n => `<div>${certEsc(n)}</div>`).join('')}</td>
     </tr>`).join('')
-    + (ORDER_DATA.total > rows.length ? `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:12px 0;font-size:12px;">只顯示前 ${rows.length} 筆,請用搜尋縮小範圍</td></tr>` : '');
+    + (ORDER_DATA.total > ORDER_DATA.rows.length ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:12px 0;font-size:12px;">只顯示前 ${ORDER_DATA.rows.length} 筆訂單,請用搜尋縮小範圍</td></tr>` : '');
+}
+
+// ---- 訂單詳細＋審訖圖（2026-10-13）----
+function closeOrderCase(){ const ov = document.getElementById('orderCaseOverlay'); if(ov) ov.remove(); }
+async function openOrderCase(caseNo){
+  closeOrderCase();
+  const ov = document.createElement('div');
+  ov.id = 'orderCaseOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;';
+  ov.onclick = e => { if(e.target === ov) closeOrderCase(); };
+  ov.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:1180px;width:100%;color:#1B2333;max-height:94vh;overflow-y:auto;">載入中…</div>';
+  document.body.appendChild(ov);
+  try{
+    const res = await fetch(API_BASE + '/api/procurement/case-detail?case=' + encodeURIComponent(caseNo), {cache: 'no-store'});
+    const d = await res.json();
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    const sp = d.spec || {};
+    const eq = (list) => list.length ? list.map(o => `<div style="padding:8px 0;border-bottom:1px solid #EEF0F5;font-size:13px;">
+        <b>${certEsc(o.model)} × ${certEsc(o.qty)}</b> <span class="ops-status-pill ${({'已成立': 'ops-status-pending', '已出貨': 'ops-status-done'})[o.status] || 'ops-status-pdf'}">${certEsc(o.status)}</span>
+        <div class="cert-src">${certEsc(o.vendor)}｜下單 ${certEsc(o.order_date || '—')}${o.arrival ? '｜到貨/進場 ' + certEsc(o.arrival) : ''}${o.shipped_at ? '｜出貨 ' + certEsc(o.shipped_at) : ''}${o.warranty && o.warranty !== '不需要' ? '｜十年延保 ' + certEsc(o.warranty) : ''}</div>
+        ${o.receiver ? `<div class="cert-src">出貨給 ${certEsc(o.epc)} ${certEsc(o.receiver)} ${certEsc(o.phone || '')} ${certEsc(o.ship_to || '')}</div>` : ''}
+        ${o.note ? `<div class="cert-src">備註：${certEsc(o.note)}</div>` : ''}</div>`).join('') : '<div class="cert-src" style="padding:6px 0;">沒有訂單</div>';
+    const mods = d.orders.filter(o => o.equipment === '模組'), invs = d.orders.filter(o => o.equipment === '變流器');
+    const dr = d.drawing;
+    const drawingHtml = !dr ? '<div class="cert-pdf-frame" style="display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">這案在「公文更名」裡還沒有審訖圖，也沒有系統送審圖的檔案。<br>（只有走過公文更名、已確認或待確認的檔案才找得到）</div>'
+      : (dr.ext === '.pdf' || !dr.ext
+        ? `<iframe class="cert-pdf-frame" src="${certEsc(dr.file_url)}#view=FitH"></iframe>`
+        : `<div class="cert-pdf-frame" style="display:flex;align-items:center;justify-content:center;font-size:13px;">這個檔案不是 PDF，請<a href="${certEsc(dr.file_url)}" target="_blank" rel="noopener">開新分頁</a>查看</div>`);
+    ov.firstElementChild.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:18px;font-weight:800;">🧾 ${certEsc(d.case)} <span style="font-size:13px;font-weight:500;color:#6B7280;">${certEsc(d.alias || '')}</span></div>
+        <button type="button" onclick="closeOrderCase()" style="border:none;background:#F1F3F8;border-radius:50%;width:32px;height:32px;cursor:pointer;">✕</button>
+      </div>
+      ${sp.address ? `<div style="font-size:12.5px;color:#6B7280;margin-top:4px;">📍 ${certEsc(sp.address)}</div>` : ''}
+      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;align-items:flex-start;">
+        <div style="flex:1;min-width:300px;">
+          <div style="font-weight:800;font-size:14px;margin-bottom:4px;">📋 專案細節登記的規格</div>
+          <div style="font-size:13px;background:#F6F8FB;border-radius:10px;padding:10px 12px;line-height:1.8;">模組：${certEsc(sp.module || '（未填）')}<br>變流器：${certEsc(sp.inverter || '（未填）')}</div>
+          <div style="font-weight:800;font-size:14px;margin:14px 0 2px;">🟦 模組訂單（元晶）</div>${eq(mods)}
+          <div style="font-weight:800;font-size:14px;margin:14px 0 2px;">🔌 變流器訂單（碩天）</div>${eq(invs)}
+        </div>
+        <div style="flex:1.4;min-width:340px;">
+          <div style="font-weight:800;font-size:14px;margin-bottom:4px;">📐 ${dr ? certEsc(dr.doc_type) : '審訖圖／系統送審圖'}${dr ? `<span style="font-size:12px;font-weight:500;color:#6B7280;">　${certEsc(dr.doc_date || '')}（${certEsc(dr.status)}）${dr.doc_type === '系統送審圖' ? '　⚠ 沒有審訖圖，先用系統送審圖' : ''}</span>` : ''}</div>
+          ${drawingHtml}
+          ${dr ? `<div style="margin-top:6px;font-size:12px;"><a href="${certEsc(dr.file_url)}" target="_blank" rel="noopener">↗ 在新分頁開啟（可以放大看）</a>${(d.other_drawings || []).map(x => `　｜　<a href="${certEsc(x.file_url)}" target="_blank" rel="noopener">${certEsc(x.doc_type)} ${certEsc(x.doc_date || '')}</a>`).join('')}</div>` : ''}
+        </div>
+      </div>`;
+  }catch(err){
+    ov.firstElementChild.innerHTML = '<div style="color:#B42318;">載入失敗：' + certEsc(err.message) + '</div><button class="btn btn-ghost" style="margin-top:10px;" onclick="closeOrderCase()">關閉</button>';
+  }
 }
 
 // ---- 設備資料盤點 ----
