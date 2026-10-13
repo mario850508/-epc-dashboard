@@ -2379,6 +2379,13 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="if(PROCURE_TAB === 'orders'){ loadOrders(); } else { loadInverterCerts(); if(certEquip === '盤點') loadEquipInventory(); }">🔄 重新整理</button>
       </div>
 
+      <div class="panel" id="driverReqPanel">
+        <div class="panel-title">🚚 明天到貨｜元晶貨運司機資訊通知
+          <span class="module-tag tag-cloud" style="margin-left:6px;">每天 14:00 自動發送</span>
+        </div>
+        <div id="driverReqBody" style="font-size:13px;">載入中…</div>
+      </div>
+
       <div class="panel" id="procureOrdersPanel">
         <div class="panel-title">
           訂單查詢(元晶模組/碩天變流器)
@@ -8499,7 +8506,8 @@ function showProcureTab(tab){
     : '出廠證明自動歸檔(碩天變流器每天 09:00、元晶模組每小時)與設備資料盤點';
   document.querySelectorAll('.nav-sub-item').forEach(n => n.classList.remove('active'));
   document.querySelector('.nav-sub-item[data-sub="procure-' + tab + '"]').classList.add('active');
-  if(isOrders){ loadOrders(); } else { loadInverterCerts(); }
+  document.getElementById('driverReqPanel').style.display = isOrders ? '' : 'none';
+  if(isOrders){ loadOrders(); loadDriverRequest(); } else { loadInverterCerts(); }
   saveNavState({view: 'procure', procureTab: tab});
 }
 const CERT_FILTERS = [
@@ -8942,6 +8950,94 @@ async function openOrderCase(caseNo){
   }catch(err){
     ov.firstElementChild.innerHTML = '<div style="color:#B42318;">載入失敗：' + certEsc(err.message) + '</div><button class="btn btn-ghost" style="margin-top:10px;" onclick="closeOrderCase()">關閉</button>';
   }
+}
+
+// ---- 明天到貨：元晶貨運司機資訊通知（2026-10-13）----
+let DRIVER_REQ = null;
+
+async function loadDriverRequest(){
+  try{
+    const res = await fetch(API_BASE + '/api/procurement/driver-request/preview', {cache: 'no-store'});
+    const d = await res.json();
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    DRIVER_REQ = d;
+  }catch(e){
+    DRIVER_REQ = {error: e.message};
+  }
+  renderDriverRequest();
+}
+
+function renderDriverRequest(){
+  const box = document.getElementById('driverReqBody');
+  const d = DRIVER_REQ;
+  if(!d){ return; }
+  if(d.error){ box.innerHTML = `<div class="cert-src">載入失敗:${certEsc(d.error)}</div>`; return; }
+  const PURPOSE = '元晶出貨司機資訊';
+  const targets = d.groups.filter(g => g.purposes.includes(PURPOSE));
+  const groupRows = d.groups.length ? d.groups.map(g => `
+    <label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border,#E3E6EA);cursor:pointer;">
+      <input type="checkbox" ${g.purposes.includes(PURPOSE) ? 'checked' : ''} onchange="setDriverGroup('${g.id}', this.checked)" style="margin-top:3px;">
+      <div><b>${certEsc(g.name || '(取不到群組名稱)')}</b>
+        <div class="cert-src">${certEsc(g.group_id)}・最後出現 ${certEsc((g.last_seen || '').replace('T', ' ').slice(0, 16))}</div>
+        ${g.notify_result ? `<div class="cert-src">上次通知:${certEsc(g.notify_result)}</div>` : ''}</div>
+    </label>`).join('')
+    : `<div class="login-note" style="margin:0;">還沒有任何群組。請先把「陽光機器人」邀請進元晶的 LINE 群組,並在群組裡隨便傳一句話(例如「測試」),幾分鐘後重新整理這裡就會出現。</div>`;
+  const caseList = d.cases.length ? d.cases.map(c => `<li><b>${certEsc(c.case_no)}</b> ${certEsc(c.alias)}｜${certEsc(c.items.join('、'))}｜${certEsc(c.arrival)}</li>`).join('')
+    : '<li class="cert-src">明天沒有元晶到貨的訂單(不會發送)</li>';
+  box.innerHTML = `
+    <div class="cert-modal-grid">
+      <div>
+        <div class="cert-side-label" style="margin-top:0;">明天(${certEsc(fmtDate(d.date) || d.date)})到貨的元晶訂單:${d.cases.length} 案</div>
+        <ul style="margin:0 0 10px 18px;padding:0;">${caseList}</ul>
+        ${d.text ? `<div class="cert-side-label">訊息預覽</div><pre style="white-space:pre-wrap;font-size:12px;background:#F7F7FA;border-radius:8px;padding:10px;margin:0;">${certEsc(d.text)}</pre>` : ''}
+      </div>
+      <div>
+        <div class="cert-side-label" style="margin-top:0;">發送到哪個群組(勾選＝每天 14:00 自動發)</div>
+        ${groupRows}
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" ${(!targets.length || !d.cases.length) ? 'disabled' : ''} onclick="sendDriverRequestNow()">📤 立即發送一次</button>
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="loadDriverRequest()">🔄 重新整理</button>
+        </div>
+        <div class="cert-src" style="margin-top:6px;">只會發「預計到貨時間」是明確日期且＝明天、狀態「已成立」的訂單;「待確認」「預計11月出貨」不會觸發。同一天自動通知只發一次。</div>
+      </div>
+    </div>`;
+}
+
+async function setDriverGroup(recordId, on){
+  const g = DRIVER_REQ.groups.find(x => x.id === recordId);
+  const purposes = new Set(g.purposes);
+  if(on) purposes.add('元晶出貨司機資訊'); else purposes.delete('元晶出貨司機資訊');
+  try{
+    const res = await fetch(API_BASE + '/api/line/groups/' + recordId + '/purpose', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({purposes: [...purposes]})});
+    const data = await res.json();
+    if(!res.ok || data.error) throw new Error(data.error || res.status);
+    g.purposes = data.purposes;
+    showToast(on ? '已設定:每天 14:00 自動通知這個群組' : '已取消這個群組的自動通知');
+  }catch(e){
+    showToast('設定失敗:' + e.message);
+  }
+  renderDriverRequest();
+}
+
+async function sendDriverRequestNow(){
+  const targets = DRIVER_REQ.groups.filter(g => g.purposes.includes('元晶出貨司機資訊')).map(g => g.name || g.group_id);
+  if(!confirm(`要現在把「明天到貨 ${DRIVER_REQ.cases.length} 案」的司機資訊請求發到:
+${targets.join('
+')}
+
+(這會真的發訊息給廠商群組)`)) return;
+  try{
+    const res = await fetch(API_BASE + '/api/procurement/driver-request/send', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({})});
+    const data = await res.json();
+    if(!res.ok || data.error) throw new Error(data.error || res.status);
+    const failed = (data.sent || []).filter(x => !x.ok);
+    showToast(failed.length ? '有群組發送失敗:' + failed.map(x => x.group + ' ' + x.error).join(';') : (data.note || '已發送'));
+  }catch(e){
+    showToast('發送失敗:' + e.message);
+  }
+  loadDriverRequest();
 }
 
 // ---- 設備資料盤點 ----
