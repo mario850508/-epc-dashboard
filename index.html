@@ -8928,6 +8928,18 @@ async function openOrderCase(caseNo){
       : (!dr.ext || String(dr.ext).replace(/^\./, '').toLowerCase() === 'pdf'
         ? `<iframe class="cert-pdf-frame" src="${certEsc(dr.file_url)}#view=FitH"></iframe>`
         : `<div class="cert-pdf-frame" style="display:flex;align-items:center;justify-content:center;font-size:13px;">這個檔案不是 PDF，請<a href="${certEsc(dr.file_url)}" target="_blank" rel="noopener">開新分頁</a>查看</div>`);
+    // 工程部「案件配比」信（2026-10-13）：最新一封＋跟訂單比對；較早的收在折疊裡
+    const mc = d.mail_configs || [], chk = d.config_check || [];
+    const mailBlock = c => `<div style="font-size:13px;background:#F5F3FF;border-radius:10px;padding:10px 12px;line-height:1.7;margin-top:6px;">
+        <div class="cert-src">${certEsc(c.from || '')}｜${certEsc((c.date || '').slice(0, 10))}｜${certEsc(c.subject || '')}</div>
+        ${(c.lines || []).map(l => `<div>${certEsc(l)}</div>`).join('') || '<div class="cert-src">（信裡沒有找到配置的行）</div>'}
+        ${(c.notes || []).length ? `<div class="cert-src" style="margin-top:4px;">備註:${(c.notes || []).map(certEsc).join('｜')}</div>` : ''}
+      </div>`;
+    const mailHtml = !mc.length
+      ? '<div class="cert-src" style="padding:6px 0;">還沒有這案的案件配比信(信件匯出後每 15 分鐘同步一次)</div>'
+      : mailBlock(mc[0])
+        + (chk.length ? `<div style="margin-top:6px;font-size:12.5px;line-height:1.8;">${chk.map(c => `<div>${c.ok ? '✅' : '⚠️'} ${certEsc(c.equipment)} ${certEsc(c.model)}:配比信 ${certEsc(c.mail_qty)}${c.equipment === '模組' ? ' 片' : ' 台'}／訂單 ${certEsc(c.order_qty)}${c.equipment === '模組' ? ' 片' : ' 台'}</div>`).join('')}</div>` : '')
+        + (mc.length > 1 ? `<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:12.5px;color:#6B7280;">較早的配比信(${mc.length - 1} 封)</summary>${mc.slice(1).map(mailBlock).join('')}</details>` : '');
     ov.firstElementChild.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;">
         <div style="font-size:18px;font-weight:800;">🧾 ${certEsc(d.case)} <span style="font-size:13px;font-weight:500;color:#6B7280;">${certEsc(d.alias || '')}</span></div>
@@ -8938,6 +8950,7 @@ async function openOrderCase(caseNo){
         <div style="flex:1;min-width:300px;">
           <div style="font-weight:800;font-size:14px;margin-bottom:4px;">📋 專案細節登記的規格</div>
           <div style="font-size:13px;background:#F6F8FB;border-radius:10px;padding:10px 12px;line-height:1.8;">模組：${certEsc(sp.module || '（未填）')}<br>變流器：${certEsc(sp.inverter || '（未填）')}</div>
+          <div style="font-weight:800;font-size:14px;margin:14px 0 0;">📧 工程部配比信</div>${mailHtml}
           <div style="font-weight:800;font-size:14px;margin:14px 0 2px;">🟦 模組訂單（元晶）</div>${eq(mods)}
           <div style="font-weight:800;font-size:14px;margin:14px 0 2px;">🔌 變流器訂單（碩天）</div>${eq(invs)}
         </div>
