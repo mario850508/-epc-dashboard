@@ -932,8 +932,12 @@
         <div class="nav-item" data-view="slots" onclick="showView('slots'); loadVendorSlots();">
           <span class="nav-icon">🗓️</span> 廠商時段協調
         </div>
-        <div class="nav-item" data-view="procure" onclick="showView('procure'); loadInverterCerts();">
+        <div class="nav-item" data-view="procure" onclick="toggleNavSection('procure'); showProcureTab(PROCURE_TAB);">
           <span class="nav-icon">📦</span> 採購專區
+        </div>
+        <div class="nav-sub" id="navSub-procure">
+          <div class="nav-sub-item" data-sub="procure-orders" onclick="showProcureTab('orders')">訂單查詢</div>
+          <div class="nav-sub-item" data-sub="procure-certs" onclick="showProcureTab('certs')">出廠證明歸檔紀錄</div>
         </div>
       </div>
     </div>
@@ -1001,7 +1005,7 @@
         <div class="chevron">›</div>
       </div>
 
-      <div class="module-card" onclick="showView('procure'); loadInverterCerts();">
+      <div class="module-card" onclick="showProcureTab('orders')">
         <div class="module-left">
           <div class="module-icon ops">📦</div>
           <div>
@@ -2370,12 +2374,49 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <div>
           <div class="crumb">功能模組 / 採購專區</div>
           <h1 class="page-title">採購專區</h1>
-          <div class="page-sub">出廠證明自動歸檔(變流器/模組)、設備資料盤點、元晶/碩天訂單查詢 — 用下方分頁切換</div>
+          <div class="page-sub" id="procureSub">元晶模組/碩天變流器訂單查詢</div>
         </div>
-        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="loadInverterCerts(); if(certEquip === '盤點') loadEquipInventory(); if(certEquip === '訂單') loadOrders();">🔄 重新整理</button>
+        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="if(PROCURE_TAB === 'orders'){ loadOrders(); } else { loadInverterCerts(); if(certEquip === '盤點') loadEquipInventory(); }">🔄 重新整理</button>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="procureOrdersPanel">
+        <div class="panel-title">
+          訂單查詢(元晶模組/碩天變流器)
+          <span class="module-tag tag-cloud" style="margin-left:6px;" id="orderCountTag">共 0 筆訂單</span>
+        </div>
+        <!-- 訂單查詢（2026-10-13） -->
+        <div id="orderWrap">
+          <div class="pending-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input type="text" class="quick-mark-input" id="orderSearchInput" placeholder="搜尋案號、別名、EPC、型號、簽收人…" oninput="onOrderSearch()" style="max-width:280px;">
+            <span id="orderEquipBtns" style="display:flex;gap:6px;flex-wrap:wrap;"></span>
+          </div>
+          <div id="orderStatusBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;"></div>
+          <div id="orderSources" style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px;"></div>
+          <table>
+            <thead>
+              <tr>
+                <th>案號</th>
+                <th>設備</th>
+                <th>型號 × 數量</th>
+                <th>訂單成立</th>
+                <th>到貨/進場</th>
+                <th>狀態</th>
+                <th>出貨給</th>
+                <th>備註</th>
+              </tr>
+            </thead>
+            <tbody id="orderRows">
+              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>
+            </tbody>
+          </table>
+          <div class="login-note">
+            🧾 資料來源:G 槽「02 料件採購」的元晶模組需求表(01 模組採購\*_模組需求_元晶.xlsx)與碩天逆變器需求表(02 變流器採購\*_逆變器需求_碩天.xlsx)。重新下單時檔名的日期會變,系統一律抓日期最新的那一份;這台電腦的小幫手每 15 分鐘檢查一次,檔案有更新就同步。同一案同一次下單的多個型號合併成一列。
+          </div>
+        </div>
+
+      </div>
+
+      <div class="panel" id="procureCertsPanel">
         <div class="panel-title">
           <span id="certPanelTitle">出廠證明歸檔紀錄</span>
           <span class="module-tag tag-cloud" style="margin-left:6px;" id="certCountTag">共 0 筆</span>
@@ -2404,36 +2445,6 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <div class="login-note">
           📦 變流器:這台電腦上的 Claude 每日排程從碩天 CPSDrive 下載(需要電腦、Claude app、Chrome 開著)。模組:Ina 信箱的 Apps Script 每小時把元晶來信附件存到「01 模組採購\模組出廠證明收件匣」,本機小幫手每 10 分鐘歸檔(發票用 OCR 讀備註欄案名)。「⚠ 簡稱推定」表示該案 07 資料夾原本沒有檔案可參考簡稱(例如 桃81),確認檔名沒問題後按「確認簡稱」。「未歸檔」是對不到案件的檔案(如地址型的變流器銷售),放在 02 料件採購\02 變流器採購\未歸檔變流器出廠證明。
         </div>
-        </div>
-
-        <!-- 訂單查詢（2026-10-13） -->
-        <div id="orderWrap" style="display:none;">
-          <div class="pending-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-            <input type="text" class="quick-mark-input" id="orderSearchInput" placeholder="搜尋案號、別名、EPC、型號、簽收人…" oninput="onOrderSearch()" style="max-width:280px;">
-            <span id="orderEquipBtns" style="display:flex;gap:6px;flex-wrap:wrap;"></span>
-          </div>
-          <div id="orderStatusBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;"></div>
-          <div id="orderSources" style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px;"></div>
-          <table>
-            <thead>
-              <tr>
-                <th>案號</th>
-                <th>設備</th>
-                <th>型號 × 數量</th>
-                <th>訂單成立</th>
-                <th>到貨/進場</th>
-                <th>狀態</th>
-                <th>出貨給</th>
-                <th>備註</th>
-              </tr>
-            </thead>
-            <tbody id="orderRows">
-              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>
-            </tbody>
-          </table>
-          <div class="login-note">
-            🧾 資料來源:G 槽「02 料件採購」的元晶模組需求表(01 模組採購\*_模組需求_元晶.xlsx)與碩天逆變器需求表(02 變流器採購\*_逆變器需求_碩天.xlsx)。重新下單時檔名的日期會變,系統一律抓日期最新的那一份;這台電腦的小幫手每 15 分鐘檢查一次,檔案有更新就同步。同一案同一次下單的多個型號合併成一列。
-          </div>
         </div>
 
         <!-- 設備資料盤點（2026-10-07） -->
@@ -8416,12 +8427,28 @@ async function generateOpsPdf(id, keepModalOpen){
 let INVERTER_CERTS = [];
 let certFilter = 'all';
 let certEquip = '變流器';
-const CERT_EQUIPS = [['變流器', '🔌 變流器'], ['模組', '🟦 模組'], ['盤點', '📋 設備資料盤點'], ['訂單', '🧾 訂單查詢']];
+const CERT_EQUIPS = [['變流器', '🔌 變流器'], ['模組', '🟦 模組'], ['盤點', '📋 設備資料盤點']];
 function setCertEquip(e){
   certEquip = e;
   renderInverterCerts();
   if(e === '盤點' && !EQUIP_INV_LOADED) loadEquipInventory();
-  if(e === '訂單') loadOrders();
+}
+
+// 採購專區兩個子頁：訂單查詢／出廠證明歸檔紀錄（2026-10-13 使用者要求拆成側邊選單子項目）
+let PROCURE_TAB = 'orders';
+function showProcureTab(tab){
+  PROCURE_TAB = tab;
+  showView('procure');
+  const isOrders = tab === 'orders';
+  document.getElementById('procureOrdersPanel').style.display = isOrders ? '' : 'none';
+  document.getElementById('procureCertsPanel').style.display = isOrders ? 'none' : '';
+  document.getElementById('procureSub').textContent = isOrders
+    ? '元晶模組/碩天變流器訂單查詢:何時下單、出貨給誰、訂單狀態'
+    : '出廠證明自動歸檔(碩天變流器每天 09:00、元晶模組每小時)與設備資料盤點';
+  document.querySelectorAll('.nav-sub-item').forEach(n => n.classList.remove('active'));
+  document.querySelector('.nav-sub-item[data-sub="procure-' + tab + '"]').classList.add('active');
+  if(isOrders){ loadOrders(); } else { loadInverterCerts(); }
+  saveNavState({view: 'procure', procureTab: tab});
 }
 const CERT_FILTERS = [
   ['all', '全部'], ['已歸檔', '已歸檔'], ['未歸檔', '未歸檔'], ['abbr', '待確認簡稱'],
@@ -8450,17 +8477,14 @@ function certNeedsAbbrCheck(r){ return r.abbr_guessed && !r.abbr_ok; }
 
 function renderInverterCerts(){
   document.getElementById('certEquipTabs').innerHTML = CERT_EQUIPS.map(([k, label]) => {
-    const n = k === '訂單' ? '' : k === '盤點' ? (EQUIP_INV_LOADED ? `${EQUIP_INV.filter(r => r.missing).length}/${EQUIP_INV.length} 缺` : '') : INVERTER_CERTS.filter(r => r.equipment === k).length;
+    const n = k === '盤點' ? (EQUIP_INV_LOADED ? `${EQUIP_INV.filter(r => r.missing).length}/${EQUIP_INV.length} 缺` : '') : INVERTER_CERTS.filter(r => r.equipment === k).length;
     return `<div class="tab ${certEquip === k ? 'active' : ''}" onclick="setCertEquip('${k}')">${label} ${n}</div>`;
   }).join('');
-  const isInv = certEquip === '盤點', isOrder = certEquip === '訂單';
-  document.getElementById('certPanelTitle').textContent =
-    isOrder ? '訂單查詢(元晶模組/碩天變流器)' : isInv ? '設備資料盤點' : '出廠證明歸檔紀錄';
-  document.getElementById('certListWrap').style.display = (isInv || isOrder) ? 'none' : '';
+  const isInv = certEquip === '盤點';
+  document.getElementById('certPanelTitle').textContent = isInv ? '設備資料盤點' : '出廠證明歸檔紀錄';
+  document.getElementById('certListWrap').style.display = isInv ? 'none' : '';
   document.getElementById('invWrap').style.display = isInv ? '' : 'none';
-  document.getElementById('orderWrap').style.display = isOrder ? '' : 'none';
   if(isInv){ renderEquipInventory(); return; }
-  if(isOrder){ renderOrders(); return; }
   const base = INVERTER_CERTS.filter(r => r.equipment === certEquip);
   const isModule = certEquip === '模組';
   const unit = list => isModule ? groupModuleCerts(list).length : list.length;
@@ -8774,7 +8798,7 @@ function renderOrders(){
     `${certEsc(src.vendor)}:${certEsc(src.source_file)}(檔案更新 ${certEsc((src.source_modified || '').replace('T', ' ').slice(0, 16))})`).join('｜');
 
   const rows = ORDER_DATA.rows || [];
-  document.getElementById('certCountTag').textContent = `共 ${ORDER_DATA.total} 筆訂單`;
+  document.getElementById('orderCountTag').textContent = `共 ${ORDER_DATA.total} 筆訂單`;
   if(rows.length === 0){
     document.getElementById('orderRows').innerHTML =
       '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合條件的訂單</td></tr>';
@@ -8927,8 +8951,7 @@ async function confirmCertAbbr(id){
     showView('slots');
     loadVendorSlots();
   } else if(state && state.view === 'procure'){
-    showView('procure');
-    loadInverterCerts();
+    showProcureTab(state.procureTab || 'orders');
   } else {
     showView('home');
   }
