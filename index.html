@@ -2370,14 +2370,14 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <div>
           <div class="crumb">功能模組 / 採購專區</div>
           <h1 class="page-title">採購專區</h1>
-          <div class="page-sub">變流器(碩天 CPSDrive,每天 09:00)與模組(元晶 Email,每小時)出廠證明自動歸檔到 G 槽案件「07 設備保固及出廠證明」</div>
+          <div class="page-sub">出廠證明自動歸檔(變流器/模組)、設備資料盤點、元晶/碩天訂單查詢 — 用下方分頁切換</div>
         </div>
         <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="loadInverterCerts(); if(certEquip === '盤點') loadEquipInventory(); if(certEquip === '訂單') loadOrders();">🔄 重新整理</button>
       </div>
 
       <div class="panel">
         <div class="panel-title">
-          出廠證明歸檔紀錄
+          <span id="certPanelTitle">出廠證明歸檔紀錄</span>
           <span class="module-tag tag-cloud" style="margin-left:6px;" id="certCountTag">共 0 筆</span>
         </div>
         <div class="tabs" id="certEquipTabs" style="margin-bottom:10px;"></div>
@@ -8454,6 +8454,8 @@ function renderInverterCerts(){
     return `<div class="tab ${certEquip === k ? 'active' : ''}" onclick="setCertEquip('${k}')">${label} ${n}</div>`;
   }).join('');
   const isInv = certEquip === '盤點', isOrder = certEquip === '訂單';
+  document.getElementById('certPanelTitle').textContent =
+    isOrder ? '訂單查詢(元晶模組/碩天變流器)' : isInv ? '設備資料盤點' : '出廠證明歸檔紀錄';
   document.getElementById('certListWrap').style.display = (isInv || isOrder) ? 'none' : '';
   document.getElementById('invWrap').style.display = isInv ? '' : 'none';
   document.getElementById('orderWrap').style.display = isOrder ? '' : 'none';
