@@ -358,8 +358,8 @@ async function loadSlotTasksQuiet(){
 
 // ---- 2026-10-12：同時預約另一個案件（兩案是同一個案場拆開的，一次預約兩案）----
 // 預約成立時（業務／屋主自己預約、窗口直接預約），主案跟這裡選的案件各建一筆同時段的預約。
-const COMPANIONS = {slotTask: [], slotBooking: []};
-const COMP_RES = {slotTask: [], slotBooking: []};
+const COMPANIONS = {slotTask: [], slotBooking: [], bookingEdit: []};
+const COMP_RES = {slotTask: [], slotBooking: [], bookingEdit: []};
 const compTimers = {};
 function renderCompanions(prefix){
   const box = document.getElementById(prefix + 'Companions');
@@ -388,7 +388,7 @@ function searchCompanion(prefix, q){
 }
 function addCompanion(prefix, i){
   const c = COMP_RES[prefix][i]; if(!c) return;
-  const main = (document.getElementById(prefix === 'slotTask' ? 'slotTaskCase' : 'slotBookingCase') || {}).value || '';
+  const main = prefix === 'bookingEdit' ? (window._beMainCase || '') : ((document.getElementById(prefix === 'slotTask' ? 'slotTaskCase' : 'slotBookingCase') || {}).value || '');
   if(c.case === main.trim()){ showToast('這是主案，不用再選一次'); return; }
   if(!COMPANIONS[prefix].includes(c.case)) COMPANIONS[prefix].push(c.case);
   COMP_RES[prefix] = [];
@@ -996,6 +996,7 @@ function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, c
               <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="showSlotBookingDetail('${b.record_id}')">📄 查看填單</button>
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;${b.vendor_notified_at ? 'color:#16A34A;border-color:#BFE6CF;' : ''}" onclick="openVendorNotice('${b.record_id}')" title="${b.vendor_notified_at ? '已通知廠商：' + fmtDateTimeTW(b.vendor_notified_at) : '確認屋主資料後，傳卡片到廠商群組'}">${b.vendor_notified_at ? '✓ 已通知廠商' : '📤 通知廠商'}</button>`}
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="notifyRep('${b.record_id}')" title="業務有綁 LINE 就直接用機器人通知；沒綁（或離職）會產生連結，讓你轉傳給代辦同事">📨 通知業務</button>`}
+              ${canCancel && !b.cancelled ? `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="openEditBooking('${b.record_id}')" title="改屋主資料、日期時間、備註，或把另一案併進來">✏️ 變更</button>` : ''}
               ${canCancel && !b.cancelled ? `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;color:#B42318;" onclick="openCancelBooking('${b.record_id}')">❌ 取消預約</button>` : ''}
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotBooking('${b.record_id}')">刪除</button>`}
               ${b.cancelled ? `<div style="flex-basis:100%;font-size:11.5px;color:#B42318;padding-left:2px;">取消原因：${escHtml(b.cancel_reason || '（未填）')}${b.cancelled_at ? '　' + fmtDateTimeTW(b.cancelled_at) : ''}</div>` : ''}
@@ -1232,8 +1233,111 @@ function copyVnText(text, okMsg){
 
 // 2026-10-08：取消預約（例如發現還不能進場）。跟「刪除」不同：保留紀錄（移到歷史紀錄）、
 // 釋放廠商時段、清掉自動寫回的預計日期、屋主頁顯示已取消，並通知業務（附給屋主的取消訊息）。
-function closeCancelBooking(){ const ov = document.getElementById('cancelBookingOverlay'); if(ov) ov.remove(); }
+
+// ---- 2026-10-12：變更預約／取消預約的二次確認（防誤觸）：「是」要等 5 秒倒數結束才能按 ----
+function confirmDanger(message, onYes, yesLabel){
+  const old = document.getElementById('dangerOverlay'); if(old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'dangerOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  let left = 5, timer = null;
+  const close = () => { clearInterval(timer); ov.remove(); };
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:22px;max-width:380px;width:100%;color:#1B2333;">
+    <div style="font-size:30px;text-align:center;">⚠️</div>
+    <div style="font-size:15.5px;font-weight:800;text-align:center;margin:8px 0 6px;line-height:1.6;">${message}</div>
+    <div style="font-size:12px;color:#6B7280;text-align:center;margin-bottom:16px;">為了避免誤觸，「是」要等 5 秒才能按。</div>
+    <div style="display:flex;gap:10px;">
+      <button type="button" id="dangerNo" class="btn btn-ghost" style="flex:1;justify-content:center;padding:11px;">否</button>
+      <button type="button" id="dangerYes" class="btn btn-primary" style="flex:1;justify-content:center;padding:11px;background:#DC2626;border-color:#DC2626;" disabled>${yesLabel || '是'}（${left}）</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  const yes = ov.querySelector('#dangerYes');
+  ov.querySelector('#dangerNo').onclick = close;
+  yes.onclick = () => { if(yes.disabled) return; close(); onYes(); };
+  timer = setInterval(() => {
+    left -= 1;
+    if(left > 0){ yes.textContent = (yesLabel || '是') + '（' + left + '）'; }
+    else { clearInterval(timer); yes.disabled = false; yes.textContent = yesLabel || '是'; }
+  }, 1000);
+}
+
+// ---- 變更預約：改屋主資料、日期時間、備註，或加入「同時預約」的案件（把另一案併進這筆預約）----
+function closeEditBooking(){ const ov = document.getElementById('editBookingOverlay'); if(ov) ov.remove(); }
+function openEditBooking(recordId){
+  confirmDanger('確定要變更這筆預約的資料嗎？', () => showEditBooking(recordId));
+}
+function showEditBooking(recordId){
+  const b = SLOT_BOOKINGS.find(x => x.record_id === recordId);
+  if(!b){ showToast('找不到這筆預約，請重新整理'); return; }
+  closeEditBooking();
+  window._beMainCase = b.case;
+  COMPANIONS.bookingEdit = []; COMP_RES.bookingEdit = [];
+  const opts = (sel) => { let h = slotTimeOptionsHtml(); if(sel && !h.includes('value="' + sel + '"')) h = h.replace('</option>', '</option><option value="' + sel + '">' + sel + '</option>'); return h.replace('value="' + sel + '"', 'value="' + sel + '" selected'); };
+  const ov = document.createElement('div');
+  ov.id = 'editBookingOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.onclick = e => { if(e.target === ov) closeEditBooking(); };
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:22px;max-width:480px;width:100%;color:#1B2333;max-height:92vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:17px;font-weight:800;">✏️ 變更預約</div>
+      <button type="button" onclick="closeEditBooking()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button>
+    </div>
+    <div style="font-size:13px;color:#6B7280;margin:6px 0 12px;line-height:1.7;">${escHtml(b.vendor)}｜${escHtml((b.type || []).join('＋'))}｜${escHtml(b.case)} ${escHtml(b.alias || '')}${b.companions ? '<br>🔗 同時預約：' + escHtml(b.companions) + '（日期時間會一起改）' : ''}</div>
+    ${b.vendor_notified_at ? '<div style="font-size:12px;color:#D97706;margin-bottom:10px;">⚠️ 這筆通知過廠商，改完記得再通知一次。</div>' : ''}
+    <div style="font-size:12px;font-weight:700;margin:6px 0;">日期</div>
+    <input type="date" class="quick-mark-input" id="ebDate" value="${escHtml(b.date)}">
+    <div style="display:flex;gap:10px;margin-top:10px;">
+      <div style="flex:1;"><div style="font-size:12px;font-weight:700;margin-bottom:6px;">開始時間</div><select class="quick-mark-input" id="ebStart">${opts(b.start_time)}</select></div>
+      <div style="flex:1;"><div style="font-size:12px;font-weight:700;margin-bottom:6px;">結束時間</div><select class="quick-mark-input" id="ebEnd">${opts(b.end_time)}</select></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:10px;">
+      <div style="flex:1;"><div style="font-size:12px;font-weight:700;margin-bottom:6px;">屋主姓名</div><input class="quick-mark-input" id="ebOwner" value="${escHtml(b.owner_name || '')}"></div>
+      <div style="flex:1;"><div style="font-size:12px;font-weight:700;margin-bottom:6px;">屋主電話</div><input class="quick-mark-input" id="ebPhone" value="${escHtml(b.owner_phone || '')}"></div>
+    </div>
+    <div style="font-size:12px;font-weight:700;margin:10px 0 6px;">備註</div>
+    <textarea class="quick-mark-input" id="ebNote" rows="2">${escHtml(b.note || '')}</textarea>
+    <div id="bookingEditCompanions" style="margin-top:12px;"></div>
+    <div id="ebError" style="display:none;background:#FDECEC;color:#D64545;border-radius:10px;padding:10px 12px;font-size:12px;margin-top:10px;line-height:1.6;"></div>
+    <button type="button" class="btn btn-primary" id="ebSubmit" style="width:100%;justify-content:center;padding:11px;margin-top:14px;" onclick="submitEditBooking('${recordId}')">儲存變更</button></div>`;
+  document.body.appendChild(ov);
+  renderCompanions('bookingEdit');
+}
+async function submitEditBooking(recordId){
+  const b = SLOT_BOOKINGS.find(x => x.record_id === recordId);
+  const btn = document.getElementById('ebSubmit'), err = document.getElementById('ebError');
+  err.style.display = 'none';
+  const body = {
+    date: document.getElementById('ebDate').value, start_time: document.getElementById('ebStart').value, end_time: document.getElementById('ebEnd').value,
+    owner_name: document.getElementById('ebOwner').value.trim(), owner_phone: document.getElementById('ebPhone').value.trim(),
+    note: document.getElementById('ebNote').value.trim(), add_companions: COMPANIONS.bookingEdit,
+  };
+  if(!body.date || !body.start_time || !body.end_time){ showToast('日期、開始與結束時間都要填'); return; }
+  btn.disabled = true; btn.textContent = '儲存中…';
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/' + encodeURIComponent(recordId), {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const d = await res.json().catch(() => ({}));
+    if(res.status === 409 && d.conflict){
+      err.innerHTML = `⚠️ 這個時段已經被佔用了：<b>${escHtml(d.conflict.start_time)}-${escHtml(d.conflict.end_time)}</b>　${escHtml((d.conflict.type || []).join('+'))}｜${escHtml(d.conflict.case || '')}`;
+      err.style.display = 'block';
+      btn.disabled = false; btn.textContent = '儲存變更';
+      return;
+    }
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    closeEditBooking();
+    showToast('已變更' + ((d.added || []).length ? '，並併入 ' + d.added.join('、') + ((d.merged_tasks || []).length ? '（指派任務已標為完成）' : '') : '') + (d.time_changed && b && b.vendor_notified_at ? '；時間有變，記得再通知廠商' : ''));
+    loadVendorSlots();
+    if(typeof loadSlotTasksQuiet === 'function') loadSlotTasksQuiet();
+  }catch(e){
+    showToast('變更失敗：' + e.message);
+    btn.disabled = false; btn.textContent = '儲存變更';
+  }
+}
+
 function openCancelBooking(recordId){
+  confirmDanger('確定要取消這筆預約嗎？', () => openCancelBookingModal(recordId), '是，取消預約');
+}
+function closeCancelBooking(){ const ov = document.getElementById('cancelBookingOverlay'); if(ov) ov.remove(); }
+function openCancelBookingModal(recordId){
   const b = SLOT_BOOKINGS.find(x => x.record_id === recordId);
   if(!b){ showToast('找不到這筆預約，請重新整理'); return; }
   closeCancelBooking();
