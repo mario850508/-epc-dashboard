@@ -329,7 +329,7 @@ function readParam(name){
 let SCHED_LIFF_ID = '';
 // 2026-10-08：綁定頁有兩種角色：?bind=scheduler（安排人員，自己輸入名字）、
 // ?bind=rep&name=業務名字（業務，名字由主控台帶好、不能改，跟任務「指派給」一致）。
-function bindRole(){ return readParam('bind') === 'rep' ? 'rep' : 'scheduler'; }
+function bindRole(){ const b = readParam('bind'); return b === 'rep' ? 'rep' : b === 'procurement' ? 'procurement' : 'scheduler'; }
 function renderSchedulerBind(msg, ok){
   const app = document.getElementById('app');
   const role = bindRole();
@@ -343,12 +343,16 @@ function renderSchedulerBind(msg, ok){
   app.innerHTML = ok
     ? `<div class="card"><h1>✅ 綁定完成</h1><div class="sub">${msg}<br>${role === 'rep'
         ? '之後屋主還沒填預約表、回覆期限快到，或行程前一天，陽光機器人會傳 LINE 提醒你。'
+        : role === 'procurement'
+        ? '之後每天下午 2 點，陽光機器人會把「元晶明天到貨、請提供貨運司機資訊」的通知傳給你。'
         : '之後業務完成安排、回傳其他時間、或期限快到還沒安排時，陽光機器人會傳 LINE 通知你。'}</div>${friendBlock}</div>`
-    : `<div class="card"><h1>${role === 'rep' ? '🔔 業務 LINE 通知綁定' : '🔔 安排人員 LINE 通知綁定'}</h1>
+    : `<div class="card"><h1>${role === 'rep' ? '🔔 業務 LINE 通知綁定' : role === 'procurement' ? '🔔 採購 LINE 通知綁定' : '🔔 安排人員 LINE 通知綁定'}</h1>
         <div class="sub">${role === 'rep'
           ? '綁定後，屋主還沒填預約表、期限快到時，陽光機器人會傳 LINE 提醒你。只要綁一次。<br>請先加「陽光機器人」好友，再按下面的按鈕。'
+          : role === 'procurement'
+          ? '綁定後，每天下午 2 點會收到「元晶明天到貨、請提供貨運司機資訊」的通知。只要綁一次。<br>請先加「陽光機器人」好友，輸入你的名字，再用 LINE 登入綁定。'
           : '輸入你的名字（要跟主控台「安排人員」下拉選到的名字一致），再用 LINE 登入綁定。'}</div>
-        ${role === 'rep' && ADD_FRIEND_URL ? `<a class="btn-line" style="display:block;text-align:center;text-decoration:none;" href="${ADD_FRIEND_URL}">➕ 加入陽光機器人好友</a>` : ''}
+        ${(role === 'rep' || role === 'procurement') && ADD_FRIEND_URL ? `<a class="btn-line" style="display:block;text-align:center;text-decoration:none;" href="${ADD_FRIEND_URL}">➕ 加入陽光機器人好友</a>` : ''}
         <label>你的名字</label>
         <input type="text" id="schedName" value="${saved}" ${fixedName ? 'readonly style="width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:15px;background:#F3F4F6;"' : 'style="width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;font-size:15px;"'} placeholder="例如：小夫">
         <button type="button" class="btn-ghost-lg" style="margin-top:12px;" onclick="startSchedulerBind()">綁定 LINE 通知</button>
@@ -382,7 +386,7 @@ async function startSchedulerBind(){
 }
 async function doSchedulerBind(name){
   try{ sessionStorage.removeItem('schedBindPending'); }catch(e){}
-  const res = await fetch(API_BASE + (bindRole() === 'rep' ? '/api/line/bind-rep' : '/api/line/bind-scheduler'), {
+  const res = await fetch(API_BASE + ({rep: '/api/line/bind-rep', procurement: '/api/line/bind-procurement'}[bindRole()] || '/api/line/bind-scheduler'), {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({access_token: liff.getAccessToken(), name}),
   });
@@ -464,9 +468,9 @@ async function startVendorShare(){
 
 async function init(){
   const app = document.getElementById('app');
-  if(!TOKEN && !['scheduler', 'rep'].includes(readParam('bind')) && !readParam('vshare')) await recoverParamsViaLiff();
+  if(!TOKEN && !['scheduler', 'rep', 'procurement'].includes(readParam('bind')) && !readParam('vshare')) await recoverParamsViaLiff();
   if(readParam('vshare')){ initVendorShare(readParam('vshare')); return; }
-  if(['scheduler', 'rep'].includes(readParam('bind'))){ initSchedulerBind(); return; }
+  if(['scheduler', 'rep', 'procurement'].includes(readParam('bind'))){ initSchedulerBind(); return; }
   if(!TOKEN){
     app.innerHTML = '<div class="not-found">連結不完整，缺少 token，請跟窗口確認連結是否複製完整。</div>';
     return;

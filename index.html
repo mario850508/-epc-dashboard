@@ -8982,6 +8982,16 @@ function renderDriverRequest(){
         ${g.notify_result ? `<div class="cert-src">上次通知:${certEsc(g.notify_result)}</div>` : ''}</div>
     </label>`).join('')
     : `<div class="login-note" style="margin:0;">還沒有任何群組。請先把「陽光機器人」邀請進元晶的 LINE 群組,並在群組裡隨便傳一句話(例如「測試」),幾分鐘後重新整理這裡就會出現。</div>`;
+  const buyers = d.buyers || [];
+  const bindUrl = d.liff_id ? `https://liff.line.me/${d.liff_id}?bind=procurement` : '';
+  window.BUYER_BIND_URL = bindUrl;
+  const buyerRows = buyers.length ? buyers.map(b => `
+    <label style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--border,#E3E6EA);cursor:pointer;">
+      <input type="checkbox" ${b.notify ? 'checked' : ''} onchange="setBuyerNotify('${b.id}', this.checked)" style="margin-top:3px;">
+      <div><b>${certEsc(b.name)}</b> <span class="cert-src" style="display:inline;">LINE:${certEsc(b.display || '')}</span>
+        ${b.notify_date ? `<div class="cert-src">上次收到:${certEsc(b.notify_date)}</div>` : ''}</div>
+    </label>`).join('')
+    : '<div class="cert-src" style="padding:4px 0;">還沒有採購綁定 LINE。</div>';
   const caseList = d.cases.length ? d.cases.map(c => `<li><b>${certEsc(c.case_no)}</b> ${certEsc(c.alias)}｜${certEsc(c.items.join('、'))}｜${certEsc(c.arrival)}</li>`).join('')
     : '<li class="cert-src">明天沒有元晶到貨的訂單(不會發送)</li>';
   box.innerHTML = `
@@ -8992,15 +9002,41 @@ function renderDriverRequest(){
         ${d.text ? `<div class="cert-side-label">訊息預覽</div><pre style="white-space:pre-wrap;font-size:12px;background:#F7F7FA;border-radius:8px;padding:10px;margin:0;">${certEsc(d.text)}</pre>` : ''}
       </div>
       <div>
-        <div class="cert-side-label" style="margin-top:0;">發送到哪個群組(勾選＝每天 14:00 自動發)</div>
+        <div class="cert-side-label" style="margin-top:0;">① 採購(測試期間先發給採購確認)</div>
+        ${buyerRows}
+        <div style="margin:6px 0 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          ${bindUrl ? `<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="copyBuyerBindLink()">🔗 複製採購綁定連結</button>
+          <span class="cert-src">傳給採購,用手機 LINE 打開、輸入名字、登入即可</span>` : '<span class="cert-src">LINE 綁定功能尚未設定(LIFF_ID)</span>'}
+        </div>
+        <div class="cert-side-label">② 元晶群組(確認沒問題後再勾選＝每天 14:00 自動發到群組)</div>
         ${groupRows}
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" ${(!targets.length || !d.cases.length) ? 'disabled' : ''} onclick="sendDriverRequestNow()">📤 立即發送一次</button>
+          <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;" ${(!targets.length && !buyers.some(b => b.notify)) ? 'disabled' : ''} onclick="sendDriverRequestNow()">📤 立即發送一次</button>
           <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="loadDriverRequest()">🔄 重新整理</button>
         </div>
         <div class="cert-src" style="margin-top:6px;">只會發「預計到貨時間」是明確日期且＝明天、狀態「已成立」的訂單;「待確認」「預計11月出貨」不會觸發。同一天自動通知只發一次。</div>
       </div>
     </div>`;
+}
+
+function copyBuyerBindLink(){
+  if(!window.BUYER_BIND_URL) return;
+  navigator.clipboard.writeText(window.BUYER_BIND_URL).then(() => showToast('已複製採購綁定連結'));
+}
+
+async function setBuyerNotify(recordId, on){
+  try{
+    const res = await fetch(API_BASE + '/api/line/buyers/' + recordId + '/notify', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({on})});
+    const data = await res.json();
+    if(!res.ok || data.error) throw new Error(data.error || res.status);
+    const b = (DRIVER_REQ.buyers || []).find(x => x.id === recordId);
+    if(b) b.notify = on;
+    showToast(on ? '已設定:每天 14:00 也發給這位採購' : '已取消這位採購的通知');
+  }catch(e){
+    showToast('設定失敗:' + e.message);
+  }
+  renderDriverRequest();
 }
 
 async function setDriverGroup(recordId, on){
@@ -9021,7 +9057,8 @@ async function setDriverGroup(recordId, on){
 }
 
 async function sendDriverRequestNow(){
-  const targets = DRIVER_REQ.groups.filter(g => g.purposes.includes('元晶出貨司機資訊')).map(g => g.name || g.group_id);
+  const targets = DRIVER_REQ.groups.filter(g => g.purposes.includes('元晶出貨司機資訊')).map(g => '群組:' + (g.name || g.group_id))
+    .concat((DRIVER_REQ.buyers || []).filter(b => b.notify).map(b => '採購:' + b.name));
   if(!confirm(`要現在把「明天到貨 ${DRIVER_REQ.cases.length} 案」的司機資訊請求發到:
 ${targets.join('、')}
 
