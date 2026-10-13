@@ -4425,7 +4425,7 @@ function renderEntryTable(){
   }
   tbody.innerHTML = rows.map(r => {
     const invDate = getInverterDate(r.record_id);
-    const chips = [`<span class="chip chip-ship">模組 ${fmtDate(r.ship_date)}</span>`];
+    const chips = [`<span class="chip chip-ship"${r.ship_date_from_order ? ` title="訂單確定的到貨日（里程碑上的預估是 ${fmtDate(r.ship_date_milestone) || '—'}）"` : ''}>模組 ${fmtDate(r.ship_date)}</span>`];
     if(invDate) chips.push(`<span class="chip chip-ship">變流器 ${fmtDate(invDate)}</span>`);
     if(r._status === 'scheduled' && r.entry_date) chips.push(`<span class="chip chip-enter">進場 ${fmtDate(r.entry_date)}</span>`);
     const scheduleChips = `<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;">${chips.join('')}</div>`;
