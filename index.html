@@ -6636,7 +6636,7 @@ function renderCalendar(){
 // ===================================================================
 const PDF_FILTERS = [
   ['待確認', '待確認'], ['queue', '待辨識・辨識中'], ['已確認', '已確認'],
-  ['辨識失敗', '辨識失敗'], ['已歸檔', '已歸檔'], ['all', '全部'],
+  ['辨識失敗', '辨識失敗'], ['已歸檔', '已歸檔'], ['all', '全部'], ['history', '🗂 歷史紀錄'],
 ];
 let PDF_STATE = {items: [], status: null, filter: '待確認', current: null, timer: null, q: '', selected: new Set(), order: [], autoOpen: new Set()};
 
@@ -6963,8 +6963,56 @@ const PDF_EMPTY = {
   '辨識失敗': ['👍', '沒有辨識失敗的檔案。'],
 };
 
+// 2026-10-13：「已歸檔」「全部」只看今天歸檔的（每天自動清空）；以前歸檔的都放進「🗂 歷史紀錄」，依歸檔日期分組查看
+function pdfArchiveDate(x){ return String(x.confirmed_at || x.uploaded_at || '').slice(0, 10); }
+function pdfIsOldArchived(x){ return x.status === '已歸檔' && pdfArchiveDate(x) < todayStr(); }
 function pdfMatch(x, f){
-  return f === 'all' ? true : (f === 'queue' ? (x.status === '待辨識' || x.status === '辨識中') : x.status === f);
+  if(f === 'history') return pdfIsOldArchived(x);
+  if(f === '已歸檔') return x.status === '已歸檔' && !pdfIsOldArchived(x);
+  if(f === 'all') return !pdfIsOldArchived(x);
+  return f === 'queue' ? (x.status === '待辨識' || x.status === '辨識中') : x.status === f;
+}
+async function loadPdfHistoryOld(){
+  const btn = document.getElementById('pdfHistMoreBtn');
+  if(btn){ btn.disabled = true; btn.textContent = '載入中…'; }
+  try{
+    const res = await fetch(API_BASE + '/api/pdf-rename/history', {cache: 'no-store'});
+    const d = await res.json();
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    PDF_STATE.historyOld = d.items || [];
+    PDF_STATE.historyOldLoaded = true;
+    renderPdfList();
+  }catch(e){
+    showToast('載入失敗：' + e.message);
+    if(btn){ btn.disabled = false; btn.textContent = '載入 30 天前的更早紀錄'; }
+  }
+}
+function renderPdfHistory(rows, q){
+  const old = (PDF_STATE.historyOld || []).filter(x => pdfSearchHit(x, q));
+  const all = [...rows, ...old];
+  const byDay = {};
+  all.forEach(x => { (byDay[pdfArchiveDate(x) || '（沒有日期）'] ||= []).push(x); });
+  const days = Object.keys(byDay).sort().reverse();
+  const wdn = ['日','一','二','三','四','五','六'];
+  const dayLabel = d => { const t = new Date(d + 'T00:00:00'); return isNaN(t) ? d : `${d}（週${wdn[t.getDay()]}）`; };
+  const more = PDF_STATE.historyOldLoaded
+    ? `<div class="pdf-sub" style="text-align:center;padding:12px;">已載入 30 天前的更早紀錄${old.length >= 400 ? '（最多顯示 400 筆）' : ''}</div>`
+    : `<div style="text-align:center;padding:14px;"><button class="btn btn-ghost" id="pdfHistMoreBtn" onclick="loadPdfHistoryOld()">載入 30 天前的更早紀錄</button></div>`;
+  if(!all.length){
+    document.getElementById('pdfList').innerHTML = `<div class="pdf-empty"><b>🗂</b>${q ? `找不到符合「${pdfEsc(q)}」的歷史紀錄。` : '最近 30 天還沒有以前歸檔的紀錄（今天歸檔的在「已歸檔」）。'}</div>${more}`;
+    return;
+  }
+  const rowHtml = x => `<tr${x.lite === undefined && x.src_name !== undefined && pdfItems().some(i => i.id === x.id) ? ` onclick="openPdfDetail('${x.id}')" style="cursor:pointer;"` : ''}>
+      <td><div class="pdf-newname">${pdfEsc(x.final_name || x.suggested_name || x.src_name)}</div><div class="pdf-sub">原檔：${pdfEsc(x.src_name)}${x.confirmed_by ? '・' + pdfEsc(x.confirmed_by) : ''}</div></td>
+      <td>${x.case_no ? `<div class="pdf-name">${pdfEsc(x.case_no)}</div><div class="pdf-sub">${pdfEsc(x.alias)}</div>` : '<span class="pdf-sub">—</span>'}</td>
+      <td>${x.doc_type ? `<span class="pdf-type c${pdfEsc(x.category || '')}">${pdfEsc(x.doc_type)}</span>` : '<span class="pdf-sub">—</span>'}</td>
+      <td style="white-space:nowrap;">${pdfEsc(x.doc_date) || '—'}</td>
+      <td style="white-space:nowrap;">${pdfEsc(String(x.confirmed_at || '').slice(11, 16))}</td></tr>`;
+  document.getElementById('pdfList').innerHTML = `<div class="pdf-sub" style="margin:2px 0 10px;">以前歸檔的紀錄，依歸檔日期分組（今天歸檔的在「已歸檔」；隔天就會移到這裡）。</div>`
+    + days.map(d => `<div style="margin-bottom:16px;"><div style="font-weight:800;font-size:13.5px;margin-bottom:4px;">📅 ${dayLabel(d)}　<span class="pdf-sub">歸檔 ${byDay[d].length} 份</span></div>
+      <div class="pdf-table-wrap" style="overflow-x:auto;"><table class="pdf-table">
+      <thead><tr><th>新檔名／原檔名</th><th>案號</th><th>函文類型</th><th>發文日期</th><th>歸檔時間</th></tr></thead>
+      <tbody>${byDay[d].sort((a, b) => String(b.confirmed_at || '').localeCompare(String(a.confirmed_at || ''))).map(rowHtml).join('')}</tbody></table></div></div>`).join('') + more;
 }
 function pdfSearchHit(x, q){
   if(!q) return true;
@@ -7023,6 +7071,13 @@ function renderPdfList(){
   document.getElementById('pdfChips').innerHTML = PDF_FILTERS.map(([k, label]) =>
     `<div class="pdf-chip ${PDF_STATE.filter === k ? 'active' : ''}" onclick="setPdfFilter('${k}')">${label}（${items.filter(x => pdfMatch(x, k)).length}）</div>`).join('');
   const rows = items.filter(x => pdfMatch(x, PDF_STATE.filter) && pdfSearchHit(x, q));
+  if(PDF_STATE.filter === 'history'){   // 歷史紀錄：依歸檔日期分組，不用批次操作列
+    PDF_STATE.order = [];
+    PDF_STATE.selected.clear();
+    renderPdfBatchBar([]);
+    renderPdfHistory(rows, q);
+    return;
+  }
   // 確認視窗「下一份」用的順序：目前畫面上的待確認
   PDF_STATE.order = rows.filter(x => x.status === '待確認').map(x => x.id);
   for(const id of [...PDF_STATE.selected]) if(!rows.some(x => x.id === id && pdfSelectable(x))) PDF_STATE.selected.delete(id);
