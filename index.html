@@ -2372,7 +2372,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           <h1 class="page-title">採購專區</h1>
           <div class="page-sub">變流器(碩天 CPSDrive,每天 09:00)與模組(元晶 Email,每小時)出廠證明自動歸檔到 G 槽案件「07 設備保固及出廠證明」</div>
         </div>
-        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="loadInverterCerts(); if(certEquip === '盤點') loadEquipInventory();">🔄 重新整理</button>
+        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="loadInverterCerts(); if(certEquip === '盤點') loadEquipInventory(); if(certEquip === '訂單') loadOrders();">🔄 重新整理</button>
       </div>
 
       <div class="panel">
@@ -2404,6 +2404,36 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <div class="login-note">
           📦 變流器:這台電腦上的 Claude 每日排程從碩天 CPSDrive 下載(需要電腦、Claude app、Chrome 開著)。模組:Ina 信箱的 Apps Script 每小時把元晶來信附件存到「01 模組採購\模組出廠證明收件匣」,本機小幫手每 10 分鐘歸檔(發票用 OCR 讀備註欄案名)。「⚠ 簡稱推定」表示該案 07 資料夾原本沒有檔案可參考簡稱(例如 桃81),確認檔名沒問題後按「確認簡稱」。「未歸檔」是對不到案件的檔案(如地址型的變流器銷售),放在 02 料件採購\02 變流器採購\未歸檔變流器出廠證明。
         </div>
+        </div>
+
+        <!-- 訂單查詢（2026-10-13） -->
+        <div id="orderWrap" style="display:none;">
+          <div class="pending-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input type="text" class="quick-mark-input" id="orderSearchInput" placeholder="搜尋案號、別名、EPC、型號、簽收人…" oninput="onOrderSearch()" style="max-width:280px;">
+            <span id="orderEquipBtns" style="display:flex;gap:6px;flex-wrap:wrap;"></span>
+          </div>
+          <div id="orderStatusBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;"></div>
+          <div id="orderSources" style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px;"></div>
+          <table>
+            <thead>
+              <tr>
+                <th>案號</th>
+                <th>設備</th>
+                <th>型號 × 數量</th>
+                <th>訂單成立</th>
+                <th>到貨/進場</th>
+                <th>狀態</th>
+                <th>出貨給</th>
+                <th>備註</th>
+              </tr>
+            </thead>
+            <tbody id="orderRows">
+              <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入中…</td></tr>
+            </tbody>
+          </table>
+          <div class="login-note">
+            🧾 資料來源:G 槽「02 料件採購」的元晶模組需求表(01 模組採購\*_模組需求_元晶.xlsx)與碩天逆變器需求表(02 變流器採購\*_逆變器需求_碩天.xlsx)。重新下單時檔名的日期會變,系統一律抓日期最新的那一份;這台電腦的小幫手每 15 分鐘檢查一次,檔案有更新就同步。同一案同一次下單的多個型號合併成一列。
+          </div>
         </div>
 
         <!-- 設備資料盤點（2026-10-07） -->
@@ -8386,11 +8416,12 @@ async function generateOpsPdf(id, keepModalOpen){
 let INVERTER_CERTS = [];
 let certFilter = 'all';
 let certEquip = '變流器';
-const CERT_EQUIPS = [['變流器', '🔌 變流器'], ['模組', '🟦 模組'], ['盤點', '📋 設備資料盤點']];
+const CERT_EQUIPS = [['變流器', '🔌 變流器'], ['模組', '🟦 模組'], ['盤點', '📋 設備資料盤點'], ['訂單', '🧾 訂單查詢']];
 function setCertEquip(e){
   certEquip = e;
   renderInverterCerts();
   if(e === '盤點' && !EQUIP_INV_LOADED) loadEquipInventory();
+  if(e === '訂單') loadOrders();
 }
 const CERT_FILTERS = [
   ['all', '全部'], ['已歸檔', '已歸檔'], ['未歸檔', '未歸檔'], ['abbr', '待確認簡稱'],
@@ -8419,13 +8450,15 @@ function certNeedsAbbrCheck(r){ return r.abbr_guessed && !r.abbr_ok; }
 
 function renderInverterCerts(){
   document.getElementById('certEquipTabs').innerHTML = CERT_EQUIPS.map(([k, label]) => {
-    const n = k === '盤點' ? (EQUIP_INV_LOADED ? `${EQUIP_INV.filter(r => r.missing).length}/${EQUIP_INV.length} 缺` : '') : INVERTER_CERTS.filter(r => r.equipment === k).length;
+    const n = k === '訂單' ? '' : k === '盤點' ? (EQUIP_INV_LOADED ? `${EQUIP_INV.filter(r => r.missing).length}/${EQUIP_INV.length} 缺` : '') : INVERTER_CERTS.filter(r => r.equipment === k).length;
     return `<div class="tab ${certEquip === k ? 'active' : ''}" onclick="setCertEquip('${k}')">${label} ${n}</div>`;
   }).join('');
-  const isInv = certEquip === '盤點';
-  document.getElementById('certListWrap').style.display = isInv ? 'none' : '';
+  const isInv = certEquip === '盤點', isOrder = certEquip === '訂單';
+  document.getElementById('certListWrap').style.display = (isInv || isOrder) ? 'none' : '';
   document.getElementById('invWrap').style.display = isInv ? '' : 'none';
+  document.getElementById('orderWrap').style.display = isOrder ? '' : 'none';
   if(isInv){ renderEquipInventory(); return; }
+  if(isOrder){ renderOrders(); return; }
   const base = INVERTER_CERTS.filter(r => r.equipment === certEquip);
   const isModule = certEquip === '模組';
   const unit = list => isModule ? groupModuleCerts(list).length : list.length;
@@ -8691,6 +8724,79 @@ function startCertPoll(){
       clearInterval(certPollTimer); certPollTimer = null;
     }
   }, 10000);
+}
+
+// ---- 訂單查詢（元晶模組／碩天變流器需求 Excel）----
+let ORDER_DATA = null;
+let orderStatus = '已成立';
+let orderEquip = 'all';
+let orderSearchTimer = null;
+const ORDER_STATUSES = ['已成立', '已出貨', '取消', '可能撤案', 'all'];
+
+function onOrderSearch(){
+  clearTimeout(orderSearchTimer);
+  orderSearchTimer = setTimeout(loadOrders, 300);
+}
+function setOrderStatus(st){ orderStatus = st; loadOrders(); }
+function setOrderEquip(eq){ orderEquip = eq; loadOrders(); }
+
+async function loadOrders(){
+  const q = (document.getElementById('orderSearchInput').value || '').trim();
+  const params = new URLSearchParams({q, status: orderStatus, equipment: orderEquip});
+  try{
+    const res = await fetch(API_BASE + '/api/procurement/orders?' + params.toString());
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    ORDER_DATA = data;
+  }catch(e){
+    ORDER_DATA = {error: e.message};
+  }
+  renderOrders();
+}
+
+function renderOrders(){
+  document.getElementById('orderEquipBtns').innerHTML = [['all', '全部設備'], ['模組', '🟦 模組(元晶)'], ['變流器', '🔌 變流器(碩天)']]
+    .map(([k, label]) => `<button class="cert-filter-btn ${orderEquip === k ? 'active' : ''}" onclick="setOrderEquip('${k}')">${label}</button>`).join('');
+  if(!ORDER_DATA){ return; }
+  if(ORDER_DATA.error){
+    document.getElementById('orderRows').innerHTML =
+      '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">載入失敗,請按「重新整理」再試一次</td></tr>';
+    return;
+  }
+  const counts = ORDER_DATA.counts || {};
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  document.getElementById('orderStatusBtns').innerHTML = ORDER_STATUSES.map(st =>
+    `<button class="cert-filter-btn ${orderStatus === st ? 'active' : ''}" onclick="setOrderStatus('${st}')">${st === 'all' ? '全部' : st} ${st === 'all' ? total : (counts[st] || 0)}</button>`).join('')
+    + '<span style="font-size:11px;color:var(--text-muted);align-self:center;">(數字為型號列數)</span>';
+  document.getElementById('orderSources').innerHTML = (ORDER_DATA.sources || []).map(src =>
+    `${certEsc(src.vendor)}:${certEsc(src.source_file)}(檔案更新 ${certEsc((src.source_modified || '').replace('T', ' ').slice(0, 16))})`).join('｜');
+
+  const rows = ORDER_DATA.rows || [];
+  document.getElementById('certCountTag').textContent = `共 ${ORDER_DATA.total} 筆訂單`;
+  if(rows.length === 0){
+    document.getElementById('orderRows').innerHTML =
+      '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:30px 0;">沒有符合條件的訂單</td></tr>';
+    return;
+  }
+  const statusCls = {'已成立': 'ops-status-pending', '已出貨': 'ops-status-done', '取消': 'ops-status-pdf', '可能撤案': 'ops-status-pdf'};
+  const vendorCls = v => VENDOR_CLASS[v] || 'vendor-other';
+  document.getElementById('orderRows').innerHTML = rows.map(g => `
+    <tr>
+      <td><div class="case-id">${certEsc(g.case_no)}</div><div class="case-alias">${certEsc(g.alias || '')}</div></td>
+      <td style="white-space:nowrap;">${g.equipment === '模組' ? '🟦 模組' : '🔌 變流器'}<div class="cert-src">${certEsc(g.vendor)}</div></td>
+      <td style="font-size:12.5px;">${g.items.map(it => `<div>${certEsc(it.model)} <b>× ${certEsc(it.qty)}</b></div>`).join('')}
+        ${g.warranty && g.warranty !== '不需要' ? `<div class="cert-src">十年延保:${certEsc(g.warranty)}</div>` : ''}</td>
+      <td style="white-space:nowrap;">${certEsc(g.order_date || '—')}${g.paid_at ? `<div class="cert-src">匯款 ${certEsc(g.paid_at)}</div>` : ''}</td>
+      <td style="font-size:12.5px;">${certEsc(g.arrival || '—')}${g.shipped_at ? `<div class="cert-src">碩天出貨 ${certEsc(g.shipped_at)}</div>` : ''}</td>
+      <td><span class="ops-status-pill ${statusCls[g.status] || 'ops-status-pdf'}">${certEsc(g.status)}</span></td>
+      <td style="font-size:12.5px;">
+        ${g.epc ? `<span class="vendor-pill ${vendorCls(g.epc)}">${certEsc(g.epc)}</span>` : ''}
+        <div>${certEsc(g.receiver || '')} ${g.phone ? `<span class="cert-src" style="display:inline;">${certEsc(g.phone)}</span>` : ''}</div>
+        <div class="cert-src">${certEsc(g.ship_to || '')}</div>
+      </td>
+      <td style="font-size:12px;max-width:220px;">${g.notes.map(n => `<div>${certEsc(n)}</div>`).join('')}</td>
+    </tr>`).join('')
+    + (ORDER_DATA.total > rows.length ? `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:12px 0;font-size:12px;">只顯示前 ${rows.length} 筆,請用搜尋縮小範圍</td></tr>` : '');
 }
 
 // ---- 設備資料盤點 ----
