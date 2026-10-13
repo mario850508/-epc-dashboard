@@ -8941,7 +8941,7 @@ async function openOrderCase(caseNo){
     const mailHtml = cancelHtml + (!mc.length
       ? '<div class="cert-src" style="padding:6px 0;">還沒有這案的案件配比信(信件匯出後每 15 分鐘同步一次)</div>'
       : mailBlock(mc[0])
-        + (chk.length ? `<div style="margin-top:6px;font-size:12.5px;line-height:1.8;">${chk.map(c => `<div>${c.ok ? '✅' : '⚠️'} ${certEsc(c.equipment)} ${certEsc(c.model)}:配比信 ${certEsc(c.mail_qty)}${c.equipment === '模組' ? ' 片' : ' 台'}／訂單 ${certEsc(c.order_qty)}${c.equipment === '模組' ? ' 片' : ' 台'}</div>`).join('')}</div>` : '')
+        + (chk.length ? `<div style="margin-top:6px;font-size:12.5px;line-height:1.8;">${chk.map(c => { const u = c.equipment === '模組' ? ' 片' : ' 台'; return `<div>${c.ok ? '✅' : (c.order_qty ? '⚠️' : '⏳')} ${certEsc(c.equipment)} ${certEsc(c.model)}:配比信 ${certEsc(c.mail_qty)}${u}／${c.order_qty ? '訂單 ' + certEsc(c.order_qty) + u : '尚未下單'}</div>`; }).join('')}</div>` : '')
         + (mc.length > 1 ? `<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:12.5px;color:#6B7280;">較早的配比信(${mc.length - 1} 封)</summary>${mc.slice(1).map(mailBlock).join('')}</details>` : ''));
     ov.firstElementChild.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;">
