@@ -8875,9 +8875,11 @@ function renderOrders(){
   const vendorCls = v => VENDOR_CLASS[v] || 'vendor-other';
   const orderBlock = g => `<div style="margin-bottom:8px;">
       ${g.items.map(it => `<div>${certEsc(it.model)} <b>× ${certEsc(it.qty)}</b></div>`).join('')}
-      <div><span class="ops-status-pill ${statusCls[g.status] || 'ops-status-pdf'}">${certEsc(g.status)}</span>
-        <span class="cert-src" style="display:inline;">下單 ${certEsc(g.order_date || '—')}${g.arrival ? '・到貨/進場 ' + certEsc(g.arrival) : ''}${g.shipped_at ? '・出貨 ' + certEsc(g.shipped_at) : ''}</span></div>
-      ${g.warranty && g.warranty !== '不需要' ? `<div class="cert-src">十年延保:${certEsc(g.warranty)}</div>` : ''}</div>`;
+      <div style="margin:3px 0;"><span class="ops-status-pill ${statusCls[g.status] || 'ops-status-pdf'}">${certEsc(g.status)}</span></div>
+      <div class="cert-src" style="white-space:nowrap;">下單:${certEsc(g.order_date || '—')}</div>
+      ${g.arrival ? `<div class="cert-src" style="white-space:nowrap;">到貨/進場:${certEsc(g.arrival)}</div>` : ''}
+      ${g.shipped_at ? `<div class="cert-src" style="white-space:nowrap;">出貨:${certEsc(g.shipped_at)}</div>` : ''}
+      ${g.warranty && g.warranty !== '不需要' ? `<div class="cert-src" style="white-space:nowrap;">十年延保:${certEsc(g.warranty)}</div>` : ''}</div>`;
   const cell = list => list.length ? list.map(orderBlock).join('') : '<span class="cert-src">沒有訂單</span>';
   document.getElementById('orderRows').innerHTML = cases.map(c => `
     <tr>
