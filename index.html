@@ -9023,8 +9023,7 @@ async function setDriverGroup(recordId, on){
 async function sendDriverRequestNow(){
   const targets = DRIVER_REQ.groups.filter(g => g.purposes.includes('元晶出貨司機資訊')).map(g => g.name || g.group_id);
   if(!confirm(`要現在把「明天到貨 ${DRIVER_REQ.cases.length} 案」的司機資訊請求發到:
-${targets.join('
-')}
+${targets.join('、')}
 
 (這會真的發訊息給廠商群組)`)) return;
   try{
