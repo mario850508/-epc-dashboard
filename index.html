@@ -937,6 +937,8 @@
         </div>
         <div class="nav-sub" id="navSub-procure">
           <div class="nav-sub-item" data-sub="procure-orders" onclick="showProcureTab('orders')">訂單查詢</div>
+          <div class="nav-sub-item" data-sub="procure-calendar" onclick="showProcureTab('calendar')">出貨日曆</div>
+          <div class="nav-sub-item" data-sub="procure-driver" onclick="showProcureTab('driver')">明天到貨通知</div>
           <div class="nav-sub-item" data-sub="procure-certs" onclick="showProcureTab('certs')">出廠證明歸檔紀錄</div>
         </div>
       </div>
@@ -2376,7 +2378,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           <h1 class="page-title">採購專區</h1>
           <div class="page-sub" id="procureSub">元晶模組/碩天變流器訂單查詢</div>
         </div>
-        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="if(PROCURE_TAB === 'orders'){ loadOrders(); } else { loadInverterCerts(); if(certEquip === '盤點') loadEquipInventory(); }">🔄 重新整理</button>
+        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="if(PROCURE_TAB === 'orders'){ loadOrders(); } else if(PROCURE_TAB === 'calendar'){ loadOrderCalendar(); } else if(PROCURE_TAB === 'driver'){ loadDriverRequest(); } else { loadInverterCerts(); if(certEquip === '盤點') loadEquipInventory(); }">🔄 重新整理</button>
       </div>
 
       <div class="panel" id="driverReqPanel">
@@ -2384,6 +2386,31 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           <span class="module-tag tag-cloud" style="margin-left:6px;">每天 14:00 自動發送</span>
         </div>
         <div id="driverReqBody" style="font-size:13px;">載入中…</div>
+      </div>
+
+      <div class="panel" id="procureCalendarPanel" style="display:none;">
+        <div class="panel-title">📅 出貨日曆(預計到貨日)
+          <span class="module-tag tag-cloud" style="margin-left:6px;" id="ocalCountTag">本月 0 筆</span>
+        </div>
+        <div class="cal-header">
+          <div class="cal-nav">
+            <button class="icon-btn" onclick="ocalMove(-1)">‹</button>
+            <div class="cal-month" id="ocalMonthLabel"></div>
+            <button class="icon-btn" onclick="ocalMove(1)">›</button>
+            <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="ocalToday()">今天</button>
+          </div>
+          <div class="legend">
+            <div class="legend-item"><span class="dot" style="background:#7C3AED;"></span>模組</div>
+            <div class="legend-item"><span class="dot" style="background:#1E70C8;"></span>變流器</div>
+            <div class="legend-item"><span class="dot" style="background:#9CA3AF;"></span>已出貨</div>
+          </div>
+        </div>
+        <div id="ocalFilters" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:12.5px;"></div>
+        <div class="cal-grid" id="ocalGrid"></div>
+        <div id="ocalDayDetail" style="margin-top:12px;"></div>
+        <div class="login-note">
+          📅 依元晶/碩天訂單表的「預計到貨時間」排在日曆上(只有寫明確日期的才會出現;「待確認」「預計11月出貨」不會出現)。紫色＝模組、藍色＝變流器、灰色＝已出貨。點日期看當天明細,點案號開訂單詳細。
+        </div>
       </div>
 
       <div class="panel" id="procureOrdersPanel">
@@ -8496,20 +8523,120 @@ function setCertEquip(e){
 // 採購專區兩個子頁：訂單查詢／出廠證明歸檔紀錄（2026-10-13 使用者要求拆成側邊選單子項目）
 let PROCURE_TAB = 'orders';
 function showProcureTab(tab){
+  if(!['orders', 'calendar', 'driver', 'certs'].includes(tab)) tab = 'orders';
   PROCURE_TAB = tab;
   showView('procure');
-  const isOrders = tab === 'orders';
-  document.getElementById('procureOrdersPanel').style.display = isOrders ? '' : 'none';
-  document.getElementById('procureCertsPanel').style.display = isOrders ? 'none' : '';
-  document.getElementById('procureSub').textContent = isOrders
-    ? '元晶模組/碩天變流器訂單查詢:何時下單、出貨給誰、訂單狀態'
-    : '出廠證明自動歸檔(碩天變流器每天 09:00、元晶模組每小時)與設備資料盤點';
+  const panels = {orders: 'procureOrdersPanel', calendar: 'procureCalendarPanel', driver: 'driverReqPanel', certs: 'procureCertsPanel'};
+  Object.entries(panels).forEach(([k, id]) => { const el = document.getElementById(id); if(el) el.style.display = k === tab ? '' : 'none'; });
+  document.getElementById('procureSub').textContent = {
+    orders: '元晶模組/碩天變流器訂單查詢:何時下單、出貨給誰、訂單狀態',
+    calendar: '未來幾個月每天有哪些模組/變流器訂單到貨,可依模組廠、變流器廠、EPC 篩選',
+    driver: '元晶明天到貨的訂單:每天 14:00 自動請元晶提供貨運司機資訊',
+    certs: '出廠證明自動歸檔(碩天變流器每天 09:00、元晶模組每小時)與設備資料盤點',
+  }[tab];
   document.querySelectorAll('.nav-sub-item').forEach(n => n.classList.remove('active'));
   document.querySelector('.nav-sub-item[data-sub="procure-' + tab + '"]').classList.add('active');
-  document.getElementById('driverReqPanel').style.display = isOrders ? '' : 'none';
-  if(isOrders){ loadOrders(); loadDriverRequest(); } else { loadInverterCerts(); }
+  if(tab === 'orders') loadOrders();
+  else if(tab === 'calendar') loadOrderCalendar();
+  else if(tab === 'driver') loadDriverRequest();
+  else loadInverterCerts();
   saveNavState({view: 'procure', procureTab: tab});
 }
+
+// ---- 出貨日曆（2026-10-14）----
+let OCAL = null;
+let ocalYear = new Date().getFullYear(), ocalMonth = new Date().getMonth();
+let ocalSelected = '';
+const OCAL_FILTER = {modules: null, inverters: null, epc: ''};   // null＝全部勾選
+
+async function loadOrderCalendar(){
+  try{
+    const res = await fetch(API_BASE + '/api/procurement/order-calendar', {cache: 'no-store'});
+    const d = await res.json();
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    OCAL = d;
+    if(OCAL_FILTER.modules === null) OCAL_FILTER.modules = new Set(d.module_vendors);
+    if(OCAL_FILTER.inverters === null) OCAL_FILTER.inverters = new Set(d.inverter_vendors);
+  }catch(e){
+    OCAL = {error: e.message};
+  }
+  renderOrderCalendar();
+}
+
+function ocalMove(delta){
+  ocalMonth += delta;
+  if(ocalMonth < 0){ ocalMonth = 11; ocalYear -= 1; }
+  if(ocalMonth > 11){ ocalMonth = 0; ocalYear += 1; }
+  renderOrderCalendar();
+}
+function ocalToday(){ const t = new Date(); ocalYear = t.getFullYear(); ocalMonth = t.getMonth(); ocalSelected = ''; renderOrderCalendar(); }
+function ocalToggle(kind, vendor, on){ if(on) OCAL_FILTER[kind].add(vendor); else OCAL_FILTER[kind].delete(vendor); renderOrderCalendar(); }
+function ocalSetEpc(v){ OCAL_FILTER.epc = v; renderOrderCalendar(); }
+function ocalSelect(date){ ocalSelected = ocalSelected === date ? '' : date; renderOrderCalendar(); }
+
+function ocalVisible(e){
+  if(e.equipment === '模組' && !OCAL_FILTER.modules.has(e.vendor)) return false;
+  if(e.equipment === '變流器' && !OCAL_FILTER.inverters.has(e.vendor)) return false;
+  if(OCAL_FILTER.epc && e.epc !== OCAL_FILTER.epc) return false;
+  return true;
+}
+
+function renderOrderCalendar(){
+  const grid = document.getElementById('ocalGrid');
+  if(!grid) return;
+  document.getElementById('ocalMonthLabel').textContent = ocalYear + '年' + (ocalMonth + 1) + '月';
+  if(!OCAL){ grid.innerHTML = '<div class="cert-src" style="padding:20px;">載入中…</div>'; return; }
+  if(OCAL.error){ grid.innerHTML = `<div class="cert-src" style="padding:20px;">載入失敗:${certEsc(OCAL.error)}</div>`; return; }
+
+  const cb = (kind, v) => `<label style="display:inline-flex;gap:4px;align-items:center;cursor:pointer;"><input type="checkbox" ${OCAL_FILTER[kind].has(v) ? 'checked' : ''} onchange="ocalToggle('${kind}', '${certEsc(v)}', this.checked)">${certEsc(v)}</label>`;
+  document.getElementById('ocalFilters').innerHTML = `
+    <span><b>模組廠</b> ${OCAL.module_vendors.map(v => cb('modules', v)).join(' ') || '<span class="cert-src">無</span>'}</span>
+    <span><b>變流器廠</b> ${OCAL.inverter_vendors.map(v => cb('inverters', v)).join(' ') || '<span class="cert-src">無</span>'}</span>
+    <span><b>EPC</b> <select onchange="ocalSetEpc(this.value)" style="padding:3px 6px;border-radius:6px;border:1px solid var(--border);">
+      <option value="">全部</option>${OCAL.epcs.map(v => `<option value="${certEsc(v)}" ${OCAL_FILTER.epc === v ? 'selected' : ''}>${certEsc(v)}</option>`).join('')}</select></span>`;
+
+  const byDate = {};
+  OCAL.events.filter(ocalVisible).forEach(e => { (byDate[e.date] = byDate[e.date] || []).push(e); });
+  const first = new Date(ocalYear, ocalMonth, 1);
+  const startWd = first.getDay();
+  const days = new Date(ocalYear, ocalMonth + 1, 0).getDate();
+  const total = Math.ceil((startWd + days) / 7) * 7;
+  const pad = n => String(n).padStart(2, '0');
+  const t = new Date(), todayIso = t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate());
+  let monthCount = 0;
+  let html = ['日', '一', '二', '三', '四', '五', '六'].map(w => `<div class="cal-dow">${w}</div>`).join('');
+  for(let i = 0; i < total; i++){
+    const dt = new Date(ocalYear, ocalMonth, i - startWd + 1);
+    const iso = dt.getFullYear() + '-' + pad(dt.getMonth() + 1) + '-' + pad(dt.getDate());
+    const muted = dt.getMonth() !== ocalMonth;
+    const evs = byDate[iso] || [];
+    if(!muted) monthCount += evs.length;
+    const chips = evs.slice(0, 4).map(e => {
+      const color = e.status === '已出貨' ? '#9CA3AF' : (e.equipment === '模組' ? '#7C3AED' : '#1E70C8');
+      const qty = e.items.reduce((a, it) => a + (parseInt(it.qty) || 0), 0);
+      return `<div class="chip" style="background:${color}1A;color:${color};" title="${certEsc(e.case_no + ' ' + e.alias + '｜' + e.vendor + ' ' + e.items.map(it => it.model + '×' + it.qty).join('、') + '｜' + e.epc)}">${e.equipment === '模組' ? '🟦' : '🔌'} ${certEsc(e.case_no.replace(/^(潤特|工程)/, m => m === '工程' ? '工' : ''))} ×${qty}</div>`;
+    }).join('') + (evs.length > 4 ? `<div class="cert-src">+${evs.length - 4} 筆</div>` : '');
+    html += `<div class="cal-cell ${muted ? 'muted' : ''} ${ocalSelected === iso ? 'cal-cell-selected' : ''}" onclick="ocalSelect('${iso}')">
+      <div class="cal-date ${iso === todayIso ? 'today' : ''}">${dt.getDate()}</div>${chips}</div>`;
+  }
+  grid.innerHTML = html;
+  document.getElementById('ocalCountTag').textContent = `本月 ${monthCount} 筆`;
+
+  const det = document.getElementById('ocalDayDetail');
+  const sel = ocalSelected ? (byDate[ocalSelected] || []) : [];
+  det.innerHTML = !ocalSelected ? '' : `<div style="font-weight:800;font-size:14px;margin-bottom:6px;">${certEsc(ocalSelected)} 到貨:${sel.length} 筆</div>`
+    + (sel.length ? `<table><thead><tr><th>案號</th><th>設備</th><th>型號 × 數量</th><th>到貨時間</th><th>狀態</th><th>EPC/簽收</th><th>出貨地址</th></tr></thead><tbody>${sel.map(e => `
+      <tr>
+        <td><div class="case-id cert-case-link" onclick="openOrderCase('${certEsc(e.case_no).replace(/'/g, '')}')">${certEsc(e.case_no)} 🔍</div><div class="case-alias">${certEsc(e.alias)}</div></td>
+        <td style="white-space:nowrap;">${e.equipment === '模組' ? '🟦 模組' : '🔌 變流器'}<div class="cert-src">${certEsc(e.vendor)}</div></td>
+        <td style="font-size:12.5px;">${e.items.map(it => `<div>${certEsc(it.model)} <b>× ${certEsc(it.qty)}</b></div>`).join('')}</td>
+        <td style="font-size:12.5px;white-space:nowrap;">${certEsc(e.arrival)}</td>
+        <td><span class="ops-status-pill ${e.status === '已出貨' ? 'ops-status-done' : 'ops-status-pending'}">${certEsc(e.status)}</span></td>
+        <td style="font-size:12.5px;">${certEsc(e.epc)}<div class="cert-src">${certEsc(e.receiver)} ${certEsc(e.phone)}</div></td>
+        <td style="font-size:12px;">${certEsc(e.ship_to)}</td>
+      </tr>`).join('')}</tbody></table>` : '<div class="cert-src">這天沒有符合篩選的到貨訂單</div>');
+}
+
 const CERT_FILTERS = [
   ['all', '全部'], ['已歸檔', '已歸檔'], ['未歸檔', '未歸檔'], ['abbr', '待確認簡稱'],
 ];
