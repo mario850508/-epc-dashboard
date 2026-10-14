@@ -937,6 +937,7 @@
         </div>
         <div class="nav-sub" id="navSub-procure">
           <div class="nav-sub-item" data-sub="procure-orders" onclick="showProcureTab('orders')">訂單查詢</div>
+          <div class="nav-sub-item" data-sub="procure-ship" onclick="showProcureTab('ship')">安排出貨</div>
           <div class="nav-sub-item" data-sub="procure-calendar" onclick="showProcureTab('calendar')">出貨日曆</div>
           <div class="nav-sub-item" data-sub="procure-driver" onclick="showProcureTab('driver')">明天到貨通知</div>
           <div class="nav-sub-item" data-sub="procure-certs" onclick="showProcureTab('certs')">出廠證明歸檔紀錄</div>
@@ -2386,6 +2387,23 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           <span class="module-tag tag-cloud" style="margin-left:6px;">每天 14:00 自動發送</span>
         </div>
         <div id="driverReqBody" style="font-size:13px;">載入中…</div>
+      </div>
+
+      <div class="panel" id="procureShipPanel" style="display:none;">
+        <div class="panel-title">🚚 安排出貨(新下單／排出貨／已出貨 → 產生新的訂單 Excel)</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+          <input type="text" class="quick-mark-input" id="shipCaseInput" placeholder="輸入案號,例如 潤特苗栗27號" onkeydown="if(event.key==='Enter') shipLookup()" style="max-width:280px;">
+          <button class="btn btn-primary" style="padding:6px 14px;font-size:12.5px;" onclick="shipLookup()">查詢</button>
+        </div>
+        <div id="shipCaseBox"></div>
+        <div style="border-top:1px solid var(--border,#E3E6EA);margin:14px 0 10px;"></div>
+        <div id="shipFormBox"></div>
+        <div style="border-top:1px solid var(--border,#E3E6EA);margin:16px 0 10px;"></div>
+        <div style="font-weight:800;font-size:14px;margin-bottom:8px;">📋 待產生的變更</div>
+        <div id="shipEditsBox"><div class="cert-src">載入中…</div></div>
+        <div class="login-note">
+          🚚 流程:查案號 → 對照左邊審訖圖／系統送審圖與右邊工程部配比信、現有訂單 → 新下單／排出貨／已出貨(勾選已核對)→ 累積到「待產生」→ 按「產生新 Excel 並下載」:系統拿 G 槽最新的訂單 Excel(電腦上的小幫手每 15 分鐘上傳一次)套用變更、保留原格式,檔名用今天日期。下載後請打開確認再寄給廠商,並存回 G 槽原資料夾當下次的底稿。
+        </div>
       </div>
 
       <div class="panel" id="procureCalendarPanel" style="display:none;">
@@ -8523,13 +8541,14 @@ function setCertEquip(e){
 // 採購專區兩個子頁：訂單查詢／出廠證明歸檔紀錄（2026-10-13 使用者要求拆成側邊選單子項目）
 let PROCURE_TAB = 'orders';
 function showProcureTab(tab){
-  if(!['orders', 'calendar', 'driver', 'certs'].includes(tab)) tab = 'orders';
+  if(!['orders', 'ship', 'calendar', 'driver', 'certs'].includes(tab)) tab = 'orders';
   PROCURE_TAB = tab;
   showView('procure');
-  const panels = {orders: 'procureOrdersPanel', calendar: 'procureCalendarPanel', driver: 'driverReqPanel', certs: 'procureCertsPanel'};
+  const panels = {orders: 'procureOrdersPanel', ship: 'procureShipPanel', calendar: 'procureCalendarPanel', driver: 'driverReqPanel', certs: 'procureCertsPanel'};
   Object.entries(panels).forEach(([k, id]) => { const el = document.getElementById(id); if(el) el.style.display = k === tab ? '' : 'none'; });
   document.getElementById('procureSub').textContent = {
     orders: '元晶模組/碩天變流器訂單查詢:何時下單、出貨給誰、訂單狀態',
+    ship: '核對審訖圖與配比信後新下單、排出貨、標記已出貨,產生新的元晶/碩天訂單 Excel',
     calendar: '未來幾個月每天有哪些模組/變流器訂單到貨,可依模組廠、變流器廠、EPC 篩選',
     driver: '元晶明天到貨的訂單:每天 14:00 自動請元晶提供貨運司機資訊',
     certs: '出廠證明自動歸檔(碩天變流器每天 09:00、元晶模組每小時)與設備資料盤點',
@@ -8537,6 +8556,7 @@ function showProcureTab(tab){
   document.querySelectorAll('.nav-sub-item').forEach(n => n.classList.remove('active'));
   document.querySelector('.nav-sub-item[data-sub="procure-' + tab + '"]').classList.add('active');
   if(tab === 'orders') loadOrders();
+  else if(tab === 'ship') loadShippingPage();
   else if(tab === 'calendar') loadOrderCalendar();
   else if(tab === 'driver') loadDriverRequest();
   else loadInverterCerts();
@@ -9364,6 +9384,7 @@ async function confirmCertAbbr(id){
 <script src="home-todo.js?v=1"></script>
 <script src="event-detail.js?v=1"></script>
 <script src="joint.js?v=3"></script>
+<script src="shipping.js?v=1"></script>
 
 </body>
 </html>
