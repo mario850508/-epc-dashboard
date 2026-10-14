@@ -8574,6 +8574,27 @@ function ocalToggle(kind, vendor, on){ if(on) OCAL_FILTER[kind].add(vendor); els
 function ocalSetEpc(v){ OCAL_FILTER.epc = v; renderOrderCalendar(); }
 function ocalSelect(date){ ocalSelected = ocalSelected === date ? '' : date; renderOrderCalendar(); }
 
+// 日曆格子用的簡稱（比照 07 資料夾檔名慣例）：潤特苗栗21號→苗21、工程雲林12號→工雲12、潤特臺南47號→南47
+const OCAL_REGION = {'臺南': '南', '台南': '南', '新竹': '竹', '臺中': '中', '台中': '中', '臺北': '北', '台北': '北', '新北': '新北', '南投': '投'};
+function ocalAbbr(caseNo){
+  const m = String(caseNo || '').match(/^(潤特|工程)(.{2})(\d+)號$/);
+  if(!m) return String(caseNo || '').slice(0, 10);
+  const r = OCAL_REGION[m[2]] || m[2][0];
+  return (m[1] === '工程' ? '工' : '') + r + m[3];
+}
+// 型號縮寫：模組取瓦數（TS54-CMH-450 H6QT → 450）、變流器取容量（CPSPV3600ETLA → 3.6K）
+function ocalModelShort(model, equipment){
+  const t = String(model || '');
+  if(equipment === '模組'){
+    const m = t.match(/-(\d{3})(?:\D|$)/) || t.match(/(\d{3})\s*W/i);
+    return m ? m[1] : t.slice(0, 8);
+  }
+  const m = t.match(/CPSPV(\d{4,5})/i) || t.match(/(\d{4,5})/);
+  if(!m) return t.slice(0, 8);
+  const k = parseInt(m[1], 10) / 1000;
+  return (Number.isInteger(k) ? k : k.toFixed(1)) + 'K';
+}
+
 function ocalVisible(e){
   if(e.equipment === '模組' && !OCAL_FILTER.modules.has(e.vendor)) return false;
   if(e.equipment === '變流器' && !OCAL_FILTER.inverters.has(e.vendor)) return false;
@@ -8613,8 +8634,8 @@ function renderOrderCalendar(){
     if(!muted) monthCount += evs.length;
     const chips = evs.slice(0, 4).map(e => {
       const color = e.status === '已出貨' ? '#9CA3AF' : (e.equipment === '模組' ? '#7C3AED' : '#1E70C8');
-      const qty = e.items.reduce((a, it) => a + (parseInt(it.qty) || 0), 0);
-      return `<div class="chip" style="background:${color}1A;color:${color};" title="${certEsc(e.case_no + ' ' + e.alias + '｜' + e.vendor + ' ' + e.items.map(it => it.model + '×' + it.qty).join('、') + '｜' + e.epc)}">${e.equipment === '模組' ? '🟦' : '🔌'} ${certEsc(e.case_no.replace(/^(潤特|工程)/, m => m === '工程' ? '工' : ''))} ×${qty}</div>`;
+      const models = e.items.map(it => ocalModelShort(it.model, e.equipment) + '×' + it.qty).join('、');
+      return `<div class="chip" style="background:${color}1A;color:${color};" title="${certEsc(e.case_no + ' ' + e.alias + '｜' + e.vendor + ' ' + e.items.map(it => it.model + '×' + it.qty).join('、') + '｜' + e.epc)}">${e.equipment === '模組' ? '🟦' : '🔌'} ${certEsc(ocalAbbr(e.case_no))} ${certEsc(models)}</div>`;
     }).join('') + (evs.length > 4 ? `<div class="cert-src">+${evs.length - 4} 筆</div>` : '');
     html += `<div class="cal-cell ${muted ? 'muted' : ''} ${ocalSelected === iso ? 'cal-cell-selected' : ''}" onclick="ocalSelect('${iso}')">
       <div class="cal-date ${iso === todayIso ? 'today' : ''}">${dt.getDate()}</div>${chips}</div>`;
