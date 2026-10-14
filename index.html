@@ -2400,7 +2400,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="ocalToday()">今天</button>
           </div>
           <div class="legend">
-            <div class="legend-item"><span class="dot" style="background:#7C3AED;"></span>模組</div>
+            <div class="legend-item"><span class="dot" style="background:#C2610A;"></span>模組</div>
             <div class="legend-item"><span class="dot" style="background:#1E70C8;"></span>變流器</div>
             <div class="legend-item"><span class="dot" style="background:#9CA3AF;"></span>已出貨</div>
           </div>
@@ -8633,9 +8633,9 @@ function renderOrderCalendar(){
     const evs = byDate[iso] || [];
     if(!muted) monthCount += evs.length;
     const chips = evs.slice(0, 4).map(e => {
-      const color = e.status === '已出貨' ? '#9CA3AF' : (e.equipment === '模組' ? '#7C3AED' : '#1E70C8');
+      const color = e.status === '已出貨' ? '#9CA3AF' : (e.equipment === '模組' ? '#C2610A' : '#1E70C8');
       const models = e.items.map(it => ocalModelShort(it.model, e.equipment) + '×' + it.qty).join('、');
-      return `<div class="chip" style="background:${color}1A;color:${color};" title="${certEsc(e.case_no + ' ' + e.alias + '｜' + e.vendor + ' ' + e.items.map(it => it.model + '×' + it.qty).join('、') + '｜' + e.epc)}">${e.equipment === '模組' ? '🟦' : '🔌'} ${certEsc(ocalAbbr(e.case_no))} ${certEsc(models)}</div>`;
+      return `<div class="chip" style="background:${color}1A;color:${color};" title="${certEsc(e.case_no + ' ' + e.alias + '｜' + e.vendor + ' ' + e.items.map(it => it.model + '×' + it.qty).join('、') + '｜' + e.epc)}">${e.equipment === '模組' ? '🟧' : '🔌'} ${certEsc(ocalAbbr(e.case_no))} ${certEsc(models)}</div>`;
     }).join('') + (evs.length > 4 ? `<div class="cert-src">+${evs.length - 4} 筆</div>` : '');
     html += `<div class="cal-cell ${muted ? 'muted' : ''} ${ocalSelected === iso ? 'cal-cell-selected' : ''}" onclick="ocalSelect('${iso}')">
       <div class="cal-date ${iso === todayIso ? 'today' : ''}">${dt.getDate()}</div>${chips}</div>`;
