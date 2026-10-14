@@ -1153,7 +1153,34 @@ async function openVendorNotice(recordId){
     <div style="font-size:13px;font-weight:700;margin:14px 0 6px;">給廠商的備註（選填）</div>
     <textarea id="vnNote" class="quick-mark-input" rows="2" placeholder="例如：請提早 10 分鐘到、屋主下午才在家"></textarea>
     <button type="button" class="btn btn-primary" id="vnSubmit" style="width:100%;justify-content:center;padding:11px;margin-top:14px;" onclick="submitVendorNotice('${recordId}')">儲存並產生廠商通知</button>
-    <div id="vnResult"></div>`;
+    <div id="vnResult"></div>
+    <div style="border-top:1px dashed #E3E6EA;margin-top:16px;padding-top:12px;">
+      ${b.vendor_notified_at
+        ? `<div style="font-size:12.5px;color:#16A34A;margin-bottom:8px;">✓ 已標記通知過廠商（${escHtml(fmtDateTimeTW(b.vendor_notified_at))}）</div>
+           <button type="button" class="btn btn-ghost" style="width:100%;justify-content:center;padding:10px;" onclick="markVendorNotified('${recordId}', true)">取消「已通知廠商」標記</button>`
+        : `<div style="font-size:12px;color:#6B7280;margin-bottom:8px;">已經用電話或其他方式跟廠商說過了？不用傳卡片，直接標記：</div>
+           <button type="button" class="btn btn-ghost" style="width:100%;justify-content:center;padding:10px;color:#16A34A;border-color:#BFE6CF;" onclick="markVendorNotified('${recordId}', false)">✓ 已通知廠商（電話／其他方式）</button>`}
+    </div>`;
+}
+// 2026-10-14：不用 LINE 卡片、改用電話等方式通知廠商時，手動標記（或取消標記）「已通知廠商」
+async function markVendorNotified(recordId, unmark){
+  const body = {unmark: !!unmark};
+  if(!unmark){
+    body.owner_name = (document.getElementById('vnName') || {}).value || '';
+    body.owner_phone = (document.getElementById('vnPhone') || {}).value || '';
+    body.pm_note = (document.getElementById('vnNote') || {}).value || '';
+  }
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/' + encodeURIComponent(recordId) + '/vendor-notified', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    closeVendorNotice();
+    showToast(unmark ? '已取消「已通知廠商」標記' : '✓ 已標記為已通知廠商');
+    loadVendorSlots();
+  }catch(err){
+    showToast('標記失敗：' + err.message);
+  }
 }
 async function submitVendorNotice(recordId){
   const btn = document.getElementById('vnSubmit');
