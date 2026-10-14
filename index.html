@@ -9153,7 +9153,9 @@ function renderDriverRequest(){
       <div>
         <div class="cert-side-label" style="margin-top:0;">明天(${certEsc(fmtDate(d.date) || d.date)})到貨的元晶訂單:${d.cases.length} 案</div>
         <ul style="margin:0 0 10px 18px;padding:0;">${caseList}</ul>
-        ${d.text ? `<div class="cert-side-label">訊息預覽</div><pre style="white-space:pre-wrap;font-size:12px;background:#F7F7FA;border-radius:8px;padding:10px;margin:0;">${certEsc(d.text)}</pre>` : ''}
+        <div class="cert-side-label">明天到貨的碩天變流器:${(d.inverter_cases || []).length} 案(只傳給採購)</div>
+        <ul style="margin:0 0 10px 18px;padding:0;">${(d.inverter_cases || []).length ? d.inverter_cases.map(c => `<li><b>${certEsc(c.case_no)}</b> ${certEsc(c.alias)}｜${certEsc(c.items.join('、'))}｜${certEsc(c.arrival)}</li>`).join('') : '<li class="cert-src">明天沒有碩天到貨的訂單</li>'}</ul>
+        ${d.text ? `<div class="cert-side-label">元晶卡片預覽(採購收到後按「📤 傳送到元晶群組」轉傳)</div><pre style="white-space:pre-wrap;font-size:12px;background:#F7F7FA;border-radius:8px;padding:10px;margin:0;">${certEsc(d.text)}</pre>` : ''}
       </div>
       <div>
         <div class="cert-side-label" style="margin-top:0;">發給哪位採購(勾選＝每天 14:00 自動發)</div>
