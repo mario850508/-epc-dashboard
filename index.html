@@ -2391,6 +2391,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
 
       <div class="panel" id="procureShipPanel" style="display:none;">
         <div class="panel-title">🚚 安排出貨(新下單／排出貨／已出貨 → 產生新的訂單 Excel)</div>
+        <div id="shipCandBox" style="margin-bottom:14px;"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
           <input type="text" class="quick-mark-input" id="shipCaseInput" placeholder="輸入案號,例如 潤特苗栗27號" onkeydown="if(event.key==='Enter') shipLookup()" style="max-width:280px;">
           <button class="btn btn-primary" style="padding:6px 14px;font-size:12.5px;" onclick="shipLookup()">查詢</button>
@@ -9384,7 +9385,7 @@ async function confirmCertAbbr(id){
 <script src="home-todo.js?v=1"></script>
 <script src="event-detail.js?v=1"></script>
 <script src="joint.js?v=3"></script>
-<script src="shipping.js?v=1"></script>
+<script src="shipping.js?v=2"></script>
 
 </body>
 </html>

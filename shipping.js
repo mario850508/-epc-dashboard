@@ -13,7 +13,65 @@ function shipEsc(v){ return certEsc(v); }
 
 async function loadShippingPage(){
   renderShipForm();
+  loadShipCandidates();
   await loadShipEdits();
+}
+
+// ---- 已取得同意備案的案件清單（2026-10-15）：搜尋、篩選未下單，按「安排」帶到下面查詢 ----
+let SHIP_CANDS = null;
+let shipCandFilter = 'module';
+async function loadShipCandidates(refresh){
+  const box = document.getElementById('shipCandBox');
+  if(box && !SHIP_CANDS) box.innerHTML = '<div class="cert-src">載入已取得同意備案的案件…</div>';
+  try{
+    const res = await fetch(API_BASE + '/api/procurement/shipping/candidates' + (refresh ? '?refresh=1' : ''), {cache: 'no-store'});
+    const d = await res.json();
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    SHIP_CANDS = d.cases || [];
+  }catch(e){
+    if(box) box.innerHTML = '<div class="cert-src">案件清單載入失敗:' + shipEsc(e.message) + '</div>';
+    return;
+  }
+  renderShipCandidates();
+}
+function shipSetCandFilter(k){ shipCandFilter = k; renderShipCandidates(); }
+function shipPick(caseNo){
+  document.getElementById('shipCaseInput').value = caseNo;
+  shipLookup();
+  document.getElementById('shipCaseBox').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+function renderShipCandidates(){
+  const box = document.getElementById('shipCandBox');
+  if(!box || !SHIP_CANDS) return;
+  const kw = ((document.getElementById('shipCandSearch') || {}).value || '').trim().replace(/台/g, '臺');
+  const flt = {
+    module: c => !c.module_order,
+    inverter: c => !c.inverter_order,
+    all: c => true,
+  };
+  const counts = {module: SHIP_CANDS.filter(flt.module).length, inverter: SHIP_CANDS.filter(flt.inverter).length, all: SHIP_CANDS.length};
+  let rows = SHIP_CANDS.filter(flt[shipCandFilter]);
+  if(kw) rows = rows.filter(c => [c.case_no, c.alias, c.epc, c.address].some(v => String(v || '').replace(/台/g, '臺').includes(kw)));
+  const st = v => v ? '<span class="ops-status-pill ' + (v === '已出貨' ? 'ops-status-done' : 'ops-status-pending') + '">' + shipEsc(v) + '</span>' : '<span class="cert-src" style="color:#B42318;">未下單</span>';
+  const btn = (k, label) => '<button class="cert-filter-btn ' + (shipCandFilter === k ? 'active' : '') + '" onclick="shipSetCandFilter(\'' + k + '\')">' + label + ' ' + counts[k] + '</button>';
+  const keep = document.activeElement && document.activeElement.id === 'shipCandSearch';
+  box.innerHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">'
+    + '<b style="font-size:14px;">📋 已取得同意備案、尚未掛表的案件</b>'
+    + '<input id="shipCandSearch" class="quick-mark-input" placeholder="搜尋案號、別名、EPC、地址…" value="' + shipEsc(kw) + '" oninput="renderShipCandidates()" style="max-width:240px;">'
+    + btn('module', '模組未下單') + btn('inverter', '變流器未下單') + btn('all', '全部')
+    + '<button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="loadShipCandidates(true)">🔄</button></div>'
+    + '<div style="max-height:360px;overflow:auto;border:1px solid var(--border,#E3E6EA);border-radius:10px;">'
+    + '<table><thead><tr><th>案號</th><th>EPC</th><th>同意備案</th><th>模組(元晶)</th><th>變流器(碩天)</th><th>工程部配比信</th><th></th></tr></thead><tbody>'
+    + (rows.length ? rows.map(c => '<tr>'
+      + '<td><b>' + shipEsc(c.case_no) + '</b><div class="case-alias">' + shipEsc(c.alias) + '</div></td>'
+      + '<td>' + shipEsc(c.epc) + '</td><td style="white-space:nowrap;">' + shipEsc(c.agree_date || '—') + '</td>'
+      + '<td>' + st(c.module_order) + '</td><td>' + st(c.inverter_order) + '</td>'
+      + '<td style="font-size:12px;">' + (c.mail_cancelled ? '<span style="color:#B42318;font-weight:700;">⛔ 取消通知</span>'
+        : c.has_mail ? shipEsc(c.mail_modules.concat(c.mail_inverters).join('、')) : '<span class="cert-src">沒有</span>') + '</td>'
+      + '<td><button class="btn btn-primary" style="padding:4px 10px;font-size:12px;" onclick="shipPick(\'' + shipEsc(c.case_no).replace(/'/g, '') + '\')">安排</button></td></tr>').join('')
+      : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:16px 0;">沒有符合的案件</td></tr>')
+    + '</tbody></table></div>';
+  if(keep){ const el = document.getElementById('shipCandSearch'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
 }
 
 async function shipLookup(){
