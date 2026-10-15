@@ -87,9 +87,13 @@ function startOptions(date){
   const busy = (D.busy_slots || []).filter(b => b.date === date).map(b => [toMin(b.start_time), toMin(b.end_time)]);
   const out = [];
   wins.forEach(([ws, we]) => {   // 每個可選時段各列一排整點開始（中間的休息時間不會出現）
-    for(let s = Math.ceil(ws / 60) * 60; s + dur <= we; s += 60){
+    const starts = [];
+    if(ws % 60 !== 0) starts.push(ws);   // 時段從半點開始（例如 09:30）：時段起點本身也是一個選項，不然剛好塞得下的時段會整個消失
+    for(let s = Math.ceil(ws / 60) * 60; s <= we; s += 60) starts.push(s);
+    starts.forEach(s => {
+      if(s + dur > we) return;
       out.push({start: fmtMin(s), end: fmtMin(s + dur), ok: !busy.some(([bs, be]) => s < be && bs < s + dur)});
-    }
+    });
   });
   return out;
 }
