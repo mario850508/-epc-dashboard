@@ -44,9 +44,12 @@ function renderShipCandidates(){
   const box = document.getElementById('shipCandBox');
   if(!box || !SHIP_CANDS) return;
   const kw = ((document.getElementById('shipCandSearch') || {}).value || '').trim().replace(/台/g, '臺');
+  // 配比信寫的是別家（例如茂迪 PM054NT8、非 CPSPV 的變流器）就不算「元晶／碩天未下單」
+  const otherMod = c => !c.module_order && c.mail_modules.length && !c.mail_modules.some(m => /^TS/i.test(m));
+  const otherInv = c => !c.inverter_order && c.mail_inverters.length && !c.mail_inverters.some(m => /^CPSPV/i.test(m));
   const flt = {
-    module: c => !c.module_order,
-    inverter: c => !c.inverter_order,
+    module: c => !c.module_order && !otherMod(c) && !c.mail_cancelled,
+    inverter: c => !c.inverter_order && !otherInv(c) && !c.mail_cancelled,
     all: c => true,
   };
   const counts = {module: SHIP_CANDS.filter(flt.module).length, inverter: SHIP_CANDS.filter(flt.inverter).length, all: SHIP_CANDS.length};
@@ -65,7 +68,7 @@ function renderShipCandidates(){
     + (rows.length ? rows.map(c => '<tr>'
       + '<td><b>' + shipEsc(c.case_no) + '</b><div class="case-alias">' + shipEsc(c.alias) + '</div></td>'
       + '<td>' + shipEsc(c.epc) + '</td><td style="white-space:nowrap;">' + shipEsc(c.agree_date || '—') + '</td>'
-      + '<td>' + st(c.module_order) + '</td><td>' + st(c.inverter_order) + '</td>'
+      + '<td>' + (otherMod(c) ? '<span class="cert-src">其他廠牌</span>' : st(c.module_order)) + '</td><td>' + (otherInv(c) ? '<span class="cert-src">其他廠牌</span>' : st(c.inverter_order)) + '</td>'
       + '<td style="font-size:12px;">' + (c.mail_cancelled ? '<span style="color:#B42318;font-weight:700;">⛔ 取消通知</span>'
         : c.has_mail ? shipEsc(c.mail_modules.concat(c.mail_inverters).join('、')) : '<span class="cert-src">沒有</span>') + '</td>'
       + '<td><button class="btn btn-primary" style="padding:4px 10px;font-size:12px;" onclick="shipPick(\'' + shipEsc(c.case_no).replace(/'/g, '') + '\')">安排</button></td></tr>').join('')

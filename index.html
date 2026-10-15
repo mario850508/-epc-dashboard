@@ -8557,7 +8557,10 @@ function showProcureTab(tab){
   document.querySelectorAll('.nav-sub-item').forEach(n => n.classList.remove('active'));
   document.querySelector('.nav-sub-item[data-sub="procure-' + tab + '"]').classList.add('active');
   if(tab === 'orders') loadOrders();
-  else if(tab === 'ship') loadShippingPage();
+  else if(tab === 'ship'){   // shipping.js 在頁尾才載入：重整後直接回到這頁時要等它載完
+    if(typeof loadShippingPage === 'function') loadShippingPage();
+    else window.addEventListener('load', () => loadShippingPage(), {once: true});
+  }
   else if(tab === 'calendar') loadOrderCalendar();
   else if(tab === 'driver') loadDriverRequest();
   else loadInverterCerts();
@@ -9385,7 +9388,7 @@ async function confirmCertAbbr(id){
 <script src="home-todo.js?v=1"></script>
 <script src="event-detail.js?v=1"></script>
 <script src="joint.js?v=3"></script>
-<script src="shipping.js?v=2"></script>
+<script src="shipping.js?v=3"></script>
 
 </body>
 </html>
