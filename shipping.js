@@ -154,7 +154,10 @@ function renderShipForm(){
   const d = SHIP_CASE;
   const today = new Date(); const pad = n => String(n).padStart(2, '0');
   const todayIso = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
-  const epcGuess = ((d.mail_configs || [])[0] || {}).epc || ((d.orders || []).find(o => o.epc) || {}).epc || '';
+  // EPC：先用訂單上的，其次案件表（同意備案清單），最後才用配比信主旨（主旨常寫成「(新)宇陽達」）
+  const cand = (SHIP_CANDS || []).find(c => c.case_no === d.case);
+  const epcGuess = ((d.orders || []).find(o => o.epc) || {}).epc || (cand && cand.epc)
+    || String(((d.mail_configs || [])[0] || {}).epc || '').replace(/^[（(][^）)]*[）)]/, '').trim();
   const btn = (k, label, cur, fn) => '<button class="cert-filter-btn ' + (cur === k ? 'active' : '') + '" onclick="' + fn + '(\'' + k + '\')">' + label + '</button>';
   let html = '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">'
     + btn('新下單', '🆕 新下單', SHIP_ACTION, 'shipSetAction') + btn('排出貨', '📅 排出貨', SHIP_ACTION, 'shipSetAction') + btn('已出貨', '✅ 已出貨', SHIP_ACTION, 'shipSetAction')
