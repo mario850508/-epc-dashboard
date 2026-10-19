@@ -438,6 +438,7 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskOwnerWin2End').value = '17:00';
   document.getElementById('slotTaskOwnerWin2On').checked = false;
   document.getElementById('slotTaskOwnerWin2Row').style.display = 'none';
+  document.getElementById('slotTaskBuffer').value = '0';
   document.getElementById('slotTaskCaseResults').classList.remove('show');
   document.getElementById('slotTaskTypeDropdown').classList.remove('show');
   document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = false; });
@@ -500,6 +501,7 @@ function editSlotTask(recordId){
     setv('slotTaskEstStart', ''); setv('slotTaskEstEnd', '');
   }
   setv('slotTaskOwnerWinStart', t.owner_win_start || '09:00'); setv('slotTaskOwnerWinEnd', t.owner_win_end || '17:00');
+  setv('slotTaskBuffer', String(t.buffer_min || 0));
   const has2 = !!(t.owner_win2_start && t.owner_win2_end);
   document.getElementById('slotTaskOwnerWin2On').checked = has2;
   document.getElementById('slotTaskOwnerWin2Row').style.display = has2 ? 'flex' : 'none';
@@ -697,7 +699,7 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks' + (editing ? '/' + encodeURIComponent(editing) : ''), {
       method: editing ? 'PATCH' : 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, companions: COMPANIONS.slotTask, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', ...(estDelegate ? {owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2} : {owner_win_start: '09:00', owner_win_end: '17:00', owner_win2_start: '', owner_win2_end: ''}), owner_name: ownerName, owner_phone: ownerPhone, deadline}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, companions: COMPANIONS.slotTask, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', ...(estDelegate ? {owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2} : {owner_win_start: '09:00', owner_win_end: '17:00', owner_win2_start: '', owner_win2_end: ''}), owner_name: ownerName, owner_phone: ownerPhone, deadline, buffer_min: parseInt(document.getElementById('slotTaskBuffer').value, 10) || 0}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));

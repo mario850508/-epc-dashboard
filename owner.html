@@ -84,12 +84,14 @@ function startOptions(date){
     return [{start: fmtMin(fa), end: fmtMin(fb), ok: !fb2.some(([bs, be]) => fa < be && bs < fb)}];
   }
   const wins = (D.windows && D.windows.length ? D.windows : [[D.window_start, D.window_end]]).map(([a, b]) => [toMin(a), toMin(b)]);
-  const busy = (D.busy_slots || []).filter(b => b.date === date).map(b => [toMin(b.start_time), toMin(b.end_time)]);
+  const buf = D.buffer_min || 0;   // 車程緩衝：跟同廠商其他預約之間要隔這麼久；有設緩衝時開始時間以 30 分鐘為單位
+  const busy = (D.busy_slots || []).filter(b => b.date === date).map(b => [toMin(b.start_time) - buf, toMin(b.end_time) + buf]);
   const out = [];
-  wins.forEach(([ws, we]) => {   // 每個可選時段各列一排整點開始（中間的休息時間不會出現）
+  const step = buf ? 30 : 60;
+  wins.forEach(([ws, we]) => {   // 每個可選時段各列一排開始時間（中間的休息時間不會出現）
     const starts = [];
-    if(ws % 60 !== 0) starts.push(ws);   // 時段從半點開始（例如 09:30）：時段起點本身也是一個選項，不然剛好塞得下的時段會整個消失
-    for(let s = Math.ceil(ws / 60) * 60; s <= we; s += 60) starts.push(s);
+    if(ws % step !== 0) starts.push(ws);   // 時段從非整點（或半點）開始（例如 09:30）：時段起點本身也是一個選項，不然剛好塞得下的時段會整個消失
+    for(let s = Math.ceil(ws / step) * step; s <= we; s += step) starts.push(s);
     starts.forEach(s => {
       if(s + dur > we) return;
       out.push({start: fmtMin(s), end: fmtMin(s + dur), ok: !busy.some(([bs, be]) => s < be && bs < s + dur)});

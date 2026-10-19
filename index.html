@@ -2817,6 +2817,12 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
               <select class="quick-mark-input" id="slotTaskOwnerWin2End" style="flex:1;"></select>
             </div>
           </div>
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">🚗 EPC 車程緩衝時間（選填）</label>
+          <select class="quick-mark-input" id="slotTaskBuffer" style="margin-bottom:4px;">
+            <option value="0">不留緩衝</option><option value="15">15 分鐘</option><option value="30">30 分鐘</option>
+            <option value="45">45 分鐘</option><option value="60">1 小時</option><option value="90">1.5 小時</option><option value="120">2 小時</option>
+          </select>
+          <div style="font-size:11.5px;color:var(--text-muted);line-height:1.6;margin-bottom:14px;">屋主／業務選時間時，會跟這個廠商同一天其他預約隔開這段車程時間：例如緩衝 30 分鐘、作業 1 小時，屋主選了 09:00–10:00，下一個能選的就是 10:30 起。設了緩衝後可選的開始時間以 30 分鐘為單位。</div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">指派給（業務姓名，選填，純提示不影響連結本身）</label>
           <input type="text" class="quick-mark-input" id="slotTaskAssignee" list="repNameList" autocomplete="off" placeholder="從名單選，或自己打" style="margin-bottom:6px;" oninput="updateAssigneeBindLine()" onchange="this.value = canonRep(this.value); updateAssigneeBindLine()">
           <datalist id="repNameList"></datalist>
@@ -8538,7 +8544,7 @@ async function generateOpsPdf(id, keepModalOpen){
 // 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
 // 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
 </script>
-<script src="slots.js?v=15"></script>
+<script src="slots.js?v=16"></script>
 <script>
 // ===================================================================
 // 採購專區：變流器出廠證明歸檔紀錄（2026-10-07）
