@@ -244,8 +244,9 @@ function renderSlotTasks(){
       ${t.deadline ? (() => { const over = new Date(t.deadline) < new Date(); return `<span style="font-size:11px;font-weight:700;flex-shrink:0;color:${over ? '#D64545' : '#B45309'};">⏰ ${fmtDeadline(t.deadline)}${over ? '（已逾期）' : ''}</span>`; })() : ''}
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="editSlotTask('${t.record_id}')">✏️ 編輯</button>
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="adjustSlotDeadline('${t.record_id}')">⏰ 期限</button>
-      <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="copySlotTaskMessage('${t.record_id}')">📎 複製訊息</button>
-      <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="openOwnerMessageFor('${t.record_id}')">🏠 屋主版</button>
+      <button class="btn btn-warm-primary" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="openOwnerMessageFor('${t.record_id}')">🏠 屋主版</button>
+      <details style="flex-shrink:0;display:inline-block;"><summary class="btn btn-ghost" style="padding:4px 8px;font-size:11px;list-style:none;cursor:pointer;color:var(--text-muted);" title="業務自己選時間的版本（現在多半用屋主版）">⋯ 更多</summary>
+        <div style="margin-top:4px;"><button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;color:var(--text-muted);" onclick="copySlotTaskMessage('${t.record_id}')">📎 業務版訊息</button></div></details>
       <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotTask('${t.record_id}')">刪除</button>
     </div>${stageBlockHtml(t)}`;
   // 需要窗口處理的（業務已回傳備選時段）排最前面
@@ -710,7 +711,7 @@ async function confirmSlotTask(){
     if(vendorReqId && !editing && typeof markVendorRequestTask === 'function') markVendorRequestTask(vendorReqId, data.record_id);
     SLOT_TASK_EDIT_ID = null;
     if(editing) showToast('已儲存修改（連結不變，已傳出去的連結仍然有效）');
-    showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path, estStart, estEnd, durationMin, estDelegate, deadline, estDelegate ? formWindows() : null);
+    showOwnerMessage();   // 現在主要用屋主版：建立完直接顯示屋主版訊息（業務版在「改看業務版訊息」或任務列的「⋯ 更多」）
   }catch(err){
     showToast((SLOT_TASK_EDIT_ID ? '儲存失敗：' : '建立失敗：') + err.message);
   }finally{
@@ -744,7 +745,10 @@ function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, 
   previewBtn.dataset.link = link;
   previewBtn.textContent = '👀 預覽業務填單畫面';
   previewBtn.style.display = 'block';
-  document.getElementById('slotSummaryOwnerBtn').style.display = window.LAST_SLOT_TASK_RECORD_ID ? 'flex' : 'none';
+  const ownerBtn = document.getElementById('slotSummaryOwnerBtn');
+  ownerBtn.textContent = '🏠 改成「屋主版」訊息（建議使用）';
+  ownerBtn.style.cssText = 'width:100%;justify-content:center;padding:11px;margin-top:8px;display:' + (window.LAST_SLOT_TASK_RECORD_ID ? 'flex' : 'none') + ';';
+  ownerBtn.onclick = () => showOwnerMessage();
   document.getElementById('slotSummaryBackBtn').style.display = window.LAST_SLOT_TASK_RECORD_ID ? 'flex' : 'none';
   document.getElementById('slotSummaryModalOverlay').classList.add('show');
 }
@@ -770,7 +774,7 @@ async function showOwnerMessage(){
       + (d.fixed ? `預約時間：${d.windows[0][0]}–${d.windows[0][1]}（請選好日期，並確認這個時間可以）\n`
          : `可選時段：${(d.windows && d.windows.length ? d.windows : [[d.window_start, d.window_end]]).map(w => w[0] + '–' + w[1]).join('、')}\n`)
       + `如果不方便操作，直接回覆我就可以了，謝謝您！`;
-    document.getElementById('slotSummaryTitle').textContent = '🏠 傳給屋主的訊息（請業務轉傳，測試中）';
+    document.getElementById('slotSummaryTitle').textContent = '🏠 傳給屋主的訊息';
     const bindNote = document.getElementById('slotSummaryBindNote');
     if(bindNote){
       bindNote.innerHTML = !d.assignee ? '<div style="font-size:12.5px;color:#D97706;margin-bottom:10px;">⚠️ 這個任務沒有填「指派給」業務，期限前屋主沒填表時只有安排人員會收到提醒。</div>'
@@ -783,7 +787,10 @@ async function showOwnerMessage(){
     previewBtn.dataset.link = link;
     previewBtn.textContent = '👀 預覽屋主畫面（只看，不要送出）';
     previewBtn.style.display = 'block';
-    document.getElementById('slotSummaryOwnerBtn').style.display = 'none';
+    const altBtn = document.getElementById('slotSummaryOwnerBtn');
+    altBtn.textContent = '改看業務版訊息（較少用）';
+    altBtn.style.cssText = 'width:100%;justify-content:center;padding:8px;margin-top:8px;font-size:12px;color:var(--text-muted);display:flex;';
+    altBtn.onclick = () => copySlotTaskMessage(id);
     document.getElementById('slotSummaryBackBtn').style.display = 'flex';
     document.getElementById('slotSummaryModalOverlay').classList.add('show');
   }catch(err){
