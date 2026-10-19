@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 廠商預約頁（2026-10-19）。陽光伏特家給每家廠商一條專屬連結 vendor.html?v=廠商Token：
+     廠商只看得到、也只能為「自己廠商的案件」提出預約申請（場勘／放樣／植筋／進場／掛表），申請進主控台由窗口處理。
+     連結本身就是身分驗證，請勿轉傳給其他廠商。 -->
+<title>陽光伏特家｜廠商預約</title>
+<style>
+  :root{
+    --bg:#F7F3EC; --surface:#FFFFFF; --text:#1B2333; --text-muted:#6B7280;
+    --border:#E4E8F1; --success:#16A34A; --danger:#D64545; --danger-soft:#FDECEC;
+    --sun-1:#FFB648; --sun-2:#F2790C; --sun-3:#C4530A;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;min-height:100vh;font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;
+    background:radial-gradient(ellipse 900px 500px at 100% 0%, rgba(255,182,72,.18), transparent 60%), var(--bg);color:var(--text);}
+  .wrap{max-width:560px;margin:0 auto;padding:20px 16px 70px;}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+  .brand-mark{width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,var(--sun-1),var(--sun-2) 65%,var(--sun-3));
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;box-shadow:0 5px 14px rgba(196,83,10,.3);}
+  .brand-name{font-weight:800;font-size:17px;}
+  .brand-sub{font-size:12.5px;color:var(--text-muted);}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;}
+  .tab{flex:1;text-align:center;padding:11px 6px;border-radius:12px;border:1.5px solid var(--border);background:#fff;font-size:14.5px;font-weight:700;cursor:pointer;}
+  .tab.active{background:linear-gradient(135deg,var(--sun-1),var(--sun-2));color:#fff;border-color:transparent;}
+  .card{background:#FFFCF5;border:1px solid #F0E4CC;border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 2px 10px rgba(30,40,70,.06);}
+  h2{font-size:17px;margin:0 0 6px;}
+  .muted{color:var(--text-muted);font-size:13.5px;line-height:1.7;}
+  label{display:block;font-size:14.5px;font-weight:700;margin:14px 0 6px;}
+  input,select,textarea{width:100%;border:1.5px solid var(--border);border-radius:12px;padding:12px 13px;font-size:16px;font-family:inherit;background:#fff;color:var(--text);}
+  textarea{resize:vertical;min-height:70px;}
+  .btn{width:100%;margin-top:16px;padding:15px;border:none;border-radius:14px;background:linear-gradient(135deg,var(--sun-1),var(--sun-2));color:#fff;font-size:17px;font-weight:800;cursor:pointer;}
+  .btn:disabled{opacity:.6;}
+  .btn-ghost{padding:9px 14px;border:1.5px solid var(--border);border-radius:12px;background:#fff;color:var(--text);font-size:14px;font-weight:700;cursor:pointer;}
+  .btn-danger{color:var(--danger);border-color:#F3C5C5;}
+  .case{border:1.5px solid var(--border);background:#fff;border-radius:14px;padding:12px 13px;margin-top:10px;cursor:pointer;}
+  .case:hover{border-color:var(--sun-2);}
+  .case b{font-size:15.5px;} .case .addr{font-size:13px;color:var(--text-muted);margin-top:2px;}
+  .chip{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px;background:#FFF1DC;color:var(--sun-3);margin:6px 6px 0 0;}
+  .chip.wait{background:#EEE8FF;color:#6D28D9;}
+  .types{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .type{padding:11px 4px;border-radius:12px;border:2px solid var(--border);background:#fff;font-size:15px;font-weight:700;text-align:center;cursor:pointer;}
+  .type.on{background:linear-gradient(135deg,var(--sun-1),var(--sun-2));color:#fff;border-color:transparent;}
+  .date-row{display:flex;gap:8px;margin-bottom:8px;}
+  .date-row input{flex:1;}
+  .date-row button{flex:0 0 46px;border:none;border-radius:12px;background:#F1F3F8;font-size:16px;cursor:pointer;}
+  .err{display:none;background:var(--danger-soft);color:var(--danger);border-radius:12px;padding:12px 14px;font-size:14px;margin-top:14px;line-height:1.6;}
+  .ok-box{text-align:center;padding:24px 6px;}
+  .ok-icon{font-size:52px;}
+  .st{font-size:12.5px;font-weight:800;padding:3px 10px;border-radius:99px;}
+  .st-待處理{background:#FFF1DC;color:#B45309;} .st-已轉任務{background:#DCFCE7;color:#15803D;}
+  .st-已退回{background:#FDECEC;color:#B42318;} .st-已取消{background:#EEE;color:#6B7280;}
+  .row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .reply{margin-top:8px;background:#F3F6FF;border-radius:10px;padding:9px 11px;font-size:13.5px;line-height:1.6;}
+  .day{font-weight:800;margin:16px 0 6px;font-size:15px;}
+  .loading{text-align:center;color:var(--text-muted);padding:50px 10px;font-size:15px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <div class="brand-mark">陽</div>
+    <div><div class="brand-name">陽光伏特家｜廠商預約</div><div class="brand-sub" id="vendorName">&nbsp;</div></div>
+  </div>
+  <div id="app"><div class="loading">載入中…</div></div>
+</div>
+
+<script>
+const API_BASE = 'https://epc-backend-4aj2.onrender.com';
+const V = new URLSearchParams(location.search).get('v') || '';
+const WD = ['日', '一', '二', '三', '四', '五', '六'];
+let D = null;                 // {vendor, types, suggestions, requests, bookings}
+let tab = 'new';
+let picked = null;            // 選好的案件 {case, alias, address, types}
+let selTypes = new Set();
+let searchTimer = null, lastSearch = [];
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function dayLabel(iso){ const d = new Date(iso + 'T00:00:00'); return isNaN(d) ? iso : `${d.getMonth() + 1}/${d.getDate()}（週${WD[d.getDay()]}）`; }
+function todayIso(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function lsGet(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
+function lsSet(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+
+async function api(path, opt){
+  const res = await fetch(API_BASE + '/api/vendor-portal/' + encodeURIComponent(V) + path, Object.assign({cache: 'no-store'}, opt || {}));
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok){ const e = new Error(data.error || ('HTTP ' + res.status)); e.status = res.status; throw e; }
+  return data;
+}
+
+async function init(){
+  const app = document.getElementById('app');
+  if(!V){ app.innerHTML = '<div class="card">連結不完整，請向陽光伏特家窗口索取您的專屬預約連結。</div>'; return; }
+  try{
+    D = await api('/info');
+  }catch(e){
+    app.innerHTML = `<div class="card">${esc(e.message)}</div>`;
+    return;
+  }
+  document.getElementById('vendorName').textContent = D.vendor;
+  render();
+}
+
+function render(){
+  const waiting = D.requests.filter(r => r.status === '待處理').length;
+  const app = document.getElementById('app');
+  app.innerHTML = `<div class="tabs">
+      <div class="tab ${tab === 'new' ? 'active' : ''}" onclick="setTab('new')">＋ 提出預約</div>
+      <div class="tab ${tab === 'mine' ? 'active' : ''}" onclick="setTab('mine')">我的申請${D.requests.length ? '（' + D.requests.length + '）' : ''}</div>
+      <div class="tab ${tab === 'booked' ? 'active' : ''}" onclick="setTab('booked')">已排定</div>
+    </div><div id="pane"></div>`;
+  if(tab === 'new') renderNew();
+  else if(tab === 'mine') renderMine();
+  else renderBooked();
+}
+function setTab(t){ tab = t; if(t === 'new' && !picked) {} render(); }
+
+// ---------- 提出預約 ----------
+function caseCard(c, fn){
+  return `<div class="case" onclick="${fn}">
+      <b>${esc(c.case)}</b> <span class="muted">${esc(c.alias || '')}</span>
+      ${c.address ? `<div class="addr">📍 ${esc(c.address)}</div>` : ''}
+      ${(c.types || []).map(t => `<span class="chip ${(c.pending || []).includes(t) ? 'wait' : ''}">${esc(t)}${(c.pending || []).includes(t) ? '（已申請，待回覆）' : '（可預約）'}</span>`).join('')}
+    </div>`;
+}
+function renderNew(){
+  const pane = document.getElementById('pane');
+  if(picked){ renderForm(pane); return; }
+  const sug = D.suggestions || [];
+  pane.innerHTML = `<div class="card">
+      <h2>① 選擇要預約的案件</h2>
+      <div class="muted">只會顯示${esc(D.vendor)}的案件。</div>
+      ${sug.length ? `<label>待安排的案件（點一下就選）</label>` + sug.map((c, i) => caseCard(c, `pickSug(${i})`)).join('') : '<div class="muted" style="margin-top:10px;">目前沒有系統建議的待安排案件，請用下面搜尋。</div>'}
+      <label>搜尋其他案件（案號／別名／地址）</label>
+      <input id="q" placeholder="例如：苗栗25、王小明、中正路" oninput="onSearch(this.value)">
+      <div id="qres"></div>
+    </div>`;
+}
+function onSearch(q){
+  clearTimeout(searchTimer);
+  const box = document.getElementById('qres');
+  if(!q.trim()){ box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="muted" style="margin-top:8px;">搜尋中…</div>';
+  searchTimer = setTimeout(async () => {
+    try{
+      const d = await api('/cases?q=' + encodeURIComponent(q.trim()));
+      lastSearch = d.results || [];
+      box.innerHTML = lastSearch.length ? lastSearch.map((c, i) => caseCard(c, `pickSearch(${i})`)).join('') : '<div class="muted" style="margin-top:8px;">找不到符合的案件（只會搜尋' + esc(D.vendor) + '的案件）。</div>';
+    }catch(e){ box.innerHTML = `<div class="muted" style="margin-top:8px;color:#D64545;">${esc(e.message)}</div>`; }
+  }, 350);
+}
+function pickSug(i){ choose(D.suggestions[i]); }
+function pickSearch(i){ choose(lastSearch[i]); }
+function choose(c){
+  picked = c;
+  selTypes = new Set((c.types || []).filter(t => !(c.pending || []).includes(t)));
+  render();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+function renderForm(pane){
+  const name = lsGet('vp_contact');
+  pane.innerHTML = `<div class="card">
+      <div class="row"><h2>② 填寫預約內容</h2><button class="btn-ghost" onclick="picked=null;render()">換一案</button></div>
+      <div style="margin-top:6px;"><b>${esc(picked.case)}</b> <span class="muted">${esc(picked.alias || '')}</span>${picked.address ? `<div class="muted">📍 ${esc(picked.address)}</div>` : ''}</div>
+      <label>預約項目（可複選）</label>
+      <div class="types">${D.types.map(t => `<div class="type ${selTypes.has(t) ? 'on' : ''}" onclick="toggleType('${t}')">${t}</div>`).join('')}</div>
+      <label>希望的日期（可以填好幾天，窗口會從中安排）</label>
+      <div id="dateRows"><div class="date-row"><input type="date" class="d" min="${todayIso()}"></div></div>
+      <button class="btn-ghost" onclick="addDate()">＋ 再加一天</button>
+      <label>希望的時段</label>
+      <select id="tp" onchange="document.getElementById('tpOther').style.display=this.value==='其他'?'block':'none'">
+        <option value="">不限</option><option>上午</option><option>下午</option><option>整天</option><option>其他</option></select>
+      <input id="tpOther" placeholder="例如：10:00 以後、中午前" style="display:none;margin-top:8px;">
+      <label>您的聯絡人／電話（選填）</label>
+      <input id="contact" placeholder="例如：林先生 0912-345-678" value="${esc(name)}">
+      <label>備註（選填）</label>
+      <textarea id="note" placeholder="例如：兩案相鄰、希望同一天一起；屋主下午才在家"></textarea>
+      <div class="err" id="err"></div>
+      <button class="btn" id="submit" onclick="submitReq()">送出預約申請</button>
+      <div class="muted" style="text-align:center;margin-top:10px;">送出後窗口會收到通知，並盡快回覆安排結果。</div>
+    </div>`;
+}
+function toggleType(t){ if(selTypes.has(t)) selTypes.delete(t); else selTypes.add(t); document.querySelectorAll('.type').forEach(el => el.classList.toggle('on', selTypes.has(el.textContent.trim()))); }
+function addDate(){
+  const rows = document.getElementById('dateRows');
+  if(rows.children.length >= 8){ return; }
+  const div = document.createElement('div'); div.className = 'date-row';
+  div.innerHTML = `<input type="date" class="d" min="${todayIso()}"><button onclick="this.parentElement.remove()">✕</button>`;
+  rows.appendChild(div);
+}
+async function submitReq(){
+  const err = document.getElementById('err'), btn = document.getElementById('submit');
+  err.style.display = 'none';
+  const dates = [...document.querySelectorAll('.d')].map(i => i.value).filter(Boolean);
+  let tp = document.getElementById('tp').value;
+  if(tp === '其他') tp = document.getElementById('tpOther').value.trim() || '其他';
+  const body = {case: picked.case, items: [...selTypes], dates, time_pref: tp,
+    contact: document.getElementById('contact').value.trim(), note: document.getElementById('note').value.trim()};
+  if(!body.items.length){ err.textContent = '請至少勾選一個預約項目'; err.style.display = 'block'; return; }
+  if(!dates.length){ err.textContent = '請至少填一個希望的日期'; err.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = '送出中…';
+  try{
+    await api('/requests', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    lsSet('vp_contact', body.contact);
+    const done = picked.case;
+    picked = null;
+    D = await api('/info');
+    document.getElementById('pane').innerHTML = `<div class="card ok-box"><div class="ok-icon">✅</div>
+      <h2>已送出 ${esc(done)} 的預約申請</h2>
+      <div class="muted">窗口收到後會安排並回覆，可到「我的申請」查看進度。</div>
+      <button class="btn" onclick="setTab('new')">再預約其他案件</button>
+      <button class="btn-ghost" style="width:100%;margin-top:10px;" onclick="setTab('mine')">查看我的申請</button></div>`;
+  }catch(e){
+    err.textContent = e.message; err.style.display = 'block';
+    btn.disabled = false; btn.textContent = '送出預約申請';
+  }
+}
+
+// ---------- 我的申請 ----------
+function renderMine(){
+  const pane = document.getElementById('pane');
+  if(!D.requests.length){ pane.innerHTML = '<div class="card muted">還沒有送出過申請。</div>'; return; }
+  pane.innerHTML = D.requests.map(r => `<div class="card">
+      <div class="row"><div><b>${esc(r.case)}</b> <span class="muted">${esc(r.alias || '')}</span></div><span class="st st-${esc(r.status)}">${esc(r.status === '已轉任務' ? '已受理' : r.status)}</span></div>
+      <div style="margin-top:6px;">${r.items.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
+      <div class="muted" style="margin-top:6px;">希望日期：${r.dates.map(d => esc(dayLabel(d))).join('、') || '—'}${r.time_pref ? '｜' + esc(r.time_pref) : ''}</div>
+      ${r.note ? `<div class="muted">備註：${esc(r.note)}</div>` : ''}
+      <div class="muted" style="font-size:12.5px;">送出時間：${esc((r.submitted_at || '').replace('T', ' ').slice(0, 16))}</div>
+      ${r.reply ? `<div class="reply">窗口回覆：${esc(r.reply)}</div>` : ''}
+      ${r.status === '已轉任務' && !r.reply ? '<div class="reply">窗口已受理，會再通知您確認的時間。</div>' : ''}
+      ${r.status === '待處理' ? `<button class="btn-ghost btn-danger" style="margin-top:10px;" onclick="cancelReq('${esc(r.id)}')">取消這筆申請</button>` : ''}
+    </div>`).join('');
+}
+async function cancelReq(id){
+  if(!confirm('確定要取消這筆申請嗎？')) return;
+  try{
+    await api('/requests/' + encodeURIComponent(id) + '/cancel', {method: 'POST'});
+    D = await api('/info');
+    render();
+  }catch(e){ alert(e.message); }
+}
+
+// ---------- 已排定 ----------
+function renderBooked(){
+  const pane = document.getElementById('pane');
+  if(!D.bookings.length){ pane.innerHTML = '<div class="card muted">目前沒有已排定的時段。</div>'; return; }
+  const byDay = {};
+  D.bookings.forEach(b => (byDay[b.date] ||= []).push(b));
+  pane.innerHTML = Object.keys(byDay).sort().map(d => `<div class="card"><div class="day" style="margin-top:0;">📅 ${esc(dayLabel(d))}</div>
+      ${byDay[d].map(b => `<div style="padding:8px 0;border-top:1px solid #F0E4CC;"><b>${esc(b.start)}–${esc(b.end)}</b> ${b.types.map(t => `<span class="chip">${esc(t)}</span>`).join('')}
+        <div>${esc(b.case)} <span class="muted">${esc(b.alias || '')}</span></div></div>`).join('')}</div>`).join('');
+}
+
+init();
+</script>
+</body>
+</html>

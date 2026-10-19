@@ -53,6 +53,7 @@ function showSlotsTab(tab){
   document.querySelectorAll('#view-slots .tab').forEach(t=>t.classList.remove('active'));
   document.querySelector('#view-slots .tab[data-slots-tab="'+tab+'"]').classList.add('active');
   if(tab === 'joint' && typeof loadJoint === 'function') loadJoint();
+  if(tab === 'requests' && typeof loadVendorRequests === 'function') loadVendorRequests();
 }
 
 // 2026-10-01 調整：「完成安排」分頁原本同時顯示「已完成的任務紀錄」跟
@@ -691,6 +692,7 @@ async function confirmSlotTask(){
   const btn = document.querySelector('#slotTaskModalOverlay .btn-primary');
   const originalText = btn.textContent;
   const editing = SLOT_TASK_EDIT_ID;
+  const vendorReqId = window.PENDING_VENDOR_REQ || null;   // 從「廠商申請」轉過來的：建立成功後把申請標成已轉任務
   btn.textContent = editing ? '儲存中…' : '建立中…'; btn.disabled = true;
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks' + (editing ? '/' + encodeURIComponent(editing) : ''), {
@@ -703,6 +705,7 @@ async function confirmSlotTask(){
     closeSlotTaskModal();
     loadVendorSlots();
     window.LAST_SLOT_TASK_RECORD_ID = editing || data.record_id || null;
+    if(vendorReqId && !editing && typeof markVendorRequestTask === 'function') markVendorRequestTask(vendorReqId, data.record_id);
     SLOT_TASK_EDIT_ID = null;
     if(editing) showToast('已儲存修改（連結不變，已傳出去的連結仍然有效）');
     showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, data.path, estStart, estEnd, durationMin, estDelegate, deadline, estDelegate ? formWindows() : null);

@@ -2605,6 +2605,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
 
       <div class="tabs" style="margin-bottom:14px;">
         <div class="tab active" data-slots-tab="pending" onclick="showSlotsTab('pending')">📋 指派任務</div>
+        <div class="tab" data-slots-tab="requests" onclick="showSlotsTab('requests')">📥 廠商申請<span id="slotsReqBadge" style="display:none;margin-left:4px;background:#DC2626;color:#fff;border-radius:99px;padding:0 7px;font-size:11px;font-weight:800;"></span></div>
         <div class="tab" data-slots-tab="joint" onclick="showSlotsTab('joint')">🧩 聯合排程</div>
         <div class="tab" data-slots-tab="done" onclick="showSlotsTab('done')">✅ 完成安排</div>
         <div class="tab" data-slots-tab="history" onclick="showSlotsTab('history')">🗂 歷史紀錄</div>
@@ -2613,6 +2614,14 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
       <div class="subview active" id="slots-tab-pending">
         <div id="slotTaskFilterBar" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;"></div>
         <div id="slotTasksPendingContainer"></div>
+      </div>
+
+      <div class="subview" id="slots-tab-requests">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+          <div class="login-note" style="margin:0;flex:1;min-width:220px;">廠商用專屬連結送來的預約申請。按「轉成指派任務」會帶入案號／項目／希望日期，後面流程跟平常指派給業務一樣。</div>
+          <button class="btn btn-ghost" style="padding:8px 14px;font-size:12.5px;white-space:nowrap;" onclick="openVendorPortalLinks()">🔗 廠商預約連結</button>
+        </div>
+        <div id="vendorReqContainer"><div class="login-note">載入中…</div></div>
       </div>
 
       <div class="subview" id="slots-tab-joint">
@@ -8529,7 +8538,7 @@ async function generateOpsPdf(id, keepModalOpen){
 // 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
 // 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
 </script>
-<script src="slots.js?v=14"></script>
+<script src="slots.js?v=15"></script>
 <script>
 // ===================================================================
 // 採購專區：變流器出廠證明歸檔紀錄（2026-10-07）
@@ -9393,6 +9402,7 @@ async function confirmCertAbbr(id){
 <script src="home-todo.js?v=1"></script>
 <script src="event-detail.js?v=1"></script>
 <script src="joint.js?v=3"></script>
+<script src="vendor-requests.js?v=1"></script>
 <script src="shipping.js?v=4"></script>
 
 </body>
