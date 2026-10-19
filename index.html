@@ -934,8 +934,12 @@
         <div class="nav-item" data-view="ops" onclick="showView('ops'); loadOpsCases();">
           <span class="nav-icon">🔧</span> 維運團隊
         </div>
-        <div class="nav-item" data-view="slots" onclick="showView('slots'); loadVendorSlots();">
+        <div class="nav-item" data-view="slots" onclick="toggleNavSection('slots'); showSlotsTab(window.SLOTS_OWNER_TAB || 'pending'); loadVendorSlots();">
           <span class="nav-icon">🗓️</span> 廠商時段協調
+        </div>
+        <div class="nav-sub" id="navSub-slots">
+          <div class="nav-sub-item" data-sub="slots-owner" onclick="showView('slots'); showSlotsTab(window.SLOTS_OWNER_TAB || 'pending'); loadVendorSlots();">屋主預約</div>
+          <div class="nav-sub-item" data-sub="slots-vendor" onclick="showView('slots'); showSlotsTab('requests');">廠商預約<span id="navVendorReqBadge" style="display:none;margin-left:6px;background:#E5484D;color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:1px 7px;"></span></div>
         </div>
         <div class="nav-item" data-view="procure" onclick="toggleNavSection('procure'); showProcureTab(PROCURE_TAB);">
           <span class="nav-icon">📦</span> 採購專區
@@ -2605,7 +2609,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
 
       <div class="tabs" style="margin-bottom:14px;">
         <div class="tab active" data-slots-tab="pending" onclick="showSlotsTab('pending')">📋 指派任務</div>
-        <div class="tab" data-slots-tab="requests" onclick="showSlotsTab('requests')">📥 廠商申請<span id="slotsReqBadge" style="display:none;margin-left:4px;background:#DC2626;color:#fff;border-radius:99px;padding:0 7px;font-size:11px;font-weight:800;"></span></div>
+        <div class="tab" data-slots-tab="requests" style="display:none;" onclick="showSlotsTab('requests')">📥 廠商申請<span id="slotsReqBadge" style="display:none;"></span></div>
         <div class="tab" data-slots-tab="joint" onclick="showSlotsTab('joint')">🧩 聯合排程</div>
         <div class="tab" data-slots-tab="done" onclick="showSlotsTab('done')">✅ 完成安排</div>
         <div class="tab" data-slots-tab="history" onclick="showSlotsTab('history')">🗂 歷史紀錄</div>
@@ -8544,7 +8548,7 @@ async function generateOpsPdf(id, keepModalOpen){
 // 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
 // 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
 </script>
-<script src="slots.js?v=17"></script>
+<script src="slots.js?v=18"></script>
 <script>
 // ===================================================================
 // 採購專區：變流器出廠證明歸檔紀錄（2026-10-07）
@@ -9397,6 +9401,7 @@ async function confirmCertAbbr(id){
     loadOpsCases();
   } else if(state && state.view === 'slots'){
     showView('slots');
+    showSlotsTab(state.slotsTab || 'pending');
     loadVendorSlots();
   } else if(state && state.view === 'procure'){
     showProcureTab(state.procureTab || 'orders');
@@ -9408,7 +9413,7 @@ async function confirmCertAbbr(id){
 <script src="home-todo.js?v=1"></script>
 <script src="event-detail.js?v=1"></script>
 <script src="joint.js?v=3"></script>
-<script src="vendor-requests.js?v=1"></script>
+<script src="vendor-requests.js?v=2"></script>
 <script src="shipping.js?v=4"></script>
 
 </body>

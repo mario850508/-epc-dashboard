@@ -54,6 +54,16 @@ function showSlotsTab(tab){
   document.querySelector('#view-slots .tab[data-slots-tab="'+tab+'"]').classList.add('active');
   if(tab === 'joint' && typeof loadJoint === 'function') loadJoint();
   if(tab === 'requests' && typeof loadVendorRequests === 'function') loadVendorRequests();
+  // 2026-10-20：側邊選單「廠商時段協調」底下分成「屋主預約」（指派任務／聯合排程／完成安排／歷史紀錄）跟「廠商預約」（廠商申請）
+  const vendorSec = tab === 'requests';
+  if(!vendorSec) window.SLOTS_OWNER_TAB = tab;
+  const bar = document.querySelector('#view-slots .tabs');
+  if(bar) bar.style.display = vendorSec ? 'none' : '';
+  document.querySelectorAll('.nav-sub-item').forEach(n => n.classList.remove('active'));
+  const sub = document.querySelector('.nav-sub-item[data-sub="' + (vendorSec ? 'slots-vendor' : 'slots-owner') + '"]');
+  if(sub) sub.classList.add('active');
+  const nav = document.querySelector('.nav-item[data-view="slots"]'); if(nav) nav.classList.add('active');
+  try{ saveNavState({view: 'slots', slotsTab: tab}); }catch(e){}
 }
 
 // 2026-10-01 調整：「完成安排」分頁原本同時顯示「已完成的任務紀錄」跟

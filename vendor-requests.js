@@ -19,8 +19,8 @@ async function loadVendorRequests(){
 
 function updateVendorReqBadge(){
   const n = VENDOR_REQS.filter(r => r.status === '待處理').length;
-  const el = document.getElementById('slotsReqBadge');
-  if(el){ el.textContent = n ? ' ' + n : ''; el.style.display = n ? 'inline-block' : 'none'; }
+  const el = document.getElementById('navVendorReqBadge');   // 側邊選單「廠商預約」的待處理數量
+  if(el){ el.textContent = n || ''; el.style.display = n ? 'inline-block' : 'none'; }
 }
 
 function vrCard(r, pending){
