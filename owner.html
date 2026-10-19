@@ -262,7 +262,7 @@ function renderPick(){
   // 這天只有一個可選的開始時間：直接幫屋主選好
   const okTimes = times.filter(o => o.ok);
   if(okTimes.length === 1 && !selStart) selStart = okTimes[0].start;
-  const timeBtns = times.map(o => `<button class="opt ${selStart === o.start ? 'active' : ''}" ${o.ok ? '' : 'disabled'} onclick="pickStart('${o.start}')">${o.start}<small>到 ${o.end}${o.ok ? '' : '（已有安排）'}</small></button>`).join('');
+  const timeBtns = times.map(o => `<button class="opt ${selStart === o.start ? 'active' : ''}" ${o.ok ? '' : 'disabled'} onclick="pickStart('${o.start}')">${o.start}<small>${o.ok ? '到 ' + o.end : '此時段已有安排'}</small></button>`).join('');
   app.innerHTML = headerHtml() + `<div class="card">
     <div class="step" style="margin-top:0;"><span class="n">1</span>${single ? '預計前往日期' : '請選一天'}</div>
     <div class="grid">${dateBtns}</div>
@@ -332,7 +332,7 @@ async function submitConfirm(){
 let ALT = [{date: ''}];
 function altStartOptions(date){
   const opts = date ? startOptions(date) : startOptions('0000-00-00');
-  return '<option value="">開始時間</option>' + opts.map(o => `<option value="${o.start}" ${o.ok ? '' : 'disabled'}>${o.start}–${o.end}${o.ok ? '' : '（已有安排）'}</option>`).join('');
+  return '<option value="">開始時間</option>' + opts.map(o => `<option value="${o.start}" ${o.ok ? '' : 'disabled'}>${o.ok ? o.start + '–' + o.end : o.start + '　此時段已有安排'}</option>`).join('');
 }
 function renderAlt(){
   const app = document.getElementById('app');
