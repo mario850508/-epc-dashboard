@@ -71,9 +71,17 @@ function showSlotsTab(tab){
 // 日期/指派業務 vs. 實際日期時間/登記人），看起來很像 bug。拿掉已完成
 // 任務的那份清單，完成安排分頁只留時段卡片（結果），任務清單只保留
 // 還沒確認的（過程）。
+// 2026-10-20：同廠商「場勘」跟「施工類（植筋／放樣／進場／掛表）」是兩批不同的人，同一時段可以各自預約、不算衝突（跟後端 _crew_groups 一致）
+function slotCrewGroups(types){
+  const t = new Set(types || []), g = new Set();
+  if(t.has('場勘')) g.add('場勘');
+  if([...t].some(x => x !== '場勘') || t.size === 0) g.add('施工');
+  return g;
+}
+function slotSameCrew(a, b){ const ga = slotCrewGroups(a), gb = slotCrewGroups(b); return [...ga].some(x => gb.has(x)); }
 function slotAltConflicts(t, s){
   if(!s.start_time) return false;   // 屋主只給日期的備選，時間還沒定，不檢查
-  return SLOT_BOOKINGS.some(b => b.vendor === t.vendor && b.date === s.date && b.start_time < s.end_time && s.start_time < b.end_time);
+  return SLOT_BOOKINGS.some(b => b.vendor === t.vendor && b.date === s.date && b.start_time < s.end_time && s.start_time < b.end_time && slotSameCrew(t.type, b.type));
 }
 function slotLabelText(s){
   const wd = ['日','一','二','三','四','五','六'][new Date(s.date + 'T00:00:00').getDay()];
