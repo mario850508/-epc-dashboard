@@ -473,8 +473,7 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskOwnerWin2Row').style.display = 'none';
   document.getElementById('slotTaskBuffer').value = '0';
   document.getElementById('slotTaskNoAlt').checked = false;
-  ['slotTaskRangeFrom', 'slotTaskRangeTo', 'slotTaskDaysLabel'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
-  document.getElementById('slotTaskRangeSkipWk').checked = false;
+  const _dl = document.getElementById('slotTaskDaysLabel'); if(_dl) _dl.value = '';
   updateSlotTaskDaysWrap();
   document.getElementById('slotTaskCaseResults').classList.remove('show');
   document.getElementById('slotTaskTypeDropdown').classList.remove('show');
@@ -712,29 +711,6 @@ function addSlotTaskDateRow(){
   row.style.cssText = 'display:flex;gap:8px;align-items:center;';
   row.innerHTML = '<input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;"><button class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="this.parentElement.remove()">✕</button>';
   wrap.appendChild(row);
-}
-// 2026-10-20：一次加入一段日期區間（進場要 4～5 天、屋主是跑船的，要從 11 月底到 12 月初挑一天開工）
-function addSlotTaskDateRange(){
-  const from = document.getElementById('slotTaskRangeFrom').value, to = document.getElementById('slotTaskRangeTo').value;
-  if(!from || !to){ showToast('請先選區間的開始日與結束日'); return; }
-  if(to < from){ showToast('結束日要晚於開始日'); return; }
-  const skipWk = document.getElementById('slotTaskRangeSkipWk').checked;
-  const rows = document.getElementById('slotTaskDateRows');
-  const have = new Set([...document.querySelectorAll('.slot-task-date-input')].map(i => i.value).filter(Boolean));
-  [...rows.children].forEach(r => { const i = r.querySelector('input'); if(i && !i.value) r.remove(); });   // 先清掉空白的那一列
-  const d = new Date(from + 'T00:00:00'), end = new Date(to + 'T00:00:00');
-  let added = 0;
-  for(; d <= end && added < 62; d.setDate(d.getDate() + 1)){
-    const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    if(skipWk && (d.getDay() === 0 || d.getDay() === 6)) continue;
-    if(have.has(iso)) continue;
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:8px;align-items:center;';
-    row.innerHTML = `<input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;" value="${iso}"><button class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="this.parentElement.remove()">✕</button>`;
-    rows.appendChild(row);
-    added++;
-  }
-  showToast(added ? '已加入 ' + added + ' 個可選日期' : '這段區間的日期都已經在清單裡了');
 }
 // 候選日期很多（區間）時，訊息裡濃縮成「起～迄（共幾天）」，不要一天一天列
 function candidateDatesText(dates){

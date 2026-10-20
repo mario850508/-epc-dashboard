@@ -2786,23 +2786,11 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
               <input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;">
             </div>
           </div>
-          <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-bottom:10px;" onclick="addSlotTaskDateRow()">➕ 再加一天</button>
-          <div style="border:1px dashed var(--border);border-radius:12px;padding:10px 12px;margin-bottom:14px;">
-            <div style="font-size:12px;font-weight:600;margin-bottom:6px;">📅 一次加入一段日期區間（例如屋主 11/25～12/10 都可以挑，每天都列成可選日）</div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
-              <input type="date" class="quick-mark-input" id="slotTaskRangeFrom" style="flex:1;">
-              <span style="font-size:12px;color:var(--text-muted);">到</span>
-              <input type="date" class="quick-mark-input" id="slotTaskRangeTo" style="flex:1;">
-            </div>
-            <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;">
-              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;"><input type="checkbox" id="slotTaskRangeSkipWk"> 跳過週末（週六、週日）</label>
-              <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="addSlotTaskDateRange()">加入區間</button>
-            </div>
-          </div>
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;margin-bottom:14px;" onclick="addSlotTaskDateRow()">➕ 再加一天</button>
           <div id="slotTaskDaysWrap" style="display:none;margin-bottom:14px;">
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計施工天數（進場用，屋主會看到；選填，空白＝3～5 天）</label>
             <input type="text" class="quick-mark-input" id="slotTaskDaysLabel" placeholder="例如：4～5 天" style="margin-bottom:4px;">
-            <div style="font-size:11.5px;color:var(--text-muted);">屋主選的是「開始進場」的那一天，所以可選日期請排到「施工做得完」的最後一個開工日。</div>
+            <div style="font-size:11.5px;color:var(--text-muted);">屋主選的是「開始進場」的那一天，屋主頁會依這個天數自動算出預估完工日（不含週六、週日）。</div>
           </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預估時間／可選時段（選填，僅供業務、屋主參考，實際時間由雙方協調）</label>
           <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;margin-bottom:8px;cursor:pointer;color:var(--text-muted);">
@@ -8576,7 +8564,7 @@ async function generateOpsPdf(id, keepModalOpen){
 // 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
 // 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
 </script>
-<script src="slots.js?v=21"></script>
+<script src="slots.js?v=22"></script>
 <script>
 // ===================================================================
 // 採購專區：變流器出廠證明歸檔紀錄（2026-10-07）
