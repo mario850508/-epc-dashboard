@@ -2733,6 +2733,11 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           <button class="modal-close" onclick="closeSlotTaskModal()">✕</button>
         </div>
         <div class="modal-body">
+          <div style="display:flex;gap:6px;margin-bottom:12px;">
+            <button type="button" class="btn btn-warm-primary" id="slotTaskTabNormal" style="flex:1;justify-content:center;padding:8px;font-size:12.5px;" onclick="switchSlotTaskTab('normal')">一般預約</button>
+            <button type="button" class="btn btn-ghost" id="slotTaskTabJoint" style="flex:1;justify-content:center;padding:8px;font-size:12.5px;" onclick="switchSlotTaskTab('joint')">🧩 聯合預約</button>
+          </div>
+          <div id="slotTaskNormalBox">
           <div class="login-note" style="margin-top:0;margin-bottom:14px;">
             填好以下資訊會產生一個免登入連結，業務點進去自己選候選日期裡的一天、填時間就能完成預約，不用你一筆筆手動登記。
           </div>
@@ -2844,6 +2849,10 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             <option value="60">1 小時</option><option value="90">1.5 小時</option><option value="120">2 小時</option>
           </select>
           <div style="font-size:11.5px;color:var(--text-muted);line-height:1.6;margin-bottom:14px;">屋主／業務選時間時，會跟這個廠商同一天其他預約隔開這段車程時間：例如緩衝 30 分鐘、作業 1 小時，屋主選了 09:00–10:00，下一個能選的就是 10:30 起。設了緩衝後可選的開始時間以 30 分鐘為單位（緩衝也以 30 分鐘為單位）。</div>
+          <label style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;cursor:pointer;margin-bottom:14px;line-height:1.6;">
+            <input type="checkbox" id="slotTaskNoAlt" style="margin-top:3px;">
+            <span><b>屋主以上時間都不行時，不讓屋主自己填其他時間</b><br><span style="color:var(--text-muted);">勾選後，屋主按「以上時間都不方便」只會看到「我們會另外與您約時間」，你會收到通知，再請 EPC 重新提供時間。沒勾＝屋主可以自己填方便的日期。</span></span>
+          </label>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">指派給（業務姓名，選填，純提示不影響連結本身）</label>
           <input type="text" class="quick-mark-input" id="slotTaskAssignee" list="repNameList" autocomplete="off" placeholder="從名單選，或自己打" style="margin-bottom:6px;" oninput="updateAssigneeBindLine()" onchange="this.value = canonRep(this.value); updateAssigneeBindLine()">
           <datalist id="repNameList"></datalist>
@@ -2860,6 +2869,8 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           </div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:18px;">名單是已綁定 LINE 的安排人員。新同仁要先用手機 LINE 打開「綁定連結」、輸入名字綁定一次。</div>
           <button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;" onclick="confirmSlotTask()">建立任務並產生連結</button>
+          </div>
+          <div id="slotTaskJointBox" style="display:none;"></div>
         </div>
       </div>
     </div>
@@ -8565,7 +8576,7 @@ async function generateOpsPdf(id, keepModalOpen){
 // 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
 // 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
 </script>
-<script src="slots.js?v=20"></script>
+<script src="slots.js?v=21"></script>
 <script>
 // ===================================================================
 // 採購專區：變流器出廠證明歸檔紀錄（2026-10-07）
@@ -9429,7 +9440,7 @@ async function confirmCertAbbr(id){
 </script>
 <script src="home-todo.js?v=1"></script>
 <script src="event-detail.js?v=1"></script>
-<script src="joint.js?v=3"></script>
+<script src="joint.js?v=4"></script>
 <script src="vendor-requests.js?v=2"></script>
 <script src="shipping.js?v=4"></script>
 

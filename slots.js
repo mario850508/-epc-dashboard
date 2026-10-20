@@ -92,7 +92,7 @@ function slotLabelText(s){
 // 待窗口確認＝業務已回傳備選時段，窗口跟廠商確認後在這裡選一個；待業務確認＝
 // 已選定、等業務打開連結按確認。標籤/側邊欄會顯示待處理數量。
 function updateSlotTaskBadges(){
-  const n = SLOT_TASKS.filter(t => t.status !== '已完成' && t.stage === '待窗口確認' && !t.group_id).length;
+  const n = SLOT_TASKS.filter(t => t.status !== '已完成' && (t.stage === '待窗口確認' || t.stage === '待廠商重提時間') && !t.group_id).length;
   const tab = document.querySelector('#view-slots .tab[data-slots-tab="pending"]');
   if(tab) tab.textContent = '📋 指派任務' + (n ? '　🔴 ' + n + ' 待處理' : '');
   const nav = document.querySelector('.nav-item[data-view="slots"]');
@@ -229,6 +229,14 @@ function renderSlotTasks(){
   const typeChipClass = {'掛表':'chip-meter','植筋':'chip-rebar','放樣':'chip-enter','場勘':'chip-ship','進場':'chip-enter'};
   const typeChipsHtml = (types) => (types||[]).map(ty => `<span class="chip ${typeChipClass[ty]||''}" style="flex-shrink:0;">${ty}</span>`).join('');
   const stageBlockHtml = (t) => {
+    if(t.stage === '待廠商重提時間'){
+      return `<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;padding:10px 14px;margin:2px 0 10px;">
+        <div style="font-size:12.5px;font-weight:700;color:#B91C1C;margin-bottom:6px;">🔴 屋主表示以上時間都不方便——請向廠商（EPC）要新的可安排日期</div>
+        ${t.rep_note ? `<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px;">屋主說明：${escHtml(t.rep_note)}</div>` : ''}
+        <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px;">拿到新日期後按「編輯」改候選日期並儲存，屋主用同一條連結就能重新選；再把屋主版訊息傳給屋主。</div>
+        <button class="btn btn-warm-primary" style="padding:4px 12px;font-size:11.5px;" onclick="editSlotTask('${t.record_id}')">✏️ 編輯候選日期</button>
+      </div>`;
+    }
     if(!t.stage || !(t.alt_slots||[]).length) return '';
     const chosen = t.chosen_slot;
     const isSame = (a, b) => b && a.date === b.date && (!a.start_time || (a.start_time === b.start_time && a.end_time === b.end_time));
@@ -268,7 +276,7 @@ function renderSlotTasks(){
       <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotTask('${t.record_id}')">刪除</button>
     </div>${stageBlockHtml(t)}`;
   // 需要窗口處理的（業務已回傳備選時段）排最前面
-  const order = {'待窗口確認': 0, '待業務確認': 1};
+  const order = {'待廠商重提時間': 0, '待窗口確認': 0, '待業務確認': 1};
   const sorted = [...pending].sort((a, b) => (order[a.stage] ?? 2) - (order[b.stage] ?? 2));
   pendingContainer.innerHTML = `
     <div class="panel" style="margin-bottom:16px;">
@@ -431,6 +439,12 @@ function applyMeterDefaultScheduler(){
 }
 function openSlotTaskModal(){
   SLOT_TASK_EDIT_ID = null;
+  JOINT_EMBED = false;
+  document.getElementById('slotTaskNormalBox').style.display = '';
+  document.getElementById('slotTaskJointBox').style.display = 'none';
+  document.getElementById('slotTaskTabNormal').className = 'btn btn-warm-primary';
+  document.getElementById('slotTaskTabJoint').className = 'btn btn-ghost';
+  document.querySelector('#slotTaskModalOverlay .modal-box').style.maxWidth = '460px';
   COMPANIONS.slotTask = []; renderCompanions('slotTask');
   METER_SCHEDULER_AUTO = false;
   const _mt = document.querySelector('#slotTaskModalOverlay .modal-title'); if(_mt) _mt.textContent = '📨 指派給業務';
@@ -458,6 +472,7 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskOwnerWin2On').checked = false;
   document.getElementById('slotTaskOwnerWin2Row').style.display = 'none';
   document.getElementById('slotTaskBuffer').value = '0';
+  document.getElementById('slotTaskNoAlt').checked = false;
   ['slotTaskRangeFrom', 'slotTaskRangeTo', 'slotTaskDaysLabel'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
   document.getElementById('slotTaskRangeSkipWk').checked = false;
   updateSlotTaskDaysWrap();
@@ -525,6 +540,7 @@ function editSlotTask(recordId){
   setv('slotTaskOwnerWinStart', t.owner_win_start || '09:00'); setv('slotTaskOwnerWinEnd', t.owner_win_end || '17:00');
   setv('slotTaskBuffer', String(t.buffer_min || 0));
   setv('slotTaskDaysLabel', t.days_label || ''); updateSlotTaskDaysWrap();
+  document.getElementById('slotTaskNoAlt').checked = !!t.no_alt;
   const has2 = !!(t.owner_win2_start && t.owner_win2_end);
   document.getElementById('slotTaskOwnerWin2On').checked = has2;
   document.getElementById('slotTaskOwnerWin2Row').style.display = has2 ? 'flex' : 'none';
@@ -676,6 +692,19 @@ function onSlotTaskEstDelegateChange(){
 }
 function closeSlotTaskModal(){
   document.getElementById('slotTaskModalOverlay').classList.remove('show');
+  JOINT_EMBED = false;
+}
+// 2026-10-20：「指派給業務」視窗兩個分頁：一般預約（單一案件）／聯合預約（幾個案件約同一天，表單在 joint.js）
+function switchSlotTaskTab(tab){
+  const joint = tab === 'joint';
+  document.getElementById('slotTaskNormalBox').style.display = joint ? 'none' : '';
+  document.getElementById('slotTaskJointBox').style.display = joint ? '' : 'none';
+  document.getElementById('slotTaskTabNormal').className = 'btn ' + (joint ? 'btn-ghost' : 'btn-warm-primary');
+  document.getElementById('slotTaskTabJoint').className = 'btn ' + (joint ? 'btn-warm-primary' : 'btn-ghost');
+  document.querySelector('#slotTaskModalOverlay .modal-box').style.maxWidth = joint ? '560px' : '460px';
+  document.querySelector('#slotTaskModalOverlay .modal-title').textContent = joint ? '🧩 聯合預約' : (SLOT_TASK_EDIT_ID ? '✏️ 編輯指派任務' : '📨 指派給業務');
+  JOINT_EMBED = joint;
+  if(joint){ initJointForm(); }
 }
 function addSlotTaskDateRow(){
   const wrap = document.getElementById('slotTaskDateRows');
@@ -762,7 +791,7 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks' + (editing ? '/' + encodeURIComponent(editing) : ''), {
       method: editing ? 'PATCH' : 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, companions: COMPANIONS.slotTask, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', ...(estDelegate ? {owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2} : {owner_win_start: '09:00', owner_win_end: '17:00', owner_win2_start: '', owner_win2_end: ''}), owner_name: ownerName, owner_phone: ownerPhone, deadline, buffer_min: parseInt(document.getElementById('slotTaskBuffer').value, 10) || 0, days_label: type.includes('進場') ? (document.getElementById('slotTaskDaysLabel').value || '').trim() : ''}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, companions: COMPANIONS.slotTask, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', ...(estDelegate ? {owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2} : {owner_win_start: '09:00', owner_win_end: '17:00', owner_win2_start: '', owner_win2_end: ''}), owner_name: ownerName, owner_phone: ownerPhone, deadline, buffer_min: parseInt(document.getElementById('slotTaskBuffer').value, 10) || 0, days_label: type.includes('進場') ? (document.getElementById('slotTaskDaysLabel').value || '').trim() : '', no_alt: document.getElementById('slotTaskNoAlt').checked}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));

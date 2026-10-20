@@ -7,6 +7,7 @@ let JOINT_CUR = null;        // 目前開著的詳細視窗資料
 let JOINT_EDIT = {};         // {task_id: {start, end}}
 let JOINT_DATE = '';
 let JOINT_FORM = null;       // 新增視窗的狀態
+let JOINT_EMBED = false;     // 2026-10-20：新增表單放在「指派給業務」視窗的「聯合預約」分頁裡（true），不另外開視窗
 
 function jtPrefsText(prefs, withWins){
   const tiers = [...new Set((prefs || []).map(p => p.tier))].sort((a, b) => a - b);
@@ -74,7 +75,11 @@ function jtOverlay(id, width){
   return ov.firstElementChild;
 }
 function jtNewDay(){ return {date: '', w1: ['09:00', '12:00'], w2on: true, w2: ['13:00', '17:00']}; }
-function openJointCreate(){
+function openJointCreate(){   // 從聯合排程分頁的「＋ 新增」按鈕進來：開「指派給業務」視窗並切到「聯合預約」分頁
+  openSlotTaskModal();
+  switchSlotTaskTab('joint');
+}
+function initJointForm(){
   let saved = [];
   try{ saved = splitNames(localStorage.getItem('slotSchedulerNames') || ''); }catch(e){}
   const tmr = new Date(Date.now() + 86400000);
@@ -85,7 +90,7 @@ function openJointCreate(){
     dlDate: tmr.getFullYear() + '-' + String(tmr.getMonth() + 1).padStart(2, '0') + '-' + String(tmr.getDate()).padStart(2, '0'), dlTime: '18:00',
   };
   renderJointCreate();
-  if(typeof loadSlotSchedulers === 'function') loadSlotSchedulers().then(() => { if(document.getElementById('jointCreateOverlay')) renderJointCreate(); });
+  if(typeof loadSlotSchedulers === 'function') loadSlotSchedulers().then(() => { if(JOINT_EMBED || document.getElementById('jointCreateOverlay')) renderJointCreate(); });
 }
 function jtDefaultDur(types){
   const m = {'掛表': 180, '植筋': 180, '放樣': 60, '場勘': 60, '進場': 240};
@@ -93,7 +98,7 @@ function jtDefaultDur(types){
 }
 function renderJointCreate(){
   const F = JOINT_FORM;
-  const box = jtOverlay('jointCreateOverlay', 560);
+  const box = JOINT_EMBED ? document.getElementById('slotTaskJointBox') : jtOverlay('jointCreateOverlay', 560);
   const lab = t => `<div style="font-size:12px;font-weight:700;margin:14px 0 6px;">${t}</div>`;
   const dayRow = (p, ti, di) => `
     <div style="border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff;">
@@ -123,8 +128,8 @@ function renderJointCreate(){
       ${t.days.length < 3 ? `<button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="JOINT_FORM.tiers[${ti}].days.push(jtNewDay());renderJointCreate()">＋ 再加一個日期</button>` : ''}
     </div>`;
   box.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-size:17px;font-weight:800;">🧩 新增聯合排程</div>
-      <button type="button" onclick="document.getElementById('jointCreateOverlay').remove()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button></div>
+    ${JOINT_EMBED ? '' : `<div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-size:17px;font-weight:800;">🧩 新增聯合排程</div>
+      <button type="button" onclick="document.getElementById('jointCreateOverlay').remove()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button></div>`}
     <div style="font-size:12px;color:var(--text-muted);margin:6px 0 0;line-height:1.7;">把同一廠商、同一項目的幾個案件綁在一起：屋主先回覆哪幾天、哪個時段方便，你再統一排出每案的時間，讓廠商一天跑完。</div>
     ${lab('廠商')}
     <select class="quick-mark-input" onchange="JOINT_FORM.vendor=this.value">${ALL_VENDOR_NAMES.map(v => `<option ${v === F.vendor ? 'selected' : ''}>${v}</option>`).join('')}</select>
@@ -218,7 +223,7 @@ async function submitJointCreate(){
     const d = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
     try{ localStorage.setItem('slotSchedulerNames', F.creators.join('、')); }catch(e){}
-    document.getElementById('jointCreateOverlay').remove();
+    if(JOINT_EMBED){ closeSlotTaskModal(); } else { const ov = document.getElementById('jointCreateOverlay'); if(ov) ov.remove(); }
     if(d.failed && d.failed.length) showToast('這些案件建立失敗：' + d.failed.join('、'));
     loadJoint();
     JOINT_CUR = d.joint; JOINT_EDIT = {}; JOINT_DATE = '';

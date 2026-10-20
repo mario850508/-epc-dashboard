@@ -199,7 +199,7 @@ function render(){
     return;
   }
   if(D.group && (D.status === 'g_open' || D.status === 'g_replied')){ renderGroup(); return; }
-  if(D.status === 'wait_confirm' && mode !== 'alt'){
+  if(D.status === 'wait_confirm' && mode !== 'alt' && mode !== 'decline'){
     const c = D.chosen_slot;
     app.innerHTML = headerHtml() + `<div class="card"><h1>我們幫您安排在這個時間，可以嗎？</h1>
       <div class="big-time" style="text-align:center;">${dateLabel(c.date)}${D.date_only ? '' : '<br>' + esc(c.start_time) + '–' + esc(c.end_time)}</div>
@@ -207,7 +207,7 @@ function render(){
       ${contactHtml()}
       <button class="btn" id="submitBtn" onclick="submitConfirm()">✅ 可以，確認這個時間</button>
       <div class="err" id="err"></div>
-      <button class="btn-ghost" onclick="mode='alt';render()">這個時間不方便，我要提供其他日期</button>
+      ${D.no_alt ? `<button class="btn-ghost" onclick="mode='decline';render()">這個時間不方便</button>` : `<button class="btn-ghost" onclick="mode='alt';render()">這個時間不方便，我要提供其他日期</button>`}
       <div class="help">${repHelp()}</div></div>`;
     restoreContact();
     return;
@@ -220,8 +220,37 @@ function render(){
       <div class="help">${repHelp()}</div></div>`;
     return;
   }
+  if(D.status === 'wait_epc' && !mode){
+    app.innerHTML = headerHtml() + `<div class="card"><h1>已收到，謝謝您 🙏</h1>
+      <div class="lead">了解以上時間您都不方便，我們會再跟施工團隊協調，<b>另外與您約時間</b>，請稍候我們的通知。</div>
+      <button class="btn-ghost" onclick="mode='pick';render()">我想重新選擇時間</button>
+      <div class="help">${repHelp()}</div></div>`;
+    return;
+  }
+  if(mode === 'decline'){ renderDecline(); return; }
   if(mode === 'alt'){ renderAlt(); return; }
   renderPick();
+}
+
+// 2026-10-20：任務勾了「屋主不可自填時間」→ 屋主只能回覆「以上時間都不方便」，由窗口請 EPC 另外安排時間
+function renderDecline(){
+  const app = document.getElementById('app');
+  app.innerHTML = headerHtml() + `<div class="card">
+    <h1 style="font-size:18px;">以上時間都不方便</h1>
+    <div class="muted">沒關係，我們會再跟施工團隊協調，<b>另外與您約時間</b>，到時候再通知您。</div>
+    <label for="dName">姓名（選填）</label><input id="dName" autocomplete="name" placeholder="例如：王小明" value="${esc(CONTACT.name)}">
+    <label for="dPhone">聯絡電話（選填）</label><input id="dPhone" type="tel" autocomplete="tel" placeholder="例如：0912-345-678" value="${esc(CONTACT.phone)}">
+    <label for="dNote">想告訴我們的事（選填）</label><textarea id="dNote" placeholder="例如：12 月初之後比較有空、人在海上到月底"></textarea>
+    <button class="btn" id="submitBtn" onclick="submitDecline()">送出：請另外跟我約時間</button>
+    <div class="err" id="err"></div>
+    <button class="btn-ghost" onclick="mode='';render()">← 回去選頁面上的時間</button>
+    <div class="help">${repHelp()}</div>
+  </div>`;
+}
+async function submitDecline(){
+  CONTACT.name = document.getElementById('dName').value; CONTACT.phone = document.getElementById('dPhone').value;
+  const data = await post('/decline', {owner_name: CONTACT.name.trim(), owner_phone: CONTACT.phone.trim(), note: document.getElementById('dNote').value.trim()}, '送出：請另外跟我約時間');
+  if(data){ D.status = 'wait_epc'; mode = ''; render(); }
 }
 
 function renderPick(){
@@ -248,7 +277,7 @@ function renderPick(){
       ${contactHtml()}
       <button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>
       <div class="err" id="err"></div>
-      <button class="btn-ghost" onclick="mode='alt';render()">以上日期都不方便？告訴我們您方便的日期</button>
+      ${D.no_alt ? `<button class="btn-ghost" onclick="mode='decline';render()">以上日期都不方便</button>` : `<button class="btn-ghost" onclick="mode='alt';render()">以上日期都不方便？告訴我們您方便的日期</button>`}
       <div class="help">${repHelp()}</div>
     </div>`;
     restoreContact();
@@ -271,7 +300,7 @@ function renderPick(){
     ${contactHtml()}
     <button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>
     <div class="err" id="err"></div>
-    <button class="btn-ghost" onclick="mode='alt';render()">以上時間都不方便？告訴我們您方便的日期</button>
+    ${D.no_alt ? `<button class="btn-ghost" onclick="mode='decline';render()">以上時間都不方便</button>` : `<button class="btn-ghost" onclick="mode='alt';render()">以上時間都不方便？告訴我們您方便的日期</button>`}
     <div class="help">${repHelp()}</div>
   </div>`;
   restoreContact();
