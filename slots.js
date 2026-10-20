@@ -458,6 +458,9 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskOwnerWin2On').checked = false;
   document.getElementById('slotTaskOwnerWin2Row').style.display = 'none';
   document.getElementById('slotTaskBuffer').value = '0';
+  ['slotTaskRangeFrom', 'slotTaskRangeTo', 'slotTaskDaysLabel'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  document.getElementById('slotTaskRangeSkipWk').checked = false;
+  updateSlotTaskDaysWrap();
   document.getElementById('slotTaskCaseResults').classList.remove('show');
   document.getElementById('slotTaskTypeDropdown').classList.remove('show');
   document.querySelectorAll('.slot-task-type-check').forEach(c => { c.checked = false; });
@@ -521,6 +524,7 @@ function editSlotTask(recordId){
   }
   setv('slotTaskOwnerWinStart', t.owner_win_start || '09:00'); setv('slotTaskOwnerWinEnd', t.owner_win_end || '17:00');
   setv('slotTaskBuffer', String(t.buffer_min || 0));
+  setv('slotTaskDaysLabel', t.days_label || ''); updateSlotTaskDaysWrap();
   const has2 = !!(t.owner_win2_start && t.owner_win2_end);
   document.getElementById('slotTaskOwnerWin2On').checked = has2;
   document.getElementById('slotTaskOwnerWin2Row').style.display = has2 ? 'flex' : 'none';
@@ -680,6 +684,46 @@ function addSlotTaskDateRow(){
   row.innerHTML = '<input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;"><button class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="this.parentElement.remove()">✕</button>';
   wrap.appendChild(row);
 }
+// 2026-10-20：一次加入一段日期區間（進場要 4～5 天、屋主是跑船的，要從 11 月底到 12 月初挑一天開工）
+function addSlotTaskDateRange(){
+  const from = document.getElementById('slotTaskRangeFrom').value, to = document.getElementById('slotTaskRangeTo').value;
+  if(!from || !to){ showToast('請先選區間的開始日與結束日'); return; }
+  if(to < from){ showToast('結束日要晚於開始日'); return; }
+  const skipWk = document.getElementById('slotTaskRangeSkipWk').checked;
+  const rows = document.getElementById('slotTaskDateRows');
+  const have = new Set([...document.querySelectorAll('.slot-task-date-input')].map(i => i.value).filter(Boolean));
+  [...rows.children].forEach(r => { const i = r.querySelector('input'); if(i && !i.value) r.remove(); });   // 先清掉空白的那一列
+  const d = new Date(from + 'T00:00:00'), end = new Date(to + 'T00:00:00');
+  let added = 0;
+  for(; d <= end && added < 62; d.setDate(d.getDate() + 1)){
+    const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    if(skipWk && (d.getDay() === 0 || d.getDay() === 6)) continue;
+    if(have.has(iso)) continue;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;';
+    row.innerHTML = `<input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;" value="${iso}"><button class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="this.parentElement.remove()">✕</button>`;
+    rows.appendChild(row);
+    added++;
+  }
+  showToast(added ? '已加入 ' + added + ' 個可選日期' : '這段區間的日期都已經在清單裡了');
+}
+// 候選日期很多（區間）時，訊息裡濃縮成「起～迄（共幾天）」，不要一天一天列
+function candidateDatesText(dates){
+  const ds = [...new Set(dates || [])].sort();
+  const one = d => fmtDate(d) + '（' + fmtWeekday(d) + '）';
+  if(ds.length <= 6) return ds.map(one).join('、');
+  const first = new Date(ds[0] + 'T00:00:00'), last = new Date(ds[ds.length - 1] + 'T00:00:00');
+  const set = new Set(ds); let missing = 0, onlyWeekend = true;
+  for(const d = new Date(first); d <= last; d.setDate(d.getDate() + 1)){
+    const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    if(!set.has(iso)){ missing++; if(d.getDay() !== 0 && d.getDay() !== 6) onlyWeekend = false; }
+  }
+  return one(ds[0]) + ' ～ ' + one(ds[ds.length - 1]) + '，共 ' + ds.length + ' 天可選' + (missing && onlyWeekend ? '（週末除外）' : (missing ? '（中間有幾天不能選，請以連結為準）' : ''));
+}
+function updateSlotTaskDaysWrap(){
+  const w = document.getElementById('slotTaskDaysWrap');
+  if(w) w.style.display = getCheckedSlotTypes('slot-task-type-check').includes('進場') ? '' : 'none';
+}
 async function confirmSlotTask(){
   const vendor = document.getElementById('slotTaskVendor').value;
   const type = getCheckedSlotTypes('slot-task-type-check');
@@ -718,7 +762,7 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks' + (editing ? '/' + encodeURIComponent(editing) : ''), {
       method: editing ? 'PATCH' : 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, companions: COMPANIONS.slotTask, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', ...(estDelegate ? {owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2} : {owner_win_start: '09:00', owner_win_end: '17:00', owner_win2_start: '', owner_win2_end: ''}), owner_name: ownerName, owner_phone: ownerPhone, deadline, buffer_min: parseInt(document.getElementById('slotTaskBuffer').value, 10) || 0}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, companions: COMPANIONS.slotTask, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', ...(estDelegate ? {owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2} : {owner_win_start: '09:00', owner_win_end: '17:00', owner_win2_start: '', owner_win2_end: ''}), owner_name: ownerName, owner_phone: ownerPhone, deadline, buffer_min: parseInt(document.getElementById('slotTaskBuffer').value, 10) || 0, days_label: type.includes('進場') ? (document.getElementById('slotTaskDaysLabel').value || '').trim() : ''}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
@@ -755,7 +799,7 @@ function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, 
   if(estDelegate && windows && windows.length){
     estLine += `\n可選時段：${windows.map(w => w[0] + '–' + w[1]).join('、')}（請在這些時段內選開始時間）`;
   }
-  const text = `【${vendor} ${typeLabel}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDates.map(d=>fmtDate(d)+'（'+fmtWeekday(d)+'）').join('、')}${estLine}${deadline ? `\n⏰ 請於 ${fmtDeadline(deadline)} 前回覆給我` : ''}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
+  const text = `【${vendor} ${typeLabel}安排通知】\n案號：${caseNo}${alias?('（'+alias+'）'):''}\n候選日期：${candidateDatesText(candidateDates)}${estLine}${deadline ? `\n⏰ 請於 ${fmtDeadline(deadline)} 前回覆給我` : ''}\n請點以下連結，跟屋主確認好時間後進去完成預約：\n${link}`;
   document.getElementById('slotSummaryTitle').textContent = '📨 傳給業務的訊息';
   const bn = document.getElementById('slotSummaryBindNote'); if(bn) bn.innerHTML = '';
   document.getElementById('slotSummaryTextarea').value = text;
@@ -788,7 +832,7 @@ async function showOwnerMessage(){
     const link = window.location.origin + d.owner_path;
     const text = `您好，我是陽光伏特家的業務${d.assignee || ''}。\n`
       + `我們要幫您安排「${(d.items || []).join('、')}」，想請您直接點下面的連結，選一個您方便的時間（大約需要 ${slotDurationLabel(d.duration_min)}）：\n${link}\n\n`
-      + `可選日期：${(d.candidate_dates || []).map(x => fmtDate(x) + '（' + fmtWeekday(x) + '）').join('、')}\n`
+      + `可選日期：${candidateDatesText(d.candidate_dates || [])}\n`
       + (d.fixed ? `預約時間：${d.windows[0][0]}–${d.windows[0][1]}（請選好日期，並確認這個時間可以）\n`
          : `可選時段：${(d.windows && d.windows.length ? d.windows : [[d.window_start, d.window_end]]).map(w => w[0] + '–' + w[1]).join('、')}\n`)
       + `如果不方便操作，直接回覆我就可以了，謝謝您！`;
@@ -1621,6 +1665,7 @@ function onSlotBookingTypeChange(){
 }
 function onSlotTaskTypeChange(){
   updateSlotTypeLabel('slot-task-type-check', 'slotTaskTypeLabel');
+  updateSlotTaskDaysWrap();
   applyMeterDefaultScheduler();
   if(!slotDeadlineTouched) setDefaultSlotDeadline();
   if(document.getElementById('slotTaskEstDelegate').checked){
