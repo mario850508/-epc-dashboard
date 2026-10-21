@@ -85,7 +85,7 @@ function initJointForm(){
   const tmr = new Date(Date.now() + 86400000);
   JOINT_FORM = {
     vendor: '三創', types: ['放樣'], cases: [], cl: {}, q: '', results: [],   // cl：{案號: 'A'|'B'|'C'}＝同排住戶組（同一排幾戶，只要其中一戶方便開門）
-    tiers: [{days: [jtNewDay()]}],   // 第一期望（可有 1～3 個日期）；第二期望選填
+    tiers: [{days: [jtNewDay()]}],   // 第一期望（日期數不設上限）；第二期望選填
     dur: 60, gap: 30, creators: saved.length ? saved : [],
     dlDate: tmr.getFullYear() + '-' + String(tmr.getMonth() + 1).padStart(2, '0') + '-' + String(tmr.getDate()).padStart(2, '0'), dlTime: '18:00',
   };
@@ -121,11 +121,11 @@ function renderJointCreate(){
   const tierBox = (t, ti) => `
     <div style="border:2px solid ${ti === 0 ? '#BFD3FF' : '#FDE0A8'};border-radius:14px;padding:12px;margin-bottom:12px;background:${ti === 0 ? '#F5F8FF' : '#FFFBF1'};">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <b style="font-size:13.5px;">${['第一', '第二'][ti]}期望${ti === 0 ? '（優先：屋主先看這組，可以有 1～3 個日期）' : '（第一期望都不行，才會看這組）'}</b>
+        <b style="font-size:13.5px;">${['第一', '第二'][ti]}期望${ti === 0 ? '（優先：屋主先看這組，日期可以加很多天）' : '（第一期望都不行，才會看這組）'}</b>
         ${ti > 0 ? `<button class="btn btn-ghost" style="padding:3px 9px;font-size:11px;" onclick="JOINT_FORM.tiers.splice(${ti},1);renderJointCreate()">移除</button>` : ''}
       </div>
       ${t.days.map((d, di) => dayRow(d, ti, di)).join('')}
-      ${t.days.length < 3 ? `<button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="JOINT_FORM.tiers[${ti}].days.push(jtNewDay());renderJointCreate()">＋ 再加一個日期</button>` : ''}
+      <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="JOINT_FORM.tiers[${ti}].days.push(jtNewDay());renderJointCreate()">＋ 再加一個日期</button>
     </div>`;
   box.innerHTML = `
     ${JOINT_EMBED ? '' : `<div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-size:17px;font-weight:800;">🧩 新增聯合排程</div>
