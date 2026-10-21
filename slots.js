@@ -1012,7 +1012,7 @@ function updateBatchButtons(){
 }
 function closeBatchNotice(){ const ov = document.getElementById('batchNoticeOverlay'); if(ov) ov.remove(); }
 function openBatchVendorNotice(vendor){
-  const ids = SLOT_BOOKINGS.filter(b => b.vendor === vendor && BATCH_SEL.has(b.record_id) && !b.cancelled)
+  const ids = mergeCompanionBookings(SLOT_BOOKINGS.filter(b => b.vendor === vendor && BATCH_SEL.has(b.record_id) && !b.cancelled))
     .sort((a, b) => (a.date + (a.start_time || '')).localeCompare(b.date + (b.start_time || '')));
   if(!ids.length){ showToast('請先勾選要一起通知的預約'); return; }
   closeBatchNotice();
@@ -1038,7 +1038,8 @@ function openBatchVendorNotice(vendor){
   document.body.appendChild(ov);
 }
 async function submitBatchNotice(vendor){
-  const ids = SLOT_BOOKINGS.filter(b => b.vendor === vendor && BATCH_SEL.has(b.record_id) && !b.cancelled).map(b => b.record_id);
+  const ids = mergeCompanionBookings(SLOT_BOOKINGS.filter(b => b.vendor === vendor && BATCH_SEL.has(b.record_id) && !b.cancelled))
+    .flatMap(b => [b.record_id, ...(b._sibs || []).map(s => s.record_id)]);
   const btn = document.getElementById('bnSubmit');
   btn.disabled = true; btn.textContent = '產生中…';
   try{
@@ -1062,10 +1063,30 @@ async function submitBatchNotice(vendor){
     btn.disabled = false; btn.textContent = '產生通知';
   }
 }
+// 2026-10-21：「同時預約」的案件（同一個案場拆成兩案、一次預約）後端存成兩筆，畫面上合成一筆：
+// 案號用「＋」連起來，操作（通知廠商、變更、取消、刪除）都作用在這一筆，後端會連同另一案一起處理。
+function mergeCompanionBookings(list){
+  const natKey = s => String(s || '').split(/(\d+)/).map(t => /^\d+$/.test(t) ? t.padStart(6, '0') : t).join('');
+  const used = new Set(), out = [];
+  const sorted = [...list].sort((a, b) => natKey(a.case).localeCompare(natKey(b.case)));
+  sorted.forEach(b => {
+    if(used.has(b.record_id)) return;
+    const comps = splitNames(b.companions);
+    const sibs = comps.length ? sorted.filter(o => o !== b && !used.has(o.record_id) && o.vendor === b.vendor && o.date === b.date
+      && o.start_time === b.start_time && o.end_time === b.end_time && !!o.cancelled === !!b.cancelled && comps.includes(o.case)) : [];
+    used.add(b.record_id); sibs.forEach(s => used.add(s.record_id));
+    out.push(sibs.length ? Object.assign({}, b, {
+      _sibs: sibs, case: [b.case, ...sibs.map(s => s.case)].join('＋'),
+      alias: [...new Set([b.alias, ...sibs.map(s => s.alias)].filter(Boolean))].join('／'), companions: '',
+    }) : b);
+  });
+  return out;
+}
 function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, canCancel){
   if(!container) return;
   if(poolSize === 0){ container.innerHTML = `<div class="login-note">${emptyMsg}</div>`; return; }
   if(list.length === 0){ container.innerHTML = '<div class="login-note">沒有符合篩選條件的預約。</div>'; return; }
+  list = mergeCompanionBookings(list);
   // 依廠商分組，每個廠商底下再依日期分組
   const byVendor = {};
   list.forEach(b => {
@@ -1638,6 +1659,7 @@ async function deleteSlotBookingNow(recordId){
     renderVendorSlots();
     refreshAllVendorFilteredViews();
     showToast('已刪除預約');
+    loadVendorSlots();   // 「同時預約」的另一案後端一起刪了，重新抓一次
   }catch(err){
     showToast('刪除失敗：' + err.message);
   }
