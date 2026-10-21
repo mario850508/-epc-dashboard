@@ -1076,7 +1076,8 @@ function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, c
               ${b.cancelled ? `<span class="chip" style="flex-shrink:0;background:#FDECEC;color:#B42318;">❌ 已取消</span>` : ''}
               <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="showSlotBookingDetail('${b.record_id}')">📄 查看填單</button>
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;${b.vendor_notified_at ? 'color:#16A34A;border-color:#BFE6CF;' : ''}" onclick="openVendorNotice('${b.record_id}')" title="${b.vendor_notified_at ? '已通知廠商：' + fmtDateTimeTW(b.vendor_notified_at) : '確認屋主資料後，傳卡片到廠商群組'}">${b.vendor_notified_at ? '✓ 已通知廠商' : '📤 通知廠商'}</button>`}
-              ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="notifyRep('${b.record_id}')" title="業務有綁 LINE 就直接用機器人通知；沒綁（或離職）會產生連結，讓你轉傳給代辦同事">📨 通知業務</button>`}
+              ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="notifyRep('${b.record_id}')" title="業務有綁 LINE 就直接用機器人通知；沒綁（或離職）會產生連結，讓你轉傳給代辦同事">📨 通知業務</button>
+              <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="openSlackNotice('${b.record_id}')" title="把「通知業務」的卡片用 Slack 私訊傳給同事（不吃 LINE 額度）">💬 Slack</button>`}
               ${canCancel && !b.cancelled ? `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="openEditBooking('${b.record_id}')" title="改屋主資料、日期時間、備註，或把另一案併進來">✏️ 變更</button>` : ''}
               ${canCancel && !b.cancelled ? `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;color:#B42318;" onclick="openCancelBooking('${b.record_id}')">❌ 取消預約</button>` : ''}
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotBooking('${b.record_id}')">刪除</button>`}
@@ -1329,6 +1330,65 @@ async function notifyRep(recordId, share){
     document.body.appendChild(ov);
   }catch(err){
     showToast('通知失敗：' + err.message);
+  }
+}
+// 2026-10-21：用 Slack 私訊傳「通知業務」卡片（同事多半用 Slack；傳 Slack 或 LINE 由你每次自己決定）。
+// 收件人選一次後會記住（這台電腦的瀏覽器，依業務名字記）。
+function closeSlackNotice(){ const ov = document.getElementById('slackNoticeOverlay'); if(ov) ov.remove(); }
+function slackRepMapGet(rep){ try{ return (JSON.parse(localStorage.getItem('slackRepMap') || '{}') || {})[rep] || ''; }catch(e){ return ''; } }
+function slackRepMapSet(rep, id){ try{ const m = JSON.parse(localStorage.getItem('slackRepMap') || '{}') || {}; m[rep] = id; localStorage.setItem('slackRepMap', JSON.stringify(m)); }catch(e){} }
+async function openSlackNotice(recordId){
+  closeSlackNotice();
+  const ov = document.createElement('div');
+  ov.id = 'slackNoticeOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.onclick = e => { if(e.target === ov) closeSlackNotice(); };
+  ov.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:480px;width:100%;color:#1B2333;max-height:92vh;overflow-y:auto;">載入中…</div>';
+  document.body.appendChild(ov);
+  const box = ov.firstElementChild;
+  const head = `<div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-size:17px;font-weight:800;">💬 用 Slack 通知</div>
+    <button type="button" onclick="closeSlackNotice()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button></div>`;
+  try{
+    const [ur, pr] = await Promise.all([
+      fetch(API_BASE + '/api/slack/users', {cache: 'no-store'}).then(r => r.json()),
+      fetch(API_BASE + '/api/slack/booking-card', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({booking_id: recordId, kind: 'rep-notice', preview: true})}).then(r => r.json()),
+    ]);
+    if(!ur.configured){
+      box.innerHTML = head + `<div style="margin-top:12px;padding:12px 14px;background:#FFF8E8;border:1px solid #F3DDA8;border-radius:12px;font-size:13px;line-height:1.8;">
+        後端還沒有設定 Slack。需要先建一個 Slack App 並把 Bot Token 放進後端環境變數 <b>SLACK_BOT_TOKEN</b>（設定步驟見對話說明）。設定好後這個按鈕就能用。</div>`;
+      return;
+    }
+    if(ur.error){ box.innerHTML = head + `<div style="margin-top:12px;font-size:13px;color:#B42318;">讀取 Slack 同事名單失敗：${escHtml(ur.error)}</div>`; return; }
+    if(pr.error){ box.innerHTML = head + `<div style="margin-top:12px;font-size:13px;color:#B42318;">${escHtml(pr.error)}</div>`; return; }
+    const rep = pr.rep_name || '';
+    const norm = s => String(s || '').toLowerCase().replace(/\s+/g, '');
+    let sel = slackRepMapGet(rep);
+    if(!sel && rep){ const hit = ur.users.find(u => [u.name, u.display, (u.email || '').split('@')[0]].some(x => norm(x) && (norm(x).includes(norm(rep)) || norm(rep).includes(norm(x))))); if(hit) sel = hit.id; }
+    box.innerHTML = head + `
+      <div style="font-size:12.5px;color:#6B7280;margin:6px 0 10px;">把這張「通知業務」卡片用 Slack 私訊傳給同事。負責業務：<b>${escHtml(rep || '（沒有指定）')}</b></div>
+      <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px;">收件人（Slack）</label>
+      <select class="quick-mark-input" id="slackToSel"><option value="">— 請選擇 —</option>${ur.users.map(u => `<option value="${escHtml(u.id)}" ${u.id === sel ? 'selected' : ''}>${escHtml(u.name)}${u.display && u.display !== u.name ? '（' + escHtml(u.display) + '）' : ''}</option>`).join('')}</select>
+      <div style="font-size:12px;font-weight:700;margin:12px 0 6px;">訊息預覽</div>
+      <pre style="white-space:pre-wrap;font-size:12px;background:#F7F7FA;border-radius:10px;padding:10px 12px;margin:0;max-height:220px;overflow-y:auto;">${escHtml(pr.text)}</pre>
+      <button type="button" class="btn btn-primary" id="slackSendBtn" style="width:100%;justify-content:center;padding:11px;margin-top:14px;" onclick="sendSlackNotice('${recordId}', ${JSON.stringify(rep).replace(/"/g, '&quot;')})">💬 傳送 Slack 私訊</button>`;
+  }catch(e){
+    box.innerHTML = head + `<div style="margin-top:12px;font-size:13px;color:#B42318;">載入失敗：${escHtml(e.message)}</div>`;
+  }
+}
+async function sendSlackNotice(recordId, rep){
+  const to = document.getElementById('slackToSel').value;
+  if(!to){ showToast('請先選收件人'); return; }
+  const btn = document.getElementById('slackSendBtn'); btn.disabled = true; btn.textContent = '傳送中…';
+  try{
+    const res = await fetch(API_BASE + '/api/slack/booking-card', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({booking_id: recordId, kind: 'rep-notice', to})});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    if(rep) slackRepMapSet(rep, to);
+    closeSlackNotice();
+    showToast('✅ 已用 Slack 私訊傳送');
+  }catch(e){
+    showToast(e.message);
+    btn.disabled = false; btn.textContent = '💬 傳送 Slack 私訊';
   }
 }
 function copyVnText(text, okMsg){
