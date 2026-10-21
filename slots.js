@@ -812,6 +812,7 @@ function showSlotTaskMessage(vendor, caseNo, alias, type, candidateDates, path, 
   previewBtn.dataset.link = link;
   previewBtn.textContent = '👀 預覽業務填單畫面';
   previewBtn.style.display = 'block';
+  const slackBtn0 = document.getElementById('slotSummarySlackBtn'); if(slackBtn0) slackBtn0.style.display = 'none';
   const ownerBtn = document.getElementById('slotSummaryOwnerBtn');
   ownerBtn.textContent = '🏠 改成「屋主版」訊息（建議使用）';
   ownerBtn.style.cssText = 'width:100%;justify-content:center;padding:11px;margin-top:8px;display:' + (window.LAST_SLOT_TASK_RECORD_ID ? 'flex' : 'none') + ';';
@@ -865,6 +866,9 @@ async function showOwnerMessage(){
     previewBtn.dataset.link = link;
     previewBtn.textContent = '👀 預覽屋主畫面（只看，不要送出）';
     previewBtn.style.display = 'block';
+    const slackBtn = document.getElementById('slotSummarySlackBtn');
+    slackBtn.style.display = 'flex';
+    slackBtn.onclick = () => openSlackCard('task', id);
     const altBtn = document.getElementById('slotSummaryOwnerBtn');
     altBtn.textContent = '改看業務版訊息（較少用）';
     altBtn.style.cssText = 'width:100%;justify-content:center;padding:8px;margin-top:8px;font-size:12px;color:var(--text-muted);display:flex;';
@@ -1348,7 +1352,14 @@ async function notifyRep(recordId, share){
 function closeSlackNotice(){ const ov = document.getElementById('slackNoticeOverlay'); if(ov) ov.remove(); }
 function slackRepMapGet(rep){ try{ return (JSON.parse(localStorage.getItem('slackRepMap') || '{}') || {})[rep] || ''; }catch(e){ return ''; } }
 function slackRepMapSet(rep, id){ try{ const m = JSON.parse(localStorage.getItem('slackRepMap') || '{}') || {}; m[rep] = id; localStorage.setItem('slackRepMap', JSON.stringify(m)); }catch(e){} }
-async function openSlackNotice(recordId){
+function openSlackNotice(recordId){ return openSlackCard('booking', recordId); }
+// kind＝booking：已預約的「通知業務」卡片；task：指派任務的「請屋主預約」卡片（含要傳給屋主的訊息）
+function slackCardReq(kind, id, extra){
+  return kind === 'task'
+    ? {url: '/api/slack/task-card', body: Object.assign({task_id: id}, extra || {})}
+    : {url: '/api/slack/booking-card', body: Object.assign({booking_id: id, kind: 'rep-notice'}, extra || {})};
+}
+async function openSlackCard(kind, recordId){
   closeSlackNotice();
   const ov = document.createElement('div');
   ov.id = 'slackNoticeOverlay';
@@ -1362,7 +1373,7 @@ async function openSlackNotice(recordId){
   try{
     const [ur, pr] = await Promise.all([
       fetch(API_BASE + '/api/slack/users', {cache: 'no-store'}).then(r => r.json()),
-      fetch(API_BASE + '/api/slack/booking-card', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({booking_id: recordId, kind: 'rep-notice', preview: true})}).then(r => r.json()),
+      fetch(API_BASE + slackCardReq(kind, recordId).url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(slackCardReq(kind, recordId, {preview: true}).body)}).then(r => r.json()),
     ]);
     if(!ur.configured){
       box.innerHTML = head + `<div style="margin-top:12px;padding:12px 14px;background:#FFF8E8;border:1px solid #F3DDA8;border-radius:12px;font-size:13px;line-height:1.8;">
@@ -1376,22 +1387,23 @@ async function openSlackNotice(recordId){
     let sel = slackRepMapGet(rep);
     if(!sel && rep){ const hit = ur.users.find(u => [u.name, u.display, (u.email || '').split('@')[0]].some(x => norm(x) && (norm(x).includes(norm(rep)) || norm(rep).includes(norm(x))))); if(hit) sel = hit.id; }
     box.innerHTML = head + `
-      <div style="font-size:12.5px;color:#6B7280;margin:6px 0 10px;">把這張「通知業務」卡片用 Slack 私訊傳給同事。負責業務：<b>${escHtml(rep || '（沒有指定）')}</b></div>
+      <div style="font-size:12.5px;color:#6B7280;margin:6px 0 10px;">${kind === 'task' ? '把這張「請屋主預約」卡片（含要傳給屋主的訊息）' : '把這張「通知業務」卡片'}用 Slack 私訊傳給同事。負責業務：<b>${escHtml(rep || '（沒有指定）')}</b></div>
       <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px;">收件人（Slack）</label>
       <select class="quick-mark-input" id="slackToSel"><option value="">— 請選擇 —</option>${ur.users.map(u => `<option value="${escHtml(u.id)}" ${u.id === sel ? 'selected' : ''}>${escHtml(u.name)}${u.display && u.display !== u.name ? '（' + escHtml(u.display) + '）' : ''}</option>`).join('')}</select>
       <div style="font-size:12px;font-weight:700;margin:12px 0 6px;">訊息預覽</div>
       <pre style="white-space:pre-wrap;font-size:12px;background:#F7F7FA;border-radius:10px;padding:10px 12px;margin:0;max-height:220px;overflow-y:auto;">${escHtml(pr.text)}</pre>
-      <button type="button" class="btn btn-primary" id="slackSendBtn" style="width:100%;justify-content:center;padding:11px;margin-top:14px;" onclick="sendSlackNotice('${recordId}', ${JSON.stringify(rep).replace(/"/g, '&quot;')})">💬 傳送 Slack 私訊</button>`;
+      <button type="button" class="btn btn-primary" id="slackSendBtn" style="width:100%;justify-content:center;padding:11px;margin-top:14px;" onclick="sendSlackNotice('${kind}', '${recordId}', ${JSON.stringify(rep).replace(/"/g, '&quot;')})">💬 傳送 Slack 私訊</button>`;
   }catch(e){
     box.innerHTML = head + `<div style="margin-top:12px;font-size:13px;color:#B42318;">載入失敗：${escHtml(e.message)}</div>`;
   }
 }
-async function sendSlackNotice(recordId, rep){
+async function sendSlackNotice(kind, recordId, rep){
   const to = document.getElementById('slackToSel').value;
   if(!to){ showToast('請先選收件人'); return; }
   const btn = document.getElementById('slackSendBtn'); btn.disabled = true; btn.textContent = '傳送中…';
   try{
-    const res = await fetch(API_BASE + '/api/slack/booking-card', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({booking_id: recordId, kind: 'rep-notice', to})});
+    const req = slackCardReq(kind, recordId, {to});
+    const res = await fetch(API_BASE + req.url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(req.body)});
     const d = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
     if(rep) slackRepMapSet(rep, to);
