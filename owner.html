@@ -153,6 +153,14 @@ function finishRange(iso){
   const [a, b] = daySpan(D.duration_label);
   return [addWorkDays(iso, Math.min(a, b)), addWorkDays(iso, Math.max(a, b))];
 }
+// 預估施工期間（開始日～最晚完工日）如果跨到週六、週日才提醒；沒跨到就不用提週末
+function weekendNote(iso){
+  const end = new Date(finishRange(iso)[1] + 'T00:00:00');
+  for(const d = new Date(iso + 'T00:00:00'); d <= end; d.setDate(d.getDate() + 1)){
+    if(d.getDay() === 0 || d.getDay() === 6) return '預估期間包含週六、週日，是否進場依施工團隊安排；若週末需要進場，會再另行通知您。';
+  }
+  return '';
+}
 function estSpanText(iso){
   const [e1, e2] = finishRange(iso);
   return e1 === e2 ? '預估 ' + dateLabel(e1) + ' 完工' : '預估 ' + dateLabel(e1) + ' ～ ' + dateLabel(e2) + ' 完工';
@@ -210,7 +218,7 @@ function render(){
     const b = D.booked || {};
     app.innerHTML = `<div class="card ok-box"><div class="ok-icon">✅</div><h1>預約完成，謝謝您！</h1>
       ${b.date ? `<div class="big-time">${dateLabel(b.date)}${D.date_only ? '' : '<br>' + esc(b.start_time) + '–' + esc(b.end_time)}</div>` : ''}
-      <div class="lead">${D.date_only ? '施工團隊預計在這天進場，施工約需 <b>' + esc(D.duration_label || '3～5 天') + '</b>。' + (b.date ? '<br><span style="color:var(--sun-3);font-weight:700;">' + esc(estSpanText(b.date)) + '</span>' : '') : '施工團隊預計在這個時間到場。'}</div>
+      <div class="lead">${D.date_only ? '施工團隊預計在這天進場，施工約需 <b>' + esc(D.duration_label || '3～5 天') + '</b>。' + (b.date ? '<br><span style="color:var(--sun-3);font-weight:700;">' + esc(estSpanText(b.date)) + '</span>' + (weekendNote(b.date) ? '<br><span class="muted" style="font-size:12.5px;">' + esc(weekendNote(b.date)) + '</span>' : '') : '') : '施工團隊預計在這個時間到場。'}</div>
       ${estNote()}
       ${b.date ? `<div style="margin-top:16px;">
         <a class="btn" style="display:block;text-decoration:none;" href="${googleCalUrl(b)}" target="_blank" rel="noopener">📅 加入 Google 日曆</a>
@@ -225,7 +233,7 @@ function render(){
     const c = D.chosen_slot;
     app.innerHTML = headerHtml() + `<div class="card"><h1>我們幫您安排在這個時間，可以嗎？</h1>
       <div class="big-time" style="text-align:center;">${dateLabel(c.date)}${D.date_only ? '' : '<br>' + esc(c.start_time) + '–' + esc(c.end_time)}</div>
-      ${D.date_only ? `<div class="muted" style="text-align:center;">施工約需 <b>${esc(D.duration_label || '3～5 天')}</b>，${esc(estSpanText(c.date))}</div>` : ''}
+      ${D.date_only ? `<div class="muted" style="text-align:center;">施工約需 <b>${esc(D.duration_label || '3～5 天')}</b>，${esc(estSpanText(c.date))}${weekendNote(c.date) ? '<br>' + esc(weekendNote(c.date)) : ''}</div>` : ''}
       ${estNote()}
       ${contactHtml()}
       <button class="btn" id="submitBtn" onclick="submitConfirm()">✅ 可以，確認這個時間</button>
@@ -295,7 +303,7 @@ function renderPick(){
     app.innerHTML = headerHtml() + `<div class="card">
       <div class="step" style="margin-top:0;"><span class="n">1</span>${D.candidate_dates.length === 1 ? '預計進場日期' : '請選進場日期'}</div>
       <div class="grid">${btns}</div>
-      <div class="muted" style="margin-top:8px;">施工約需 <b>${esc(D.duration_label || '3～5 天')}</b>，這一天是「開始進場」的日期。${selDate ? `<br><span style="color:var(--sun-3);font-weight:700;">📅 選 ${esc(dateLabel(selDate))} 進場 → ${esc(estSpanText(selDate))}</span>（施工日不含週六、週日）` : ''}</div>
+      <div class="muted" style="margin-top:8px;">施工約需 <b>${esc(D.duration_label || '3～5 天')}</b>，這一天是「開始進場」的日期。${selDate ? `<br><span style="color:var(--sun-3);font-weight:700;">📅 選 ${esc(dateLabel(selDate))} 進場 → ${esc(estSpanText(selDate))}</span>${weekendNote(selDate) ? '<br><span style="font-size:12.5px;">' + esc(weekendNote(selDate)) + '</span>' : ''}` : ''}</div>
       ${estNote()}
       ${contactHtml()}
       <button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>
