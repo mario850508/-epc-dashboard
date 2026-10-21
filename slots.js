@@ -1389,16 +1389,43 @@ async function openSlackCard(kind, recordId){
     box.innerHTML = head + `
       <div style="font-size:12.5px;color:#6B7280;margin:6px 0 10px;">${kind === 'task' ? '把這張「請屋主預約」卡片（含要傳給屋主的訊息）' : '把這張「通知業務」卡片'}用 Slack 私訊傳給同事。負責業務：<b>${escHtml(rep || '（沒有指定）')}</b></div>
       <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px;">收件人（Slack）</label>
-      <select class="quick-mark-input" id="slackToSel"><option value="">— 請選擇 —</option>${ur.users.map(u => `<option value="${escHtml(u.id)}" ${u.id === sel ? 'selected' : ''}>${escHtml(u.name)}${u.display && u.display !== u.name ? '（' + escHtml(u.display) + '）' : ''}</option>`).join('')}</select>
+      <div id="slackSelChip" style="min-height:22px;margin-bottom:6px;"></div>
+      <input type="text" class="quick-mark-input" id="slackToQ" placeholder="輸入名字、Slack 名稱或 email 的一部分來搜尋…" autocomplete="off" oninput="slackFilterUsers(this.value)">
+      <div id="slackToResults" style="max-height:180px;overflow-y:auto;margin-top:6px;"></div>
       <div style="font-size:12px;font-weight:700;margin:12px 0 6px;">訊息預覽</div>
       <pre style="white-space:pre-wrap;font-size:12px;background:#F7F7FA;border-radius:10px;padding:10px 12px;margin:0;max-height:220px;overflow-y:auto;">${escHtml(pr.text)}</pre>
       <button type="button" class="btn btn-primary" id="slackSendBtn" style="width:100%;justify-content:center;padding:11px;margin-top:14px;" onclick="sendSlackNotice('${kind}', '${recordId}', ${JSON.stringify(rep).replace(/"/g, '&quot;')})">💬 傳送 Slack 私訊</button>`;
+    window._slackUsers = ur.users;
+    window._slackSel = sel || '';
+    slackRenderSel();
+    slackFilterUsers('');
   }catch(e){
     box.innerHTML = head + `<div style="margin-top:12px;font-size:13px;color:#B42318;">載入失敗：${escHtml(e.message)}</div>`;
   }
 }
+// 收件人：輸入關鍵字（名字、Slack 顯示名稱、email）模糊搜尋，點一下就選好
+function slackUserLabel(u){ return u.name + (u.display && u.display !== u.name ? '（' + u.display + '）' : ''); }
+function slackRenderSel(){
+  const chip = document.getElementById('slackSelChip'); if(!chip) return;
+  const u = (window._slackUsers || []).find(x => x.id === window._slackSel);
+  chip.innerHTML = u
+    ? `<span style="display:inline-flex;align-items:center;gap:6px;background:#F3E8F5;color:#4A154B;border-radius:14px;padding:3px 10px;font-size:12.5px;font-weight:700;">已選：${escHtml(slackUserLabel(u))} <a style="cursor:pointer;color:#B42318;" onclick="window._slackSel='';slackRenderSel();slackFilterUsers(document.getElementById('slackToQ').value)">✕</a></span>`
+    : '<span style="font-size:12px;color:var(--text-muted);">還沒選收件人，請在下面搜尋</span>';
+}
+function slackFilterUsers(q){
+  const box = document.getElementById('slackToResults'); if(!box) return;
+  const norm = s => String(s || '').toLowerCase().replace(/\s+/g, '');
+  const k = norm(q);
+  const all = window._slackUsers || [];
+  const hits = (k ? all.filter(u => [u.name, u.display, u.email].some(x => norm(x).includes(k))) : all).slice(0, 30);
+  const head = k ? `<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:4px;">符合「${escHtml(q.trim())}」的有 ${all.filter(u => [u.name, u.display, u.email].some(x => norm(x).includes(k))).length} 位${hits.length >= 30 ? '（只顯示前 30 位）' : ''}</div>` : `<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:4px;">共 ${all.length} 位同事，輸入關鍵字可以縮小範圍</div>`;
+  box.innerHTML = head + (hits.length ? hits.map(u => `<div onclick="window._slackSel='${escHtml(u.id)}';slackRenderSel();slackFilterUsers(document.getElementById('slackToQ').value)"
+      style="padding:7px 10px;border:1px solid var(--border);border-radius:10px;margin-bottom:4px;cursor:pointer;font-size:13px;${u.id === window._slackSel ? 'background:#F3E8F5;border-color:#D9B8DB;' : 'background:#fff;'}">
+      <b>${escHtml(u.name)}</b>${u.display && u.display !== u.name ? ' <span style="color:var(--text-muted);">' + escHtml(u.display) + '</span>' : ''}
+      <span style="color:var(--text-muted);font-size:11.5px;">${escHtml(u.email || '')}</span></div>`).join('') : '<div style="font-size:12.5px;color:var(--text-muted);padding:6px 2px;">找不到符合的同事</div>');
+}
 async function sendSlackNotice(kind, recordId, rep){
-  const to = document.getElementById('slackToSel').value;
+  const to = window._slackSel || '';
   if(!to){ showToast('請先選收件人'); return; }
   const btn = document.getElementById('slackSendBtn'); btn.disabled = true; btn.textContent = '傳送中…';
   try{
