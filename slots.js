@@ -1667,6 +1667,7 @@ function copySlotSummary(vendor){
 }
 function closeSlotSummaryModal(){
   document.getElementById('slotSummaryModalOverlay').classList.remove('show');
+  const more = document.querySelector('#slotSummaryModalOverlay details'); if(more) more.open = false;   // 「其他功能」下次開啟時預設收起來
 }
 function copySlotSummaryText(){
   const ta = document.getElementById('slotSummaryTextarea');
