@@ -121,6 +121,7 @@ function headerHtml(){
     <h1>您好！我們要為您安排：<br>${D.items.map(esc).join('、')}</h1>
     ${D.address ? `<div class="lead" style="margin:2px 0 6px;">📍 施工地址：<b>${esc(D.address)}</b></div>` : ''}
     <div class="muted">大約需要 <b>${D.date_only && D.duration_label ? esc(D.duration_label) : durLabel(D.duration_min)}</b>${D.rep_name ? `｜您的業務：<b>${esc(D.rep_name)}</b>` : ''}</div>
+    ${clusterNoteHtml()}
     ${D.companion_addrs && D.companion_addrs.length ? `<div class="muted" style="margin-top:6px;">🔗 這次會連同另一個地址 <b>${D.companion_addrs.map(esc).join('；')}</b> 一起安排（同一個時段）</div>` : ''}
   </div>`;
 }
@@ -436,7 +437,12 @@ function gHeaderHtml(){
     <h1>您好！我們要為您安排：<br>${D.items.map(esc).join('、')}</h1>
     ${D.address ? `<div class="lead" style="margin:2px 0 6px;">📍 施工地址：<b>${esc(D.address)}</b></div>` : ''}
     <div class="muted">這個項目大約需要 <b>${durLabel(D.duration_min)}</b>${D.rep_name ? `｜您的業務：<b>${esc(D.rep_name)}</b>` : ''}</div>
+    ${clusterNoteHtml()}
   </div>`;
+}
+// 同排住戶組：同一排幾戶只需要其中一戶方便開門
+function clusterNoteHtml(){
+  return D.cluster ? `<div class="muted" style="margin-top:10px;background:#EFF6FF;border-radius:10px;padding:10px 12px;">🏘 您這一排共 <b>${D.cluster_count} 戶</b>，只需要<b>其中一戶</b>方便開門就可以，請由方便的住戶填寫；填好後其他戶不用再填。</div>` : '';
 }
 function gContactHtml(){
   return `<label for="ownerName">姓名</label><input id="ownerName" autocomplete="name" placeholder="例如：王小明">
@@ -446,8 +452,10 @@ function gContactHtml(){
 }
 function gAvailOpts(p){
   const o = [['all', '全天', p.parts.all]];
-  if(p.parts.am) o.push(['am', '只有上午', p.parts.am]);
-  if(p.parts.pm) o.push(['pm', '只有下午', p.parts.pm]);
+  // 廠商那天只有一個時段（例如只有上午）時，「全天／只有上午」是同一個選項，不重複列
+  if(p.parts.am && p.parts.am !== p.parts.all) o.push(['am', '只有上午', p.parts.am]);
+  if(p.parts.pm && p.parts.pm !== p.parts.all) o.push(['pm', '只有下午', p.parts.pm]);
+  if(o.length === 1) o[0][1] = '這天方便';
   return o;
 }
 function renderGroup(){
@@ -456,6 +464,7 @@ function renderGroup(){
   if(D.status === 'g_replied' && !G.edit){
     app.innerHTML = gHeaderHtml() + `<div class="card ok-box"><div class="ok-icon">✅</div><h1>已收到您的回覆，謝謝您！</h1>
       <div class="lead">您回覆的是：<br><b>${esc(g.reply_text)}</b></div>
+      ${D.cluster ? '<div class="muted" style="margin-top:8px;">您這一排的其他住戶不用再填了，謝謝！</div>' : ''}
       <div class="muted" style="margin-top:12px;">我們會把同一區的案子一起安排，排好每一案的時間後，會再請您確認，確認之後預約才算成立。</div>
       <button class="btn-ghost" onclick="G.edit=true;G.ti=0;G.picks={};renderGroup()">想修改我的回覆</button></div>
       <div class="help">${repHelp()}</div>`;

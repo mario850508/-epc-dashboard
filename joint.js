@@ -84,7 +84,7 @@ function initJointForm(){
   try{ saved = splitNames(localStorage.getItem('slotSchedulerNames') || ''); }catch(e){}
   const tmr = new Date(Date.now() + 86400000);
   JOINT_FORM = {
-    vendor: '三創', types: ['放樣'], cases: [], q: '', results: [],
+    vendor: '三創', types: ['放樣'], cases: [], cl: {}, q: '', results: [],   // cl：{案號: 'A'|'B'|'C'}＝同排住戶組（同一排幾戶，只要其中一戶方便開門）
     tiers: [{days: [jtNewDay()]}],   // 第一期望（可有 1～3 個日期）；第二期望選填
     dur: 60, gap: 30, creators: saved.length ? saved : [],
     dlDate: tmr.getFullYear() + '-' + String(tmr.getMonth() + 1).padStart(2, '0') + '-' + String(tmr.getDate()).padStart(2, '0'), dlTime: '18:00',
@@ -135,8 +135,14 @@ function renderJointCreate(){
     <select class="quick-mark-input" onchange="JOINT_FORM.vendor=this.value">${ALL_VENDOR_NAMES.map(v => `<option ${v === F.vendor ? 'selected' : ''}>${v}</option>`).join('')}</select>
     ${lab('項目')}
     <div style="display:flex;gap:14px;flex-wrap:wrap;">${['放樣', '場勘', '掛表', '植筋', '進場'].map(t => `<label style="display:flex;gap:5px;align-items:center;font-size:13px;cursor:pointer;"><input type="checkbox" ${F.types.includes(t) ? 'checked' : ''} onchange="jtToggleType('${t}',this.checked)">${t}</label>`).join('')}</div>
-    ${lab('案件（至少兩個；打案號或關鍵字搜尋）')}
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">${F.cases.map((c, i) => `<span style="background:#EEF3FF;border-radius:12px;padding:3px 10px;font-size:12px;">${escHtml(c)} <a style="cursor:pointer;color:#B42318;" onclick="JOINT_FORM.cases.splice(${i},1);renderJointCreate()">✕</a></span>`).join('') || '<span style="font-size:12px;color:var(--text-muted);">還沒選案件</span>'}</div>
+    ${lab('案件（至少兩個單位；打案號或關鍵字搜尋）')}
+    <div style="font-size:11.5px;color:var(--text-muted);line-height:1.6;margin-bottom:6px;">每個案件預設是「獨立」，要各自回覆。同一排的幾戶、只需要其中一戶方便開門就好的，在案件右邊選同一個組別（例如都選「同排A」），整組只會收到一份邀請、算一個單位，確認後兩邊一起預約。</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px;">${F.cases.map((c, i) => `<div style="display:flex;align-items:center;gap:8px;background:#EEF3FF;border-radius:12px;padding:5px 10px;font-size:12.5px;">
+      <span style="flex:1;">${escHtml(c)}</span>
+      <select class="quick-mark-input" style="width:auto;padding:3px 8px;font-size:12px;" onchange="JOINT_FORM.cl[${JSON.stringify(c).replace(/"/g, '&quot;')}]=this.value;renderJointCreate()">
+        ${[['', '獨立'], ['A', '同排 A'], ['B', '同排 B'], ['C', '同排 C']].map(([v, l]) => `<option value="${v}" ${(F.cl[c] || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <a style="cursor:pointer;color:#B42318;" onclick="delete JOINT_FORM.cl[${JSON.stringify(c).replace(/"/g, '&quot;')}];JOINT_FORM.cases.splice(${i},1);renderJointCreate()">✕</a></div>`).join('') || '<span style="font-size:12px;color:var(--text-muted);">還沒選案件</span>'}</div>
+    ${(() => { const g = jtUnits(); return F.cases.length ? `<div style="font-size:11.5px;color:${g.units >= 2 ? '#15803D' : '#B45309'};margin-bottom:4px;">目前 ${g.units} 個單位：獨立 ${g.single.length} 案${g.clusters.map((c, i) => '、同排組 ' + c.length + ' 戶').join('')}</div>` : ''; })()}
     <input class="quick-mark-input" id="jtCaseQ" placeholder="輸入案號或別名…" value="${escHtml(F.q)}" oninput="jtSearchCase(this.value)" autocomplete="off">
     <div id="jtCaseRes">${jtResultsHtml()}</div>
     ${lab('期望日與廠商可作業時段')}
@@ -189,6 +195,15 @@ function jtSearchCase(q){
     }catch(e){}
   }, 350);
 }
+// 把選好的案件整理成「獨立案件」與「同排住戶組」；只有一戶的同排組視為獨立
+function jtUnits(){
+  const F = JOINT_FORM, by = {};
+  F.cases.forEach(c => { const k = F.cl[c] || ''; if(k) (by[k] ||= []).push(c); });
+  const clusters = Object.values(by).filter(a => a.length >= 2);
+  const inCluster = new Set(clusters.flat());
+  const single = F.cases.filter(c => !inCluster.has(c));
+  return {single, clusters, units: single.length + clusters.length};
+}
 function jtAddCase(i){
   const r = JOINT_FORM.results[i]; if(!r) return;
   if(!JOINT_FORM.cases.includes(r.case)) JOINT_FORM.cases.push(r.case);
@@ -213,12 +228,13 @@ async function submitJointCreate(){
     }
     if(days.length) tiers.push({days});
   }
-  if(!F.types.length || F.cases.length < 2 || !tiers.length){ showToast('請選項目、至少兩個案件，並設定第一期望日'); return; }
+  const U = jtUnits();
+  if(!F.types.length || U.units < 2 || !tiers.length){ showToast('請選項目、至少兩個單位（同排住戶組算一個），並設定第一期望日'); return; }
   const btn = document.getElementById('jtCreateBtn');
   btn.disabled = true; btn.textContent = '建立中…';
   try{
     const res = await fetch(API_BASE + '/api/joint-schedules', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
-      vendor: F.vendor, type: F.types, cases: F.cases, tiers, duration_min: F.dur, gap_min: F.gap, creator: F.creators.join('、'),
+      vendor: F.vendor, type: F.types, cases: U.single, clusters: U.clusters, tiers, duration_min: F.dur, gap_min: F.gap, creator: F.creators.join('、'),
       deadline: F.dlDate ? F.dlDate + 'T' + (F.dlTime || '18:00') + ':00+08:00' : null})});
     const d = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
@@ -266,7 +282,7 @@ function renderJointDetail(){
   }
   const memberRows = g.tasks.map(t => `
     <tr>
-      <td style="padding:8px 6px;font-size:12.5px;"><b>${escHtml(t.case)}</b><div style="color:var(--text-muted);font-size:11.5px;">${escHtml(t.alias || '')}${t.assignee ? '｜業務 ' + escHtml(t.assignee) : ''}</div></td>
+      <td style="padding:8px 6px;font-size:12.5px;"><b>${escHtml(t.case)}</b>${(t.companions || []).length ? ' <span style="color:#1D4ED8;font-weight:700;">＋ ' + t.companions.map(escHtml).join('＋') + '</span>' : ''}<div style="color:var(--text-muted);font-size:11.5px;">${escHtml(t.alias || '')}${t.assignee ? '｜業務 ' + escHtml(t.assignee) : ''}${t.cluster ? '<br>🏘 同排住戶（任一戶回覆即可，同一條連結傳給這幾戶）' : ''}</div></td>
       <td style="padding:8px 6px;font-size:12px;">${escHtml(t.status_text)}${t.chosen_slot ? '<div style="color:#7C3AED;">' + fmtDate(t.chosen_slot.date) + ' ' + escHtml(t.chosen_slot.start_time) + '–' + escHtml(t.chosen_slot.end_time) + '</div>' : ''}</td>
       <td style="padding:8px 6px;font-size:12px;color:#374151;">${escHtml(t.reply_text)}${t.alt_slots && t.alt_slots.length ? '<div style="color:#B45309;">屋主另提：' + t.alt_slots.map(s => fmtDate(s.date)).join('、') + '</div>' : ''}</td>
       <td style="padding:8px 6px;font-size:11.5px;white-space:nowrap;">
@@ -295,7 +311,7 @@ function renderJointDetail(){
           const e = JOINT_EDIT[t.task_id] || {start: '', end: ''};
           const un = (plan.unplaced || []).find(u => u.task_id === t.task_id);
           return `<tr style="border-top:1px solid var(--border);">
-            <td style="padding:7px 6px;font-size:12.5px;"><b>${escHtml(t.case)}</b> ${escHtml(t.alias || '')}${un && !e.start ? `<div style="color:#B42318;font-size:11.5px;">⚠ ${escHtml(un.reason)}，需要另約或手動指定</div>` : ''}</td>
+            <td style="padding:7px 6px;font-size:12.5px;"><b>${escHtml(t.case)}</b>${(t.companions || []).length ? ' ＋ ' + t.companions.map(escHtml).join('＋') : ''} ${escHtml(t.alias || '')}${un && !e.start ? `<div style="color:#B42318;font-size:11.5px;">⚠ ${escHtml(un.reason)}，需要另約或手動指定</div>` : ''}</td>
             <td style="padding:7px 6px;font-size:11.5px;color:#374151;">${escHtml(t.reply_text)}</td>
             <td style="padding:7px 6px;"><select class="quick-mark-input" data-tid="${t.task_id}" data-k="start" onchange="jtEditTime(this)">${jtTimeOpts(e.start)}</select></td>
             <td style="padding:7px 6px;"><select class="quick-mark-input" data-tid="${t.task_id}" data-k="end" onchange="jtEditTime(this)">${jtTimeOpts(e.end)}</select></td>
