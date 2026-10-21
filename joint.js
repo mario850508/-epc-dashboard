@@ -84,7 +84,7 @@ function initJointForm(){
   try{ saved = splitNames(localStorage.getItem('slotSchedulerNames') || ''); }catch(e){}
   const tmr = new Date(Date.now() + 86400000);
   JOINT_FORM = {
-    vendor: '三創', types: ['放樣'], cases: [], cl: {}, q: '', results: [],   // cl：{案號: 'A'|'B'|'C'}＝同排住戶組（同一排幾戶，只要其中一戶方便開門）
+    vendor: '三創', types: ['放樣'], cases: [], cl: {}, ord: {}, q: '', results: [],   // cl：{案號: 'A'|'B'|'C'}＝同排住戶組（同一排幾戶，只要其中一戶方便開門）
     tiers: [{days: [jtNewDay()]}],   // 第一期望（日期數不設上限）；第二期望選填
     dur: 60, gap: 30, creators: saved.length ? saved : [],
     dlDate: tmr.getFullYear() + '-' + String(tmr.getMonth() + 1).padStart(2, '0') + '-' + String(tmr.getDate()).padStart(2, '0'), dlTime: '18:00',
@@ -143,6 +143,14 @@ function renderJointCreate(){
         ${[['', '獨立'], ['A', '同排 A'], ['B', '同排 B'], ['C', '同排 C']].map(([v, l]) => `<option value="${v}" ${(F.cl[c] || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <a style="cursor:pointer;color:#B42318;" onclick="delete JOINT_FORM.cl[${JSON.stringify(c).replace(/"/g, '&quot;')}];JOINT_FORM.cases.splice(${i},1);renderJointCreate()">✕</a></div>`).join('') || '<span style="font-size:12px;color:var(--text-muted);">還沒選案件</span>'}</div>
     ${(() => { const g = jtUnits(); return F.cases.length ? `<div style="font-size:11.5px;color:${g.units >= 2 ? '#15803D' : '#B45309'};margin-bottom:4px;">目前 ${g.units} 個單位：獨立 ${g.single.length} 案${g.clusters.map((c, i) => '、同排組 ' + c.length + ' 戶').join('')}</div>` : ''; })()}
+    ${(() => { const g = jtUnits(); if(g.units < 2) return '';
+      return `<div style="border:1px dashed var(--border);border-radius:12px;padding:10px 12px;margin:8px 0;">
+        <div style="font-size:12px;font-weight:700;margin-bottom:4px;">回覆順序（選填）</div>
+        <div style="font-size:11.5px;color:var(--text-muted);line-height:1.6;margin-bottom:8px;">預設全部「第 1 批」＝大家同時回覆。若要<b>先讓某幾戶決定日期</b>，再讓其他戶從他們共同方便的日期裡選，把後面的單位設成「第 2 批」：第 2 批要等第 1 批都回覆後才開放，而且只會看到第 1 批選的日期（例如第 1 批選了 23、24 號，第 2 批就只能在 23、24 號裡選）。</div>
+        ${g.unitList.map(u => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12.5px;"><span style="flex:1;">${escHtml(u.label)}${u.members.length > 1 ? ' <span style="color:var(--text-muted);font-size:11.5px;">' + u.members.map(escHtml).join('＋') + '</span>' : ''}</span>
+          <select class="quick-mark-input" style="width:auto;padding:3px 8px;font-size:12px;" onchange="JOINT_FORM.ord[${JSON.stringify(u.key).replace(/"/g, '&quot;')}]=parseInt(this.value,10)">
+            ${[1, 2, 3].map(n => `<option value="${n}" ${(F.ord[u.key] || 1) === n ? 'selected' : ''}>第 ${n} 批${n === 1 ? '（先回覆）' : ''}</option>`).join('')}</select></div>`).join('')}
+      </div>`; })()}
     <input class="quick-mark-input" id="jtCaseQ" placeholder="輸入案號或別名…" value="${escHtml(F.q)}" oninput="jtSearchCase(this.value)" autocomplete="off">
     <div id="jtCaseRes">${jtResultsHtml()}</div>
     ${lab('期望日與廠商可作業時段')}
@@ -199,10 +207,19 @@ function jtSearchCase(q){
 function jtUnits(){
   const F = JOINT_FORM, by = {};
   F.cases.forEach(c => { const k = F.cl[c] || ''; if(k) (by[k] ||= []).push(c); });
-  const clusters = Object.values(by).filter(a => a.length >= 2);
+  const clusterKeys = Object.keys(by).filter(k => by[k].length >= 2);
+  const clusters = clusterKeys.map(k => by[k]);
   const inCluster = new Set(clusters.flat());
   const single = F.cases.filter(c => !inCluster.has(c));
-  return {single, clusters, units: single.length + clusters.length};
+  // unitList：每個單位（獨立案件或同排組）一筆，用來設定「回覆順序」
+  const unitList = [...single.map(c => ({key: 'c:' + c, label: c, members: [c]})), ...clusterKeys.map(k => ({key: 'g:' + k, label: '同排 ' + k + '（' + by[k].length + ' 戶）', members: by[k]}))];
+  return {single, clusters, clusterKeys, unitList, units: single.length + clusters.length};
+}
+// 回覆順序：{案號: 批次}（同排組每個成員都帶同一個批次）；全部第 1 批就不送
+function jtOrdersMap(U){
+  const out = {};
+  U.unitList.forEach(u => { const n = JOINT_FORM.ord[u.key] || 1; if(n > 1) u.members.forEach(c => { out[c] = n; }); });
+  return out;
 }
 function jtAddCase(i){
   const r = JOINT_FORM.results[i]; if(!r) return;
@@ -234,7 +251,7 @@ async function submitJointCreate(){
   btn.disabled = true; btn.textContent = '建立中…';
   try{
     const res = await fetch(API_BASE + '/api/joint-schedules', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
-      vendor: F.vendor, type: F.types, cases: U.single, clusters: U.clusters, tiers, duration_min: F.dur, gap_min: F.gap, creator: F.creators.join('、'),
+      vendor: F.vendor, type: F.types, cases: U.single, clusters: U.clusters, tiers, orders: jtOrdersMap(U), duration_min: F.dur, gap_min: F.gap, creator: F.creators.join('、'),
       deadline: F.dlDate ? F.dlDate + 'T' + (F.dlTime || '18:00') + ':00+08:00' : null})});
     const d = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
@@ -282,7 +299,7 @@ function renderJointDetail(){
   }
   const memberRows = g.tasks.map(t => `
     <tr>
-      <td style="padding:8px 6px;font-size:12.5px;"><b>${escHtml(t.case)}</b>${(t.companions || []).length ? ' <span style="color:#1D4ED8;font-weight:700;">＋ ' + t.companions.map(escHtml).join('＋') + '</span>' : ''}<div style="color:var(--text-muted);font-size:11.5px;">${escHtml(t.alias || '')}${t.assignee ? '｜業務 ' + escHtml(t.assignee) : ''}${t.cluster ? '<br>🏘 同排住戶（任一戶回覆即可，同一條連結傳給這幾戶）' : ''}</div></td>
+      <td style="padding:8px 6px;font-size:12.5px;"><b>${escHtml(t.case)}</b>${(t.companions || []).length ? ' <span style="color:#1D4ED8;font-weight:700;">＋ ' + t.companions.map(escHtml).join('＋') + '</span>' : ''}<div style="color:var(--text-muted);font-size:11.5px;">${escHtml(t.alias || '')}${t.assignee ? '｜業務 ' + escHtml(t.assignee) : ''}${t.cluster ? '<br>🏘 同排住戶（任一戶回覆即可，同一條連結傳給這幾戶）' : ''}${t.order > 1 ? '<br>🔢 第 ' + t.order + ' 批' + (t.open_dates && t.open_dates.length ? '：只能選 ' + t.open_dates.map(d => fmtDate(d)).join('、') : '') : ''}</div></td>
       <td style="padding:8px 6px;font-size:12px;">${escHtml(t.status_text)}${t.chosen_slot ? '<div style="color:#7C3AED;">' + fmtDate(t.chosen_slot.date) + ' ' + escHtml(t.chosen_slot.start_time) + '–' + escHtml(t.chosen_slot.end_time) + '</div>' : ''}</td>
       <td style="padding:8px 6px;font-size:12px;color:#374151;">${escHtml(t.reply_text)}${t.alt_slots && t.alt_slots.length ? '<div style="color:#B45309;">屋主另提：' + t.alt_slots.map(s => fmtDate(s.date)).join('、') + '</div>' : ''}</td>
       <td style="padding:8px 6px;font-size:11.5px;white-space:nowrap;">

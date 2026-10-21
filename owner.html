@@ -229,6 +229,18 @@ function render(){
       <div class="help">${repHelp()}</div></div>`;
     return;
   }
+  if(D.status === 'g_wait'){
+    app.innerHTML = gHeaderHtml() + `<div class="card ok-box"><div class="ok-icon">⏳</div><h1>還在確認同一區的日期</h1>
+      <div class="lead">我們正在跟同一區的其他住戶確認日期，確認好之後會再通知您，請您稍候，先不用填寫。</div></div>
+      <div class="help">${repHelp()}</div>`;
+    return;
+  }
+  if(D.status === 'g_none'){
+    app.innerHTML = gHeaderHtml() + `<div class="card ok-box"><div class="ok-icon">📞</div><h1>我們會再跟您聯絡</h1>
+      <div class="lead">目前還沒有大家都方便的日期，我們會再跟您確認其他時間，請稍候通知。</div></div>
+      <div class="help">${repHelp()}</div>`;
+    return;
+  }
   if(D.group && (D.status === 'g_open' || D.status === 'g_replied')){ renderGroup(); return; }
   if(D.status === 'wait_confirm' && mode !== 'alt' && mode !== 'decline'){
     const c = D.chosen_slot;
