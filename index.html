@@ -2873,8 +2873,8 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <div class="modal-body">
           <div id="slotSummaryBindNote"></div>
           <textarea id="slotSummaryTextarea" readonly style="width:100%;min-height:260px;border:1px solid var(--border);border-radius:10px;padding:14px;font-size:12.5px;font-family:ui-monospace,monospace;line-height:1.7;color:var(--text);background:var(--surface-2);resize:vertical;"></textarea>
-          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;margin-top:12px;" onclick="shareSlotSummaryToLine()">📤 傳送到 LINE</button>
-          <button class="btn" id="slotSummarySlackBtn" style="width:100%;justify-content:center;padding:12px;margin-top:8px;display:none;background:#16A34A;border-color:#16A34A;color:#fff;font-weight:700;">💬 傳送到 Slack（選要傳給哪位同事）</button>
+          <button class="btn" id="slotSummaryLineBtn" style="width:100%;justify-content:center;padding:12px;margin-top:12px;background:#16A34A;border-color:#16A34A;color:#fff;font-weight:700;" onclick="shareSlotSummaryToLine()">📤 傳送到 LINE</button>
+          <button class="btn" id="slotSummarySlackBtn" style="width:100%;justify-content:center;padding:12px;margin-top:8px;display:none;background:#2563EB;border-color:#2563EB;color:#fff;font-weight:700;">💬 傳送到 Slack（選要傳給哪位同事）</button>
           <details style="margin-top:12px;">
             <summary style="cursor:pointer;font-size:12.5px;color:var(--text-muted);padding:6px 2px;list-style:none;text-align:center;">⋯ 其他功能（預覽、修改、複製、業務版）</summary>
             <button class="btn btn-ghost" id="slotSummaryPreviewBtn" style="width:100%;justify-content:center;padding:11px;margin-top:8px;display:none;" onclick="previewSlotTaskLink()">👀 預覽業務填單畫面</button>
@@ -8568,7 +8568,7 @@ async function generateOpsPdf(id, keepModalOpen){
 // 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
 // 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
 </script>
-<script src="slots.js?v=27"></script>
+<script src="slots.js?v=28"></script>
 <script>
 // ===================================================================
 // 採購專區：變流器出廠證明歸檔紀錄（2026-10-07）
