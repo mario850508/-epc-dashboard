@@ -835,11 +835,22 @@ async function showOwnerMessage(){
     const d = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
     const link = window.location.origin + d.owner_path;
+    // 2026-10-21：只有一個日期、而且沒有時間可挑（固定時間，或進場只選日期）→ 請屋主「確認這個時間是否方便」；
+    // 有好幾天（或同一天有時段可挑）才說「選一個您方便的時間」。進場的「大約需要」寫施工天數，不是幾小時。
+    const dates = [...new Set(d.candidate_dates || [])];
+    const single = dates.length === 1 && (!!d.fixed || !!d.date_only);
+    const need = d.date_only ? `（施工大約需要 ${d.duration_label || '3～5 天'}）` : `（大約需要 ${slotDurationLabel(d.duration_min)}）`;
+    const ask = single
+      ? `想請您直接點下面的連結，確認這${d.date_only ? '一天' : '個時間'}是否方便${d.date_only ? '進場' : ''}${need}：`
+      : `想請您直接點下面的連結，選一個您方便的${d.date_only ? '進場日期' : '時間'}${need}：`;
+    const wins = d.windows && d.windows.length ? d.windows : [[d.window_start, d.window_end]];
+    const whenTxt = single
+      ? `預計日期：${candidateDatesText(dates)}\n` + (d.date_only || !d.fixed ? '' : `預計時間：${d.windows[0][0]}–${d.windows[0][1]}\n`)
+      : `可選日期：${candidateDatesText(dates)}\n` + (d.fixed ? `預約時間：${d.windows[0][0]}–${d.windows[0][1]}（請選好日期，並確認這個時間可以）\n`
+          : (d.date_only ? '' : `可選時段：${wins.map(w => w[0] + '–' + w[1]).join('、')}\n`));
     const text = `您好，我是陽光伏特家的業務${d.assignee || ''}。\n`
-      + `我們要幫您安排「${(d.items || []).join('、')}」，想請您直接點下面的連結，選一個您方便的時間（大約需要 ${slotDurationLabel(d.duration_min)}）：\n${link}\n\n`
-      + `可選日期：${candidateDatesText(d.candidate_dates || [])}\n`
-      + (d.fixed ? `預約時間：${d.windows[0][0]}–${d.windows[0][1]}（請選好日期，並確認這個時間可以）\n`
-         : `可選時段：${(d.windows && d.windows.length ? d.windows : [[d.window_start, d.window_end]]).map(w => w[0] + '–' + w[1]).join('、')}\n`)
+      + `我們要幫您安排「${(d.items || []).join('、')}」，${ask}\n${link}\n\n`
+      + whenTxt
       + `如果不方便操作，直接回覆我就可以了，謝謝您！`;
     document.getElementById('slotSummaryTitle').textContent = '🏠 傳給屋主的訊息';
     const bindNote = document.getElementById('slotSummaryBindNote');
