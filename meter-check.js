@@ -2,7 +2,7 @@
 // 掛表資訊確認（2026-10-22；左側選單獨立一項，分頁：掛表案件／撤案案件）
 // 取代 Google 試算表「7月掛錶案件異動」：選月份 → 列出當月掛表的案件（掛表日期＝Airtable「進度管理」
 // 掛表里程碑的實際日期），對照「專案細節」的系統容量／工程合約電價，人工填「容量確認」「電價確認」，
-// 不一致標紅；下方記當月撤案案件＋案件狀況（同一段說明的案件合併顯示）。
+// 電價對照電價表（MC_TARIFF，北／南＋容量級距），不一致標紅；下方記當月撤案案件＋案件狀況（同一段說明的案件合併顯示）。
 // 後端：GET/POST /api/meter-check、DELETE /api/meter-check/<id>（epc-backend app.py「掛表資訊確認」區塊），
 // 人工確認值存 Airtable「掛表資訊確認」表。
 // ===================================================================
@@ -23,9 +23,40 @@ function mcSame(a, b, eps){ return a !== null && b !== null && Math.abs(a - b) <
 function mcFmt(v){ return v === null || v === undefined || v === '' ? '' : String(Number(v)); }
 function mcDate(d){ return d ? d.replace(/^(\d{4})-0?(\d+)-0?(\d+)$/, '$1/$2/$3') : ''; }
 
-// 每筆的確認狀態：待確認（還有沒填的）／不一致（填了但跟 Airtable 不同；Airtable 沒填就不算不一致）／已確認
+// ---- 電價表（2026-10-22 使用者提供「115年度第二期電費(7/1-12/31)」）----
+// 我們用最右邊兩欄：高效&模組(南)／高效&模組(北)。依掛表日期決定期別（1–6 月第一期、7–12 月第二期），
+// 依容量級距（10 kWp 以上算 10–20，以此類推）、案號裡的縣市決定北／南。
+// 新的一期電價出來時，在這裡加一筆（key＝民國年-期別）。地面型、併網高壓等加乘沒有放進來。
+const MC_TARIFF = {
+  '115-2': {south: [6.0312, 5.7704, 4.5711, 4.3543, 4.0037, 3.9066], north: [6.8754, 6.5777, 5.2087, 4.9612, 4.5610, 4.4501]},
+};
+const MC_TIERS = [10, 20, 50, 100, 500];   // 1-10／10-20／20-50／50-100／100-500／>500 kWp
+const MC_TIER_LABEL = ['1-10', '10-20', '20-50', '50-100', '100-500', '>500'];
+// 北部加乘地區（台電躉購北部地區）；其他縣市算南
+const MC_NORTH_RE = /(臺北|台北|新北|基隆|桃園|新竹|苗栗|宜蘭|花蓮)/;
+const MC_SOUTH_RE = /(臺中|台中|彰化|南投|雲林|嘉義|臺南|台南|高雄|屏東|臺東|台東|澎湖|金門|連江)/;
+
+// 回傳 {price, label} 或 {price: null, label: 原因}
+function mcTariff(c){
+  const d = /^(\d{4})-(\d{2})/.exec(c.meter_date || '');
+  if(!d) return {price: null, label: '沒有掛表日期'};
+  const period = (Number(d[1]) - 1911) + '-' + (Number(d[2]) <= 6 ? 1 : 2);
+  const t = MC_TARIFF[period];
+  if(!t) return {price: null, label: '沒有 ' + period.replace('-', ' 年第 ') + ' 期電價表'};
+  const region = MC_NORTH_RE.test(c.case_no || '') ? 'north' : MC_SOUTH_RE.test(c.case_no || '') ? 'south' : null;
+  if(!region) return {price: null, label: '案號看不出縣市'};
+  const cap = mcNum(c.cap_confirm) !== null ? mcNum(c.cap_confirm) : mcNum(c.capacity);
+  if(cap === null) return {price: null, label: '沒有容量'};
+  let i = MC_TIERS.findIndex(x => cap < x);
+  if(i < 0) i = MC_TIERS.length;
+  return {price: t[region][i], label: (region === 'north' ? '北' : '南') + ' ' + MC_TIER_LABEL[i] + ' kWp'};
+}
+// 電價確認要對照的基準：電價表算得出來就用電價表，否則用 Airtable 工程合約電價
+function mcPriceBase(c){ const t = mcTariff(c).price; return t !== null ? t : mcNum(c.price); }
+
+// 每筆的確認狀態：待確認（還有沒填的）／不一致（填了但跟基準不同；基準沒有就不算不一致）／已確認
 function mcState(c){
-  const cap = mcNum(c.capacity), capOk = mcNum(c.cap_confirm), price = mcNum(c.price), priceOk = mcNum(c.price_confirm);
+  const cap = mcNum(c.capacity), capOk = mcNum(c.cap_confirm), price = mcPriceBase(c), priceOk = mcNum(c.price_confirm);
   const capBad = capOk !== null && cap !== null && !mcSame(cap, capOk, 0.0005);
   const priceBad = priceOk !== null && price !== null && !mcSame(price, priceOk, 0.00005);
   if(capBad || priceBad) return 'bad';
@@ -94,14 +125,14 @@ function renderMeterCheck(){
   const btn = (k, label) => '<button class="cert-filter-btn ' + (mcFilter === k ? 'active' : '') + '" onclick="mcSetFilter(\'' + k + '\')">' + label + ' ' + counts[k] + '</button>';
 
   const cell = (c, kind) => {
-    const sys = mcNum(kind === 'cap' ? c.capacity : c.price);
+    const sys = kind === 'cap' ? mcNum(c.capacity) : mcPriceBase(c);
     const val = mcNum(kind === 'cap' ? c.cap_confirm : c.price_confirm);
     const eps = kind === 'cap' ? 0.0005 : 0.00005;
     const bg = val === null || sys === null ? '' : (mcSame(sys, val, eps) ? 'background:#E7F6EC;' : 'background:#FDECEC;color:#B42318;font-weight:700;');
     return '<td style="white-space:nowrap;">'
       + '<input type="number" step="any" class="quick-mark-input" style="width:92px;padding:4px 6px;' + bg + '" value="' + mcEsc(mcFmt(val)) + '"'
       + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'' + kind + '\',this.value)">'
-      + (sys !== null && !mcSame(sys, val, eps) ? ' <button class="btn btn-ghost" title="跟 Airtable 一樣" style="padding:2px 7px;font-size:12px;" onclick="mcSave(\'' + mcJs(c.case_no) + '\',\'' + kind + '\',\'' + sys + '\')">✓</button>' : '')
+      + (sys !== null && !mcSame(sys, val, eps) ? ' <button class="btn btn-ghost" title="' + (kind === 'cap' ? '跟 Airtable 一樣' : '跟電價表一樣') + '" style="padding:2px 7px;font-size:12px;" onclick="mcSave(\'' + mcJs(c.case_no) + '\',\'' + kind + '\',\'' + sys + '\')">✓</button>' : '')
       + '</td>';
   };
   const stPill = c => ({
@@ -119,24 +150,28 @@ function renderMeterCheck(){
     + '<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="mcCopyTable()">📋 複製表格</button>'
     + '</div>'
     + '<div style="overflow:auto;"><table><thead><tr>'
-    + '<th>案號</th><th>別名</th><th>掛表日期</th><th>施工廠商</th><th>容量</th><th>容量確認</th><th>工程合約電價</th><th>電價確認</th><th>備註</th><th>狀態</th>'
+    + '<th>案號</th><th>別名</th><th>掛表日期</th><th>施工廠商</th><th>容量</th><th>容量確認</th><th>電價表</th><th>Airtable<br>合約電價</th><th>電價確認</th><th>備註</th><th>狀態</th>'
     + '</tr></thead><tbody>'
     + (rows.length ? rows.map(c => '<tr>'
       + '<td style="white-space:nowrap;"><b>' + mcEsc(c.case_no) + '</b>'
       + (c.close_status && c.close_status !== '進行中' ? '<div class="cert-src">' + mcEsc(c.close_status) + '</div>' : '') + '</td>'
-      + '<td>' + mcEsc(c.alias) + '</td>'
+      + '<td style="white-space:nowrap;">' + mcEsc(c.alias) + '</td>'
       + '<td style="white-space:nowrap;">' + mcEsc(mcDate(c.meter_date)) + '</td>'
-      + '<td>' + mcEsc(c.vendor) + '</td>'
+      + '<td style="white-space:nowrap;">' + mcEsc(c.vendor) + '</td>'
       + '<td>' + (mcNum(c.capacity) === null ? '<span class="cert-src" style="color:#B54708;">未填</span>' : mcEsc(mcFmt(c.capacity))) + '</td>'
       + cell(c, 'cap')
-      + '<td>' + (mcNum(c.price) === null ? '<span class="cert-src" style="color:#B54708;">Airtable 未填</span>' : mcEsc(mcFmt(c.price))) + '</td>'
+      + (t => '<td style="white-space:nowrap;">' + (t.price === null ? '<span class="cert-src" style="color:#B54708;">' + mcEsc(t.label) + '</span>'
+        : '<b>' + mcEsc(mcFmt(t.price)) + '</b><div class="cert-src" style="font-size:11px;">' + mcEsc(t.label) + '</div>') + '</td>')(mcTariff(c))
+      + '<td>' + (mcNum(c.price) === null ? '<span class="cert-src" style="color:#B54708;">未填</span>'
+        : mcEsc(mcFmt(c.price)) + (mcTariff(c).price !== null && !mcSame(mcTariff(c).price, mcNum(c.price), 0.00005)
+          ? '<div style="font-size:11px;color:#B54708;font-weight:700;">≠ 電價表</div>' : '')) + '</td>'
       + cell(c, 'price')
       + '<td><input class="quick-mark-input" style="min-width:120px;padding:4px 6px;" value="' + mcEsc(c.note) + '" placeholder="—"'
       + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'note\',this.value)"></td>'
       + '<td style="white-space:nowrap;">' + stPill(c)
       + (c.by || c.updated ? '<div class="cert-src" style="font-size:11px;">' + mcEsc([c.by, c.updated].filter(Boolean).join(' ')) + '</div>' : '') + '</td>'
       + '</tr>').join('')
-      : '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px 0;">' + (cases.length ? '沒有符合的案件' : MC_MONTH + ' 沒有掛表的案件') + '</td></tr>')
+      : '<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:20px 0;">' + (cases.length ? '沒有符合的案件' : MC_MONTH + ' 沒有掛表的案件') + '</td></tr>')
     + '</tbody></table></div>';
   document.getElementById('mcCasesCount').textContent = '(' + cases.length + ')';
   document.getElementById('mcWdCount').textContent = '(' + ((MC_DATA.withdrawn || []).length) + ')';
@@ -259,7 +294,7 @@ function mcCopyTable(){
   if(!MC_DATA) return;
   const lines = [['案號', '別名', '掛表日期', '施工廠商', '容量', '容量確認', '工程合約電價', '電價確認', '備註'].join('\t')];
   (MC_DATA.cases || []).forEach(c => lines.push([c.case_no, c.alias, mcDate(c.meter_date), c.vendor, mcFmt(c.capacity),
-    mcFmt(c.cap_confirm), mcFmt(c.price), mcFmt(c.price_confirm), (c.note || '').replace(/\s+/g, ' ')].join('\t')));
+    mcFmt(c.cap_confirm), mcFmt(mcPriceBase(c)), mcFmt(c.price_confirm), (c.note || '').replace(/\s+/g, ' ')].join('\t')));
   if((MC_DATA.withdrawn || []).length){
     lines.push('', '撤案案件', ['案號', '別名', '容量', '施工廠商', '案件狀況'].join('\t'));
     MC_DATA.withdrawn.forEach(w => lines.push([w.case_no, w.alias, mcFmt(w.capacity), w.vendor, (w.note || '').replace(/\s+/g, ' ')].join('\t')));
