@@ -1379,9 +1379,9 @@ function slackRepMapSet(rep, id){ try{ const m = JSON.parse(localStorage.getItem
 function openSlackNotice(recordId){ return openSlackCard('booking', recordId); }
 // kind＝booking：已預約的「通知業務」卡片；task：指派任務的「請屋主預約」卡片（含要傳給屋主的訊息）
 function slackCardReq(kind, id, extra){
-  return kind === 'task'
-    ? {url: '/api/slack/task-card', body: Object.assign({task_id: id}, extra || {})}
-    : {url: '/api/slack/booking-card', body: Object.assign({booking_id: id, kind: 'rep-notice'}, extra || {})};
+  if(kind === 'task') return {url: '/api/slack/task-card', body: Object.assign({task_id: id}, extra || {})};
+  if(kind === 'joint-invite' || kind === 'joint-confirm') return {url: '/api/slack/joint-card', body: Object.assign({task_id: id, kind: kind === 'joint-confirm' ? 'confirm' : 'invite'}, extra || {})};
+  return {url: '/api/slack/booking-card', body: Object.assign({booking_id: id, kind: 'rep-notice'}, extra || {})};
 }
 async function openSlackCard(kind, recordId){
   closeSlackNotice();
@@ -1411,7 +1411,7 @@ async function openSlackCard(kind, recordId){
     let sel = slackRepMapGet(rep);
     if(!sel && rep){ const hit = ur.users.find(u => [u.name, u.display, (u.email || '').split('@')[0]].some(x => norm(x) && (norm(x).includes(norm(rep)) || norm(rep).includes(norm(x))))); if(hit) sel = hit.id; }
     box.innerHTML = head + `
-      <div style="font-size:12.5px;color:#6B7280;margin:6px 0 10px;">${kind === 'task' ? '把這張「請屋主預約」卡片（含要傳給屋主的訊息）' : '把這張「通知業務」卡片'}用 Slack 私訊傳給同事。負責業務：<b>${escHtml(rep || '（沒有指定）')}</b></div>
+      <div style="font-size:12.5px;color:#6B7280;margin:6px 0 10px;">${kind === 'task' ? '把這張「請屋主預約」卡片（含要傳給屋主的訊息）' : (kind === 'joint-invite' ? '把這張聯合排程「邀請屋主」卡片（含要傳給屋主的邀請訊息）' : (kind === 'joint-confirm' ? '把這張聯合排程「確認時間」卡片（含要傳給屋主的確認訊息）' : '把這張「通知業務」卡片'))}用 Slack 私訊傳給同事。負責業務：<b>${escHtml(rep || '（沒有指定）')}</b></div>
       <label style="font-size:12px;font-weight:700;display:block;margin-bottom:6px;">收件人（Slack）</label>
       <div id="slackSelChip" style="min-height:22px;margin-bottom:6px;"></div>
       <input type="text" class="quick-mark-input" id="slackToQ" placeholder="輸入名字、Slack 名稱或 email 的一部分來搜尋…" autocomplete="off" oninput="slackFilterUsers(this.value)">

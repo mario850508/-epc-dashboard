@@ -356,6 +356,8 @@ function renderJointDetail(){
       <td style="padding:8px 6px;font-size:11.5px;white-space:nowrap;">
         ${!t.done && !t.chosen_slot && t.invite_share_url ? `<a href="${t.invite_share_url}" target="_blank" rel="noopener" style="color:#2563EB;">📤 傳邀請給屋主</a><br>` : ''}
         ${!t.done && t.chosen_slot && t.confirm_share_url ? `<a href="${t.confirm_share_url}" target="_blank" rel="noopener" style="color:#16A34A;font-weight:700;">📤 傳確認卡給屋主</a><br>` : ''}
+        ${!t.done && !t.chosen_slot ? `<a style="cursor:pointer;color:#4A154B;font-weight:700;" onclick="openSlackCard('joint-invite', '${t.task_id}')">💬 傳邀請到 Slack</a><br>` : ''}
+        ${!t.done && t.chosen_slot ? `<a style="cursor:pointer;color:#4A154B;font-weight:700;" onclick="openSlackCard('joint-confirm', '${t.task_id}')">💬 傳確認訊息到 Slack</a><br>` : ''}
         <a style="cursor:pointer;color:#6B7280;" onclick="copyVnText(${JSON.stringify(t.invite_text).replace(/"/g, '&quot;')}, '已複製邀請訊息')">📋 複製邀請訊息</a><br>
         <a style="cursor:pointer;color:#6B7280;" onclick="copyVnText('${t.owner_link}', '已複製屋主頁連結')">🔗 複製屋主頁連結</a>
       </td>
