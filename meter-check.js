@@ -23,33 +23,60 @@ function mcSame(a, b, eps){ return a !== null && b !== null && Math.abs(a - b) <
 function mcFmt(v){ return v === null || v === undefined || v === '' ? '' : String(Number(v)); }
 function mcDate(d){ return d ? d.replace(/^(\d{4})-0?(\d+)-0?(\d+)$/, '$1/$2/$3') : ''; }
 
-// ---- 電價表（2026-10-22 使用者提供「115年度第二期電費(7/1-12/31)」）----
-// 我們用最右邊兩欄：高效&模組(南)／高效&模組(北)。依掛表日期決定期別（1–6 月第一期、7–12 月第二期），
+// ---- 電價表（2026-10-22 使用者提供 115 年度第一期(1/1-6/30)、第二期(7/1-12/31)）----
+// 我們用最右邊兩欄：高效&模組(南)／高效&模組(北)。期別（1–6 月第一期、7–12 月第二期）看哪一天：
+//   掛表日在同意備案日 4 個月內 → 用同意備案日那一期；超過 4 個月 → 用掛表日那一期（電價可能已經掉了）。
 // 依容量級距（10 kWp 以上算 10–20，以此類推）、案號裡的縣市決定北／南。
 // 新的一期電價出來時，在這裡加一筆（key＝民國年-期別）。地面型、併網高壓等加乘沒有放進來。
 const MC_TARIFF = {
+  '115-1': {south: [6.0312, 5.7704, 4.5711, 4.3543, 4.0037, 3.9066], north: [6.8754, 6.5777, 5.2087, 4.9612, 4.5610, 4.4501]},
   '115-2': {south: [6.0312, 5.7704, 4.5711, 4.3543, 4.0037, 3.9066], north: [6.8754, 6.5777, 5.2087, 4.9612, 4.5610, 4.4501]},
 };
 const MC_TIERS = [10, 20, 50, 100, 500];   // 1-10／10-20／20-50／50-100／100-500／>500 kWp
 const MC_TIER_LABEL = ['1-10', '10-20', '20-50', '50-100', '100-500', '>500'];
-// 北部加乘地區（台電躉購北部地區）；其他縣市算南
+// 北部加乘地區（台電躉購北部地區；宜蘭使用者確認算北）；其他縣市算南
 const MC_NORTH_RE = /(臺北|台北|新北|基隆|桃園|新竹|苗栗|宜蘭|花蓮)/;
 const MC_SOUTH_RE = /(臺中|台中|彰化|南投|雲林|嘉義|臺南|台南|高雄|屏東|臺東|台東|澎湖|金門|連江)/;
 
-// 回傳 {price, label} 或 {price: null, label: 原因}
+function mcPeriod(date){
+  const d = /^(\d{4})-(\d{2})/.exec(date || '');
+  return d ? (Number(d[1]) - 1911) + '-' + (Number(d[2]) <= 6 ? 1 : 2) : '';
+}
+function mcPeriodName(p){ return p.replace('-', ' 年第') + '期'; }
+// 同意備案日加 4 個月（月底遇到短月份就取那個月最後一天）
+function mcAddMonths(date, n){
+  const [y, m, d] = date.split('-').map(Number);
+  const last = new Date(y, m - 1 + n + 1, 0).getDate();
+  const t = new Date(y, m - 1 + n, Math.min(d, last));
+  return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+}
+function mcPriceAt(period, region, tier){ const t = MC_TARIFF[period]; return t ? t[region][tier] : null; }
+
+// 回傳 {price, label, basis, dropped} 或 {price: null, label: 原因}
+//   basis：電價依據說明；dropped：超過同備 4 個月、掛表那期比同備那期便宜時 {from, to}
 function mcTariff(c){
-  const d = /^(\d{4})-(\d{2})/.exec(c.meter_date || '');
-  if(!d) return {price: null, label: '沒有掛表日期'};
-  const period = (Number(d[1]) - 1911) + '-' + (Number(d[2]) <= 6 ? 1 : 2);
-  const t = MC_TARIFF[period];
-  if(!t) return {price: null, label: '沒有 ' + period.replace('-', ' 年第 ') + ' 期電價表'};
+  if(!c.meter_date) return {price: null, label: '沒有掛表日期'};
   const region = MC_NORTH_RE.test(c.case_no || '') ? 'north' : MC_SOUTH_RE.test(c.case_no || '') ? 'south' : null;
   if(!region) return {price: null, label: '案號看不出縣市'};
   const cap = mcNum(c.cap_confirm) !== null ? mcNum(c.cap_confirm) : mcNum(c.capacity);
   if(cap === null) return {price: null, label: '沒有容量'};
-  let i = MC_TIERS.findIndex(x => cap < x);
-  if(i < 0) i = MC_TIERS.length;
-  return {price: t[region][i], label: (region === 'north' ? '北' : '南') + ' ' + MC_TIER_LABEL[i] + ' kWp'};
+  let tier = MC_TIERS.findIndex(x => cap < x);
+  if(tier < 0) tier = MC_TIERS.length;
+  const meterP = mcPeriod(c.meter_date);
+  let period = meterP, basis, dropped = null;
+  if(!c.agree_date){
+    basis = '沒有同備日，依掛表日';
+  }else if(c.meter_date <= mcAddMonths(c.agree_date, 4)){
+    period = mcPeriod(c.agree_date);
+    basis = '同備 ' + mcDate(c.agree_date) + '，4 個月內掛表';
+  }else{
+    basis = '同備 ' + mcDate(c.agree_date) + '，超過 4 個月，依掛表日';
+    const was = mcPriceAt(mcPeriod(c.agree_date), region, tier), now = mcPriceAt(meterP, region, tier);
+    if(was !== null && now !== null && now < was) dropped = {from: was, to: now};
+  }
+  const price = mcPriceAt(period, region, tier);
+  if(price === null) return {price: null, label: '沒有 ' + mcPeriodName(period) + '電價表', basis};
+  return {price, label: mcPeriodName(period) + '・' + (region === 'north' ? '北' : '南') + ' ' + MC_TIER_LABEL[tier] + ' kWp', basis, dropped};
 }
 // 電價確認要對照的基準：電價表算得出來就用電價表，否則用 Airtable 工程合約電價
 function mcPriceBase(c){ const t = mcTariff(c).price; return t !== null ? t : mcNum(c.price); }
@@ -117,9 +144,9 @@ function renderMeterCheck(){
   if(!box || !MC_DATA) return;
   const cases = MC_DATA.cases || [];
   const kw = ((document.getElementById('mcSearch') || {}).value || '').trim().replace(/台/g, '臺');
-  const counts = {all: cases.length, todo: 0, bad: 0, ok: 0};
-  cases.forEach(c => counts[mcState(c)]++);
-  let rows = mcFilter === 'all' ? cases : cases.filter(c => mcState(c) === mcFilter);
+  const counts = {all: cases.length, todo: 0, bad: 0, ok: 0, drop: 0};
+  cases.forEach(c => { counts[mcState(c)]++; if(mcTariff(c).dropped) counts.drop++; });
+  let rows = mcFilter === 'all' ? cases : mcFilter === 'drop' ? cases.filter(c => mcTariff(c).dropped) : cases.filter(c => mcState(c) === mcFilter);
   if(kw) rows = rows.filter(c => [c.case_no, c.alias, c.vendor].some(v => String(v || '').replace(/台/g, '臺').includes(kw)));
   const totalCap = cases.reduce((s, c) => s + (mcNum(c.capacity) || 0), 0);
   const btn = (k, label) => '<button class="cert-filter-btn ' + (mcFilter === k ? 'active' : '') + '" onclick="mcSetFilter(\'' + k + '\')">' + label + ' ' + counts[k] + '</button>';
@@ -144,7 +171,7 @@ function renderMeterCheck(){
   const keep = document.activeElement && document.activeElement.id === 'mcSearch';
   const draft = ['mcWdCases', 'mcWdNote'].map(id => (document.getElementById(id) || {}).value || '');
   box.innerHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">'
-    + btn('all', '全部') + btn('todo', '待確認') + btn('bad', '不一致') + btn('ok', '已確認')
+    + btn('all', '全部') + btn('todo', '待確認') + btn('bad', '不一致') + btn('ok', '已確認') + (counts.drop ? btn('drop', '⚠️ 電價掉了') : '')
     + '<input id="mcSearch" class="quick-mark-input" placeholder="搜尋案號、別名、廠商…" value="' + mcEsc(kw) + '" oninput="renderMeterCheck()" style="max-width:220px;">'
     + '<span class="cert-src" style="margin-left:auto;">共 ' + cases.length + ' 件・總容量 ' + (Math.round(totalCap * 1000) / 1000) + ' kW</span>'
     + '<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="mcCopyTable()">📋 複製表格</button>'
@@ -161,7 +188,10 @@ function renderMeterCheck(){
       + '<td>' + (mcNum(c.capacity) === null ? '<span class="cert-src" style="color:#B54708;">未填</span>' : mcEsc(mcFmt(c.capacity))) + '</td>'
       + cell(c, 'cap')
       + (t => '<td style="white-space:nowrap;">' + (t.price === null ? '<span class="cert-src" style="color:#B54708;">' + mcEsc(t.label) + '</span>'
-        : '<b>' + mcEsc(mcFmt(t.price)) + '</b><div class="cert-src" style="font-size:11px;">' + mcEsc(t.label) + '</div>') + '</td>')(mcTariff(c))
+        : '<b>' + mcEsc(mcFmt(t.price)) + '</b><div class="cert-src" style="font-size:11px;">' + mcEsc(t.label) + '</div>')
+        + (t.basis ? '<div class="cert-src" style="font-size:11px;">' + mcEsc(t.basis) + '</div>' : '')
+        + (t.dropped ? '<div style="font-size:11px;color:#B42318;font-weight:700;">⚠️ 電價掉了 ' + mcEsc(mcFmt(t.dropped.from)) + ' → ' + mcEsc(mcFmt(t.dropped.to)) + '</div>' : '')
+        + '</td>')(mcTariff(c))
       + '<td>' + (mcNum(c.price) === null ? '<span class="cert-src" style="color:#B54708;">未填</span>'
         : mcEsc(mcFmt(c.price)) + (mcTariff(c).price !== null && !mcSame(mcTariff(c).price, mcNum(c.price), 0.00005)
           ? '<div style="font-size:11px;color:#B54708;font-weight:700;">≠ 電價表</div>' : '')) + '</td>'
