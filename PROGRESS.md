@@ -96,6 +96,14 @@
 - 資料來源：使用者電腦上的 Claude 排程 `cps-inverter-cert-sync`（每天 09:00，用使用者的 Chrome 抓 CPSDrive → 歸檔 G 槽 → 用 Airtable MCP 寫這張表）。腳本在 `OneDrive\桌面iles\cps_cert_sync\`。後端在 Render 看不到 G 槽，所以不由後端寫入。
 - 2026-10-07 加：點案號（或 ✏️ 改名）開懸浮視窗：PDF 預覽（Airtable 附件）、放置資料夾檔案清單（目前檔案標亮）、改檔名。改名流程：主控台 `POST /api/procurement/inverter-certs/<id>/rename` 寫「改名為」→ 使用者電腦的 Windows 工作排程「陽光_出廠證明小幫手」每分鐘跑 `cps_cert_sync\cert_agent.py` 在 G 槽改名、清空「改名為」、寫「改名結果」、重傳附件、更新清單；前端每 10 秒輪詢到套用完。電腦關機時改名會排隊等開機。
 
+## 掛表資訊確認（2026-10-22）
+- 使用者要把 Google 試算表「掛表案件資訊確認 → 7月掛錶案件異動」的功能搬進主控台。新頁：EPC 出貨／進場排程 → 「掛表資訊確認」（`meter-check.js`）。
+- 選月份（預設上個月，記在 localStorage `mcMonth`）→ 自動列出當月掛表案件：掛表日期＝「進度管理」掛表里程碑實際日期；容量＝專案細節「系統容量」`fldQwb2qdQiYN3fIi`；工程合約電價＝`fldzJoM0X3Gcnfq3z`（有些案件 Airtable 沒填，例：工程彰化5號）。
+- 人工填「容量確認」「電價確認」（✓＝跟 Airtable 一樣）、備註；不一致標紅；Airtable 沒填的不算不一致。篩選 全部／待確認／不一致／已確認；「📋 複製表格」貼回試算表。
+- 撤案案件：手動加案號＋案件狀況，同一段說明合併顯示、可一起改。
+- 後端：`GET/POST /api/meter-check`、`DELETE /api/meter-check/<id>`；Airtable 新表「掛表資訊確認」`tblLm4MbcByd2VrV8`（月份／案號／類型 掛表|撤案／容量確認／電價確認／備註／確認人（取 PDF 頁「我是」）／更新時間）。
+- 試算表最右邊那欄（截圖只看到「原始…」）沒搬，待使用者說明用途。7 月的舊確認值沒有匯入。
+
 ## 待辦／觀察中
 - **啟用登入保護**：Render 設 `DASHBOARD_PASSWORD`（可選 `SERVICE_KEY`）；啟用後通知同事密碼。啟用前確認 Claude 排程／其他對話的呼叫端有帶 `X-Service-Key`；PDF 背景程式更新帶金鑰後再開 `AUTH_ENFORCE_MACHINE=1`。
 - 首頁後續可加：LINE 通知送達紀錄、業務逾期升級提醒、日曆顯示時段預約。

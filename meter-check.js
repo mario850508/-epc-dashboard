@@ -1,0 +1,253 @@
+// ===================================================================
+// EPC → 掛表資訊確認（2026-10-22）
+// 取代 Google 試算表「7月掛錶案件異動」：選月份 → 列出當月掛表的案件（掛表日期＝Airtable「進度管理」
+// 掛表里程碑的實際日期），對照「專案細節」的系統容量／工程合約電價，人工填「容量確認」「電價確認」，
+// 不一致標紅；下方記當月撤案案件＋案件狀況（同一段說明的案件合併顯示）。
+// 後端：GET/POST /api/meter-check、DELETE /api/meter-check/<id>（epc-backend app.py「掛表資訊確認」區塊），
+// 人工確認值存 Airtable「掛表資訊確認」表。
+// ===================================================================
+let MC_DATA = null;
+let mcFilter = 'all';
+let MC_MONTH = (function(){
+  try{ const m = localStorage.getItem('mcMonth'); if(/^\d{4}-\d{2}$/.test(m || '')) return m; }catch(e){}
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);   // 預設上個月（通常是確認上個月掛表的案件）
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+})();
+
+function mcEsc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function mcJs(v){ return mcEsc(String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/'/g, "\\'")); }
+function mcMe(){ try{ return localStorage.getItem('pdfPm') || ''; }catch(e){ return ''; } }
+function mcNum(v){ return (v === null || v === undefined || v === '') ? null : Number(v); }
+function mcSame(a, b, eps){ return a !== null && b !== null && Math.abs(a - b) < eps; }
+function mcFmt(v){ return v === null || v === undefined || v === '' ? '' : String(Number(v)); }
+function mcDate(d){ return d ? d.replace(/^(\d{4})-0?(\d+)-0?(\d+)$/, '$1/$2/$3') : ''; }
+
+// 每筆的確認狀態：待確認（還有沒填的）／不一致（填了但跟 Airtable 不同；Airtable 沒填就不算不一致）／已確認
+function mcState(c){
+  const cap = mcNum(c.capacity), capOk = mcNum(c.cap_confirm), price = mcNum(c.price), priceOk = mcNum(c.price_confirm);
+  const capBad = capOk !== null && cap !== null && !mcSame(cap, capOk, 0.0005);
+  const priceBad = priceOk !== null && price !== null && !mcSame(price, priceOk, 0.00005);
+  if(capBad || priceBad) return 'bad';
+  if(capOk === null || priceOk === null) return 'todo';
+  return 'ok';
+}
+
+async function loadMeterCheck(){
+  const box = document.getElementById('mcBox');
+  if(!box) return;
+  const m = document.getElementById('mcMonth');
+  if(m) m.value = MC_MONTH;
+  box.innerHTML = '<div class="login-note">載入 ' + mcEsc(MC_MONTH) + ' 掛表案件…</div>';
+  try{
+    const res = await fetch(API_BASE + '/api/meter-check?month=' + encodeURIComponent(MC_MONTH), {cache: 'no-store'});
+    const d = await res.json();
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    if(d.month !== MC_MONTH) return;   // 載入途中又換了月份
+    MC_DATA = d;
+  }catch(e){
+    box.innerHTML = '<div class="login-note">載入失敗：' + mcEsc(e.message) + '</div>';
+    return;
+  }
+  renderMeterCheck();
+}
+
+function mcSetMonth(v){
+  if(!/^\d{4}-\d{2}$/.test(v || '')) return;
+  MC_MONTH = v;
+  try{ localStorage.setItem('mcMonth', v); }catch(e){}
+  MC_DATA = null;
+  loadMeterCheck();
+}
+function mcShiftMonth(delta){
+  const [y, m] = MC_MONTH.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  mcSetMonth(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+}
+function mcSetFilter(k){ mcFilter = k; renderMeterCheck(); }
+
+function renderMeterCheck(){
+  const box = document.getElementById('mcBox');
+  if(!box || !MC_DATA) return;
+  const cases = MC_DATA.cases || [];
+  const kw = ((document.getElementById('mcSearch') || {}).value || '').trim().replace(/台/g, '臺');
+  const counts = {all: cases.length, todo: 0, bad: 0, ok: 0};
+  cases.forEach(c => counts[mcState(c)]++);
+  let rows = mcFilter === 'all' ? cases : cases.filter(c => mcState(c) === mcFilter);
+  if(kw) rows = rows.filter(c => [c.case_no, c.alias, c.vendor].some(v => String(v || '').replace(/台/g, '臺').includes(kw)));
+  const totalCap = cases.reduce((s, c) => s + (mcNum(c.capacity) || 0), 0);
+  const btn = (k, label) => '<button class="cert-filter-btn ' + (mcFilter === k ? 'active' : '') + '" onclick="mcSetFilter(\'' + k + '\')">' + label + ' ' + counts[k] + '</button>';
+
+  const cell = (c, kind) => {
+    const sys = mcNum(kind === 'cap' ? c.capacity : c.price);
+    const val = mcNum(kind === 'cap' ? c.cap_confirm : c.price_confirm);
+    const eps = kind === 'cap' ? 0.0005 : 0.00005;
+    const bg = val === null || sys === null ? '' : (mcSame(sys, val, eps) ? 'background:#E7F6EC;' : 'background:#FDECEC;color:#B42318;font-weight:700;');
+    return '<td style="white-space:nowrap;">'
+      + '<input type="number" step="any" class="quick-mark-input" style="width:92px;padding:4px 6px;' + bg + '" value="' + mcEsc(mcFmt(val)) + '"'
+      + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'' + kind + '\',this.value)">'
+      + (sys !== null && !mcSame(sys, val, eps) ? ' <button class="btn btn-ghost" title="跟 Airtable 一樣" style="padding:2px 7px;font-size:12px;" onclick="mcSave(\'' + mcJs(c.case_no) + '\',\'' + kind + '\',\'' + sys + '\')">✓</button>' : '')
+      + '</td>';
+  };
+  const stPill = c => ({
+    ok: '<span class="ops-status-pill ops-status-done">已確認</span>',
+    bad: '<span class="ops-status-pill" style="background:#FDECEC;color:#B42318;">不一致</span>',
+    todo: '<span class="ops-status-pill ops-status-pending">待確認</span>',
+  })[mcState(c)];
+
+  const keep = document.activeElement && document.activeElement.id === 'mcSearch';
+  const draft = ['mcWdCases', 'mcWdNote'].map(id => (document.getElementById(id) || {}).value || '');
+  box.innerHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">'
+    + btn('all', '全部') + btn('todo', '待確認') + btn('bad', '不一致') + btn('ok', '已確認')
+    + '<input id="mcSearch" class="quick-mark-input" placeholder="搜尋案號、別名、廠商…" value="' + mcEsc(kw) + '" oninput="renderMeterCheck()" style="max-width:220px;">'
+    + '<span class="cert-src" style="margin-left:auto;">共 ' + cases.length + ' 件・總容量 ' + (Math.round(totalCap * 1000) / 1000) + ' kW</span>'
+    + '<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="mcCopyTable()">📋 複製表格</button>'
+    + '</div>'
+    + '<div style="overflow:auto;"><table><thead><tr>'
+    + '<th>案號</th><th>別名</th><th>掛表日期</th><th>施工廠商</th><th>容量</th><th>容量確認</th><th>工程合約電價</th><th>電價確認</th><th>備註</th><th>狀態</th>'
+    + '</tr></thead><tbody>'
+    + (rows.length ? rows.map(c => '<tr>'
+      + '<td style="white-space:nowrap;"><b>' + mcEsc(c.case_no) + '</b>'
+      + (c.close_status && c.close_status !== '進行中' ? '<div class="cert-src">' + mcEsc(c.close_status) + '</div>' : '') + '</td>'
+      + '<td>' + mcEsc(c.alias) + '</td>'
+      + '<td style="white-space:nowrap;">' + mcEsc(mcDate(c.meter_date)) + '</td>'
+      + '<td>' + mcEsc(c.vendor) + '</td>'
+      + '<td>' + (mcNum(c.capacity) === null ? '<span class="cert-src" style="color:#B54708;">未填</span>' : mcEsc(mcFmt(c.capacity))) + '</td>'
+      + cell(c, 'cap')
+      + '<td>' + (mcNum(c.price) === null ? '<span class="cert-src" style="color:#B54708;">Airtable 未填</span>' : mcEsc(mcFmt(c.price))) + '</td>'
+      + cell(c, 'price')
+      + '<td><input class="quick-mark-input" style="min-width:120px;padding:4px 6px;" value="' + mcEsc(c.note) + '" placeholder="—"'
+      + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'note\',this.value)"></td>'
+      + '<td style="white-space:nowrap;">' + stPill(c)
+      + (c.by || c.updated ? '<div class="cert-src" style="font-size:11px;">' + mcEsc([c.by, c.updated].filter(Boolean).join(' ')) + '</div>' : '') + '</td>'
+      + '</tr>').join('')
+      : '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px 0;">' + (cases.length ? '沒有符合的案件' : MC_MONTH + ' 沒有掛表的案件') + '</td></tr>')
+    + '</tbody></table></div>'
+    + renderMcWithdrawn();
+  ['mcWdCases', 'mcWdNote'].forEach((id, i) => { if(draft[i]) document.getElementById(id).value = draft[i]; });
+  if(keep){ const el = document.getElementById('mcSearch'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+}
+
+// 撤案案件：同一段「案件狀況」的案件合併成一格（跟試算表一樣），可以改說明、加案件、移除
+function renderMcWithdrawn(){
+  const list = (MC_DATA && MC_DATA.withdrawn) || [];
+  const groups = mcGroups();
+  let body = '';
+  groups.forEach((g, gi) => {
+    g.items.forEach((w, i) => {
+      body += '<tr>'
+        + '<td style="white-space:nowrap;"><b>' + mcEsc(w.case_no) + '</b>'
+        + (w.close_status ? '<div class="cert-src">' + mcEsc(w.close_status) + '</div>' : '') + '</td>'
+        + '<td>' + mcEsc(w.alias) + '</td><td>' + mcEsc(mcFmt(w.capacity)) + '</td><td>' + mcEsc(w.vendor) + '</td>'
+        + (i === 0 ? '<td rowspan="' + g.items.length + '" style="white-space:pre-wrap;vertical-align:top;font-size:12.5px;line-height:1.6;">'
+          + (g.note ? mcEsc(g.note) : '<span class="cert-src">（沒有說明）</span>')
+          + '<div><button class="btn btn-ghost" style="padding:2px 8px;font-size:12px;margin-top:4px;" onclick="mcEditGroupNote(' + gi + ')">✏️ 修改說明</button></div></td>' : '')
+        + '<td><button class="btn btn-ghost" style="padding:2px 8px;font-size:12px;" onclick="mcRemoveWithdrawn(\'' + mcJs(w.check_id) + '\',\'' + mcJs(w.case_no) + '\')">🗑</button></td>'
+        + '</tr>';
+    });
+  });
+  return '<div style="margin-top:22px;">'
+    + '<div class="panel-title">撤案案件 <span class="module-tag tag-cloud" style="margin-left:6px;">共 ' + list.length + ' 筆</span></div>'
+    + '<div style="overflow:auto;"><table><thead><tr><th>案號</th><th>別名</th><th>容量</th><th>施工廠商</th><th style="min-width:280px;">案件狀況</th><th></th></tr></thead><tbody>'
+    + (body || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px 0;">' + mcEsc(MC_MONTH) + ' 還沒有記錄撤案案件</td></tr>')
+    + '</tbody></table></div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;margin-top:10px;">'
+    + '<textarea id="mcWdCases" class="quick-mark-input" rows="3" style="max-width:220px;font-family:inherit;" placeholder="案號（多筆用換行或逗號分開）&#10;例：潤特臺中8號"></textarea>'
+    + '<textarea id="mcWdNote" class="quick-mark-input" rows="3" style="flex:1;min-width:240px;font-family:inherit;" placeholder="案件狀況（同一個原因的案件一起加，會合併顯示）"></textarea>'
+    + (groups.length ? '<select id="mcWdGroup" class="quick-mark-input" style="max-width:200px;" onchange="mcPickGroup(this.value)"><option value="">或沿用已有的說明…</option>'
+      + groups.map((g, i) => '<option value="' + i + '">' + mcEsc((g.note || '（沒有說明）').slice(0, 24)) + '</option>').join('') + '</select>' : '')
+    + '<button class="btn btn-primary" style="padding:6px 14px;" onclick="mcAddWithdrawn()">＋ 加入撤案案件</button>'
+    + '</div></div>';
+}
+
+function mcGroups(){
+  const groups = [];
+  ((MC_DATA && MC_DATA.withdrawn) || []).forEach(w => {
+    const g = groups.find(x => x.note === w.note);
+    if(g) g.items.push(w); else groups.push({note: w.note, items: [w]});
+  });
+  return groups;
+}
+function mcPickGroup(i){
+  const g = mcGroups()[Number(i)];
+  if(g) document.getElementById('mcWdNote').value = g.note;
+}
+
+async function mcPost(body){
+  const res = await fetch(API_BASE + '/api/meter-check', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(Object.assign({month: MC_MONTH, by: mcMe()}, body)),
+  });
+  const d = await res.json().catch(() => ({}));
+  if(!res.ok || d.error) throw new Error(d.error || res.status);
+  return d;
+}
+
+async function mcSave(caseNo, kind, value){
+  const c = (MC_DATA.cases || []).find(x => x.case_no === caseNo);
+  if(!c) return;
+  const key = {cap: 'cap_confirm', price: 'price_confirm', note: 'note'}[kind];
+  const v = kind === 'note' ? String(value || '').trim() : (String(value).trim() === '' ? null : Number(value));
+  if(kind !== 'note' && v !== null && isNaN(v)){ showToast('請輸入數字'); return; }
+  const old = c[key];
+  c[key] = v;
+  renderMeterCheck();
+  try{
+    const d = await mcPost({case_no: caseNo, kind: '掛表', [key]: v});
+    c.check_id = d.check_id;
+    c.by = mcMe();
+  }catch(e){
+    c[key] = old;
+    renderMeterCheck();
+    showToast('儲存失敗：' + e.message);
+  }
+}
+
+async function mcAddWithdrawn(){
+  const nos = (document.getElementById('mcWdCases').value || '').split(/[\n,，、]+/).map(s => s.trim()).filter(Boolean);
+  const note = (document.getElementById('mcWdNote').value || '').trim();
+  if(!nos.length){ showToast('請輸入案號'); return; }
+  try{
+    for(const n of nos) await mcPost({case_no: n, kind: '撤案', note});
+    document.getElementById('mcWdCases').value = '';
+    document.getElementById('mcWdNote').value = '';
+    showToast('已加入 ' + nos.length + ' 筆撤案案件');
+    loadMeterCheck();
+  }catch(e){ showToast('加入失敗：' + e.message); }
+}
+
+async function mcEditGroupNote(gi){
+  const g = mcGroups()[gi];
+  if(!g) return;
+  const note = prompt('修改這 ' + g.items.length + ' 筆撤案案件的案件狀況：', g.note || '');
+  if(note === null) return;
+  try{
+    for(const w of g.items) await mcPost({case_no: w.case_no, kind: '撤案', note: note.trim()});
+    loadMeterCheck();
+  }catch(e){ showToast('儲存失敗：' + e.message); }
+}
+
+async function mcRemoveWithdrawn(id, caseNo){
+  if(!id || !confirm('從 ' + MC_MONTH + ' 撤案案件移除 ' + caseNo + '？（不會改 Airtable 案件本身）')) return;
+  try{
+    const res = await fetch(API_BASE + '/api/meter-check/' + encodeURIComponent(id), {method: 'DELETE'});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    loadMeterCheck();
+  }catch(e){ showToast('移除失敗：' + e.message); }
+}
+
+// 複製成 Tab 分隔，可以直接貼回 Google 試算表／Excel（欄位順序跟原本試算表一樣）
+function mcCopyTable(){
+  if(!MC_DATA) return;
+  const lines = [['案號', '別名', '掛表日期', '施工廠商', '容量', '容量確認', '工程合約電價', '電價確認', '備註'].join('\t')];
+  (MC_DATA.cases || []).forEach(c => lines.push([c.case_no, c.alias, mcDate(c.meter_date), c.vendor, mcFmt(c.capacity),
+    mcFmt(c.cap_confirm), mcFmt(c.price), mcFmt(c.price_confirm), (c.note || '').replace(/\s+/g, ' ')].join('\t')));
+  if((MC_DATA.withdrawn || []).length){
+    lines.push('', '撤案案件', ['案號', '別名', '容量', '施工廠商', '案件狀況'].join('\t'));
+    MC_DATA.withdrawn.forEach(w => lines.push([w.case_no, w.alias, mcFmt(w.capacity), w.vendor, (w.note || '').replace(/\s+/g, ' ')].join('\t')));
+  }
+  navigator.clipboard.writeText(lines.join('\n')).then(() => showToast('已複製，可以直接貼到試算表'), () => showToast('複製失敗'));
+}
+
+// 重新整理頁面時如果停在這一頁（導覽狀態還原比這支檔案早執行），補載入一次
+if(document.getElementById('tab-epc-metercheck') && document.getElementById('tab-epc-metercheck').classList.contains('active')) loadMeterCheck();
