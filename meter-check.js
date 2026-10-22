@@ -56,8 +56,11 @@ function mcPriceAt(period, region, tier){ const t = MC_TARIFF[period]; return t 
 //   basis：電價依據說明；dropped：超過同備 4 個月、掛表那期比同備那期便宜時 {from, to}
 function mcTariff(c){
   if(!c.meter_date) return {price: null, label: '沒有掛表日期'};
-  const region = MC_NORTH_RE.test(c.case_no || '') ? 'north' : MC_SOUTH_RE.test(c.case_no || '') ? 'south' : null;
-  if(!region) return {price: null, label: '案號看不出縣市'};
+  // 先看案號的縣市；看不出來（例：安南怡安謝秉翰）就看地址（後端給：業務自治區 A01資訊 → Airtable → 場勘）
+  const regionOf = t => MC_NORTH_RE.test(t || '') ? 'north' : MC_SOUTH_RE.test(t || '') ? 'south' : null;
+  let region = regionOf(c.case_no), byAddr = false;
+  if(!region){ region = regionOf(c.address); byAddr = !!region; }
+  if(!region) return {price: null, label: c.address ? '地址看不出縣市：' + c.address : '案號看不出縣市、也沒有地址'};
   const cap = mcNum(c.cap_confirm) !== null ? mcNum(c.cap_confirm) : mcNum(c.capacity);
   if(cap === null) return {price: null, label: '沒有容量'};
   let tier = MC_TIERS.findIndex(x => cap < x);
@@ -76,7 +79,7 @@ function mcTariff(c){
   }
   const price = mcPriceAt(period, region, tier);
   if(price === null) return {price: null, label: '沒有 ' + mcPeriodName(period) + '電價表', basis};
-  return {price, label: mcPeriodName(period) + '・' + (region === 'north' ? '北' : '南') + ' ' + MC_TIER_LABEL[tier] + ' kWp', basis, dropped};
+  return {price, label: mcPeriodName(period) + '・' + (region === 'north' ? '北' : '南') + (byAddr ? '（依地址）' : '') + ' ' + MC_TIER_LABEL[tier] + ' kWp', basis, dropped};
 }
 // 電價確認要對照的基準：電價表算得出來就用電價表，否則用 Airtable 工程合約電價
 function mcPriceBase(c){ const t = mcTariff(c).price; return t !== null ? t : mcNum(c.price); }
