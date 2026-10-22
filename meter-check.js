@@ -198,7 +198,7 @@ function renderMeterCheck(){
     + '<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="mcCopyTable()">📋 複製表格</button>'
     + '</div>'
     + '<div style="overflow:auto;"><table><thead><tr>'
-    + '<th>案號</th><th>別名</th><th>掛表日期</th><th>施工廠商</th><th>容量</th><th>容量確認</th><th>電價表</th><th>Airtable<br>合約電價</th><th>電價確認</th><th>備註</th><th>狀態</th>'
+    + '<th>案號</th><th>別名</th><th>掛表日期</th><th>施工廠商</th><th>容量</th><th>容量確認</th><th>電價</th><th>電價確認</th><th>備註</th><th>狀態</th>'
     + '</tr></thead><tbody>'
     + (rows.length ? rows.map(c => '<tr>'
       + '<td style="white-space:nowrap;"><b>' + mcEsc(c.case_no) + '</b>'
@@ -208,21 +208,21 @@ function renderMeterCheck(){
       + '<td style="white-space:nowrap;">' + mcEsc(c.vendor) + '</td>'
       + '<td>' + (mcNum(c.capacity) === null ? '<span class="cert-src" style="color:#B54708;">未填</span>' : mcEsc(mcFmt(c.capacity))) + '</td>'
       + cell(c, 'cap')
-      + (t => '<td style="white-space:nowrap;">' + (t.price === null ? '<span class="cert-src" style="color:#B54708;">' + mcEsc(t.label) + '</span>'
-        : '<b>' + mcEsc(mcFmt(t.price)) + '</b><div class="cert-src" style="font-size:11px;">' + mcEsc(t.label) + '</div>')
+      // 電價依規則（電價表＋同備 4 個月）算；算不出來才退回 Airtable 工程合約電價（2026-10-22 使用者：Airtable 那欄不用顯示）
+      + (t => '<td style="white-space:nowrap;">' + (t.price === null
+          ? (mcNum(c.price) !== null ? '<b>' + mcEsc(mcFmt(c.price)) + '</b><div class="cert-src" style="font-size:11px;color:#B54708;">依 Airtable（' + mcEsc(t.label) + '）</div>'
+            : '<span class="cert-src" style="color:#B54708;">' + mcEsc(t.label) + '</span>')
+          : '<b>' + mcEsc(mcFmt(t.price)) + '</b><div class="cert-src" style="font-size:11px;">' + mcEsc(t.label) + '</div>')
         + (t.basis ? '<div class="cert-src" style="font-size:11px;">' + mcEsc(t.basis) + '</div>' : '')
         + (t.dropped ? '<div style="font-size:11px;color:#B42318;font-weight:700;">⚠️ 電價掉了 ' + mcEsc(mcFmt(t.dropped.from)) + ' → ' + mcEsc(mcFmt(t.dropped.to)) + '</div>' : '')
         + '</td>')(mcTariff(c))
-      + '<td>' + (mcNum(c.price) === null ? '<span class="cert-src" style="color:#B54708;">未填</span>'
-        : mcEsc(mcFmt(c.price)) + (mcTariff(c).price !== null && !mcSame(mcTariff(c).price, mcNum(c.price), 0.00005)
-          ? '<div style="font-size:11px;color:#B54708;font-weight:700;">≠ 電價表</div>' : '')) + '</td>'
       + cell(c, 'price')
       + '<td><input class="quick-mark-input" style="min-width:120px;padding:4px 6px;" value="' + mcEsc(c.note) + '" placeholder="—"'
       + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'note\',this.value)"></td>'
       + '<td style="white-space:nowrap;">' + stPill(c)
       + (c.by || c.updated ? '<div class="cert-src" style="font-size:11px;">' + mcEsc([c.by, c.updated].filter(Boolean).join(' ')) + '</div>' : '') + '</td>'
       + '</tr>').join('')
-      : '<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:20px 0;">' + (cases.length ? '沒有符合的案件' : MC_MONTH + ' 沒有掛表的案件') + '</td></tr>')
+      : '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px 0;">' + (cases.length ? '沒有符合的案件' : MC_MONTH + ' 沒有掛表的案件') + '</td></tr>')
     + '</tbody></table></div>';
   document.getElementById('mcCasesCount').textContent = '(' + cases.length + ')';
   document.getElementById('mcWdCount').textContent = '(' + ((MC_DATA.withdrawn || []).length) + ')';
