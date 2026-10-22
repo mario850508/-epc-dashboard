@@ -487,14 +487,16 @@ function renderGroup(){
     const days = g.prefs.filter(p => p.tier === tiers[G.ti]);
     const hasPick = Object.keys(G.picks).length > 0;
     body = `<div class="step" style="margin-top:0;"><span class="n">${G.ti + 1}</span>${NTH[G.ti]}期望日期</div>
-      <div class="lead">施工團隊預計在下面${days.length > 1 ? '這幾天其中一天' : '這一天'}到現場。${days.length > 1 ? '<b>可以選好幾天</b>，' : ''}請在您方便的${days.length > 1 ? '日期' : '日子'}選擇方便的時段：</div>
+      <div class="lead">${days.length > 1
+        ? '施工團隊預計在下面這幾天其中一天到現場。<b>可以選好幾天</b>，請在您方便的日期選擇方便的時段：'
+        : (gAvailOpts(days[0]).length > 1 ? '施工團隊預計在下面這一天到現場，請確認這一天是否可以配合我們，並選擇方便的時段：' : '施工團隊預計在下面這一天到現場，請確認這一天是否可以配合我們：')}</div>
       ${days.map(p => `<div style="margin-top:14px;"><div style="font-weight:800;font-size:16px;margin-bottom:8px;">${dateLabel(p.date)}</div>
         <div class="grid" style="grid-template-columns:repeat(${gAvailOpts(p).length},1fr);">
-          ${gAvailOpts(p).map(([k, l, t]) => `<button class="opt ${G.picks[p.date] === k ? 'active' : ''}" onclick="gToggle('${p.date}', '${k}')">${l}<small>${esc(t)}</small></button>`).join('')}
+          ${gAvailOpts(p).map(([k, l, t]) => `<button class="opt ${G.picks[p.date] === k ? 'active' : ''}" onclick="gToggle('${p.date}', '${k}')">${days.length === 1 && gAvailOpts(p).length === 1 ? '可以配合這一天' : l}<small>${esc(t)}</small></button>`).join('')}
         </div></div>`).join('')}
-      <div class="muted" style="margin-top:10px;">沒有選的日期，就代表那天不方便。</div>
+      ${days.length > 1 ? '<div class="muted" style="margin-top:10px;">沒有選的日期，就代表那天不方便。</div>' : ''}
       ${hasPick ? '<div class="muted" style="margin-top:12px;">✅ 已選好，請填寫聯絡資料後送出：</div>' + gContactHtml() : ''}
-      <button class="btn-ghost" onclick="gNo()">以上日期都不方便${G.ti + 1 < tiers.length ? '（看下一組日期）' : '（我提供其他日期）'}</button>
+      <button class="btn-ghost" onclick="gNo()">${days.length > 1 ? '以上日期都不方便' : '這一天不方便'}${G.ti + 1 < tiers.length ? '（看下一組日期）' : '（我提供其他日期）'}</button>
       ${G.ti > 0 ? '<button class="btn-ghost" onclick="gBack()">← 回上一組日期</button>' : ''}`;
   }else{
     body = `<div class="step" style="margin-top:0;"><span class="n">${tiers.length + 1}</span>請提供您方便的其他日期</div>
