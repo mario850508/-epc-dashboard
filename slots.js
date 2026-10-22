@@ -439,6 +439,7 @@ function applyMeterDefaultScheduler(){
 }
 function openSlotTaskModal(){
   SLOT_TASK_EDIT_ID = null;
+  document.getElementById('slotTaskTabNormal').parentElement.style.display = 'flex';
   JOINT_EMBED = false;
   document.getElementById('slotTaskNormalBox').style.display = '';
   document.getElementById('slotTaskJointBox').style.display = 'none';
@@ -701,7 +702,9 @@ function switchSlotTaskTab(tab){
   document.getElementById('slotTaskTabNormal').className = 'btn ' + (joint ? 'btn-ghost' : 'btn-warm-primary');
   document.getElementById('slotTaskTabJoint').className = 'btn ' + (joint ? 'btn-warm-primary' : 'btn-ghost');
   document.querySelector('#slotTaskModalOverlay .modal-box').style.maxWidth = joint ? '560px' : '460px';
-  document.querySelector('#slotTaskModalOverlay .modal-title').textContent = joint ? '🧩 聯合預約' : (SLOT_TASK_EDIT_ID ? '✏️ 編輯指派任務' : '📨 指派給業務');
+  const editingJoint = joint && !!JOINT_PRELOAD;   // 從聯合排程清單按「編輯」進來
+  document.querySelector('#slotTaskModalOverlay .modal-title').textContent = joint ? (editingJoint ? '✏️ 編輯聯合預約' : '🧩 聯合預約') : (SLOT_TASK_EDIT_ID ? '✏️ 編輯指派任務' : '📨 指派給業務');
+  document.getElementById('slotTaskTabNormal').parentElement.style.display = editingJoint ? 'none' : 'flex';
   JOINT_EMBED = joint;
   if(joint){ initJointForm(); }
 }

@@ -7,6 +7,7 @@ let JOINT_CUR = null;        // 目前開著的詳細視窗資料
 let JOINT_EDIT = {};         // {task_id: {start, end}}
 let JOINT_DATE = '';
 let JOINT_FORM = null;       // 新增視窗的狀態
+let JOINT_PRELOAD = null;    // 編輯聯合排程：把既有資料帶進表單（initJointForm 用）
 let JOINT_EMBED = false;     // 2026-10-20：新增表單放在「指派給業務」視窗的「聯合預約」分頁裡（true），不另外開視窗
 
 function jtPrefsText(prefs, withWins){
@@ -55,6 +56,8 @@ function renderJointList(){
         <div style="font-size:11.5px;color:var(--text-muted);">${jtPrefsText(g.prefs, false)}｜回覆 ${g.counts.replied}/${g.counts.total}｜確認 ${g.counts.confirmed}/${g.counts.total}</div>
       </div>
       <button class="btn btn-warm-primary" style="padding:6px 14px;font-size:12px;" onclick="openJointDetail('${g.id}')">開啟</button>
+      <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="editJoint('${g.id}')">✏️ 編輯</button>
+      <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;color:#B42318;" onclick="deleteJoint('${g.id}')">🗑 刪除</button>
     </div>`).join('');
   c.innerHTML = `<div class="panel" style="margin-bottom:16px;">
     <div class="panel-title">🧩 聯合排程（幾個案件約同一天做完）
@@ -89,8 +92,54 @@ function initJointForm(){
     dur: 60, gap: 30, creators: saved.length ? saved : [],
     dlDate: tmr.getFullYear() + '-' + String(tmr.getMonth() + 1).padStart(2, '0') + '-' + String(tmr.getDate()).padStart(2, '0'), dlTime: '18:00',
   };
+  if(JOINT_PRELOAD){ Object.assign(JOINT_FORM, JOINT_PRELOAD); JOINT_PRELOAD = null; }
   renderJointCreate();
   if(typeof loadSlotSchedulers === 'function') loadSlotSchedulers().then(() => { if(JOINT_EMBED || document.getElementById('jointCreateOverlay')) renderJointCreate(); });
+}
+// 2026-10-22：聯合排程清單直接編輯／刪除
+async function editJoint(id){
+  try{
+    const res = await fetch(API_BASE + '/api/joint-schedules/' + encodeURIComponent(id), {cache: 'no-store'});
+    const g = await res.json();
+    if(!res.ok) throw new Error(g.error || ('HTTP ' + res.status));
+    if(['待屋主確認', '已完成', '已取消'].includes(g.status)){ showToast('這個聯合排程「' + g.status + '」，不能編輯；要改請取消後重建'); return; }
+    const cases = [], cl = {}, ord = {};
+    const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+    let li = 0;
+    (g.tasks || []).forEach(t => {
+      const members = [t.case, ...(t.companions || [])];
+      members.forEach(c => cases.push(c));
+      if(members.length > 1){
+        const L = letters[li++] || 'F';
+        members.forEach(c => { cl[c] = L; });
+        if(t.order > 1) ord['g:' + L] = t.order;
+      } else if(t.order > 1){ ord['c:' + t.case] = t.order; }
+    });
+    const tiersMap = {};
+    (g.prefs || []).forEach(p => {
+      (tiersMap[p.tier] ||= {days: []}).days.push({date: p.date, w1: (p.windows[0] || ['09:00', '12:00']).slice(), w2on: p.windows.length > 1, w2: (p.windows[1] || ['13:00', '17:00']).slice()});
+    });
+    const tiers = Object.keys(tiersMap).sort().map(k => tiersMap[k]);
+    const dl = g.deadline ? new Date(g.deadline) : null;
+    JOINT_PRELOAD = {editId: id, vendor: g.vendor, types: g.type || [], cases, cl, ord, tiers: tiers.length ? tiers : [{days: [jtNewDay()]}], dur: g.duration_min || 60, gap: g.gap_min != null ? g.gap_min : 30,
+      creators: splitNames(g.creators || ''), q: '', results: [],
+      dlDate: dl && !isNaN(dl) ? dl.getFullYear() + '-' + String(dl.getMonth() + 1).padStart(2, '0') + '-' + String(dl.getDate()).padStart(2, '0') : '',
+      dlTime: dl && !isNaN(dl) ? String(dl.getHours()).padStart(2, '0') + ':' + String(dl.getMinutes()).padStart(2, '0') : '18:00'};
+    openSlotTaskModal();
+    switchSlotTaskTab('joint');
+  }catch(e){ JOINT_PRELOAD = null; showToast('開啟編輯失敗：' + e.message); }
+}
+function deleteJoint(id){
+  const g = JOINT_LIST.find(x => x.id === id);
+  confirmDanger('確定要刪除這個聯合排程嗎？<br><span style="font-size:12.5px;font-weight:500;color:#6B7280;">' + escHtml(g ? g.title : '') + '<br>底下各案的屋主連結會立刻失效，已經收集的回覆會一起刪除。</span>', async () => {
+    try{
+      const res = await fetch(API_BASE + '/api/joint-schedules/' + encodeURIComponent(id), {method: 'DELETE'});
+      const d = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+      showToast('已刪除聯合排程');
+      loadJoint();
+    }catch(e){ showToast('刪除失敗：' + e.message); }
+  }, '是，刪除');
 }
 function jtDefaultDur(types){
   const m = {'掛表': 180, '植筋': 180, '放樣': 60, '場勘': 60, '進場': 240};
@@ -132,9 +181,10 @@ function renderJointCreate(){
       <button type="button" onclick="document.getElementById('jointCreateOverlay').remove()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button></div>`}
     <div style="font-size:12px;color:var(--text-muted);margin:6px 0 0;line-height:1.7;">把同一廠商、同一項目的幾個案件綁在一起：屋主先回覆哪幾天、哪個時段方便，你再統一排出每案的時間，讓廠商一天跑完。</div>
     ${lab('廠商')}
-    <select class="quick-mark-input" onchange="JOINT_FORM.vendor=this.value">${ALL_VENDOR_NAMES.map(v => `<option ${v === F.vendor ? 'selected' : ''}>${v}</option>`).join('')}</select>
+    <select class="quick-mark-input" ${F.editId ? 'disabled' : ''} onchange="JOINT_FORM.vendor=this.value">${ALL_VENDOR_NAMES.map(v => `<option ${v === F.vendor ? 'selected' : ''}>${v}</option>`).join('')}</select>
     ${lab('項目')}
-    <div style="display:flex;gap:14px;flex-wrap:wrap;">${['放樣', '場勘', '掛表', '植筋', '進場'].map(t => `<label style="display:flex;gap:5px;align-items:center;font-size:13px;cursor:pointer;"><input type="checkbox" ${F.types.includes(t) ? 'checked' : ''} onchange="jtToggleType('${t}',this.checked)">${t}</label>`).join('')}</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;">${['放樣', '場勘', '掛表', '植筋', '進場'].map(t => `<label style="display:flex;gap:5px;align-items:center;font-size:13px;cursor:pointer;"><input type="checkbox" ${F.types.includes(t) ? 'checked' : ''} ${F.editId ? 'disabled' : ''} onchange="jtToggleType('${t}',this.checked)">${t}</label>`).join('')}</div>
+    ${F.editId ? '<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">編輯時廠商和項目不能改。已回覆的屋主會保留回覆；期望日被拿掉時，選了那些日期的屋主要重新回覆。已排好時間、等屋主確認中的不能編輯。</div>' : ''}
     ${lab('案件（至少兩個單位；打案號或關鍵字搜尋）')}
     <div style="font-size:11.5px;color:var(--text-muted);line-height:1.6;margin-bottom:6px;">每個案件預設是「獨立」，要各自回覆。同一排的幾戶、只需要其中一戶方便開門就好的，在案件右邊選同一個組別（例如都選「同排A」），整組只會收到一份邀請、算一個單位，確認後兩邊一起預約。</div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:6px;">${F.cases.map((c, i) => `<div style="display:flex;align-items:center;gap:8px;background:#EEF3FF;border-radius:12px;padding:5px 10px;font-size:12.5px;">
@@ -165,7 +215,7 @@ function renderJointCreate(){
     <div style="display:flex;gap:8px;"><input type="date" class="quick-mark-input" style="flex:1.3;" value="${F.dlDate}" onchange="JOINT_FORM.dlDate=this.value"><select class="quick-mark-input" style="flex:1;" onchange="JOINT_FORM.dlTime=this.value">${jtTimeOpts(F.dlTime)}</select></div>
     ${lab('安排人員（屋主回覆、確認時，LINE 通知這些同仁）')}
     <div style="display:flex;flex-wrap:wrap;gap:8px 16px;">${(typeof SLOT_SCHEDULERS !== 'undefined' ? SLOT_SCHEDULERS : []).map(n => `<label style="display:flex;gap:5px;align-items:center;font-size:13px;cursor:pointer;"><input type="checkbox" ${F.creators.includes(n) ? 'checked' : ''} onchange="jtToggleCreator('${escHtml(n)}',this.checked)">${escHtml(n)}</label>`).join('') || '<span style="font-size:12px;color:var(--text-muted);">名單載入中…</span>'}</div>
-    <button type="button" class="btn btn-primary" id="jtCreateBtn" style="width:100%;justify-content:center;padding:11px;margin-top:18px;" onclick="submitJointCreate()">建立聯合排程</button>`;
+    <button type="button" class="btn btn-primary" id="jtCreateBtn" style="width:100%;justify-content:center;padding:11px;margin-top:18px;" onclick="submitJointCreate()">${F.editId ? '儲存修改' : '建立聯合排程'}</button>`;
 }
 function jtRemoveDay(ti, di){
   const t = JOINT_FORM.tiers[ti];
@@ -248,22 +298,23 @@ async function submitJointCreate(){
   const U = jtUnits();
   if(!F.types.length || U.units < 2 || !tiers.length){ showToast('請選項目、至少兩個單位（同排住戶組算一個），並設定第一期望日'); return; }
   const btn = document.getElementById('jtCreateBtn');
-  btn.disabled = true; btn.textContent = '建立中…';
+  btn.disabled = true; btn.textContent = F.editId ? '儲存中…' : '建立中…';
   try{
-    const res = await fetch(API_BASE + '/api/joint-schedules', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
+    const res = await fetch(API_BASE + '/api/joint-schedules' + (F.editId ? '/' + encodeURIComponent(F.editId) : ''), {method: F.editId ? 'PATCH' : 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
       vendor: F.vendor, type: F.types, cases: U.single, clusters: U.clusters, tiers, orders: jtOrdersMap(U), duration_min: F.dur, gap_min: F.gap, creator: F.creators.join('、'),
       deadline: F.dlDate ? F.dlDate + 'T' + (F.dlTime || '18:00') + ':00+08:00' : null})});
     const d = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
     try{ localStorage.setItem('slotSchedulerNames', F.creators.join('、')); }catch(e){}
     if(JOINT_EMBED){ closeSlotTaskModal(); } else { const ov = document.getElementById('jointCreateOverlay'); if(ov) ov.remove(); }
-    if(d.failed && d.failed.length) showToast('這些案件建立失敗：' + d.failed.join('、'));
+    if(d.failed && d.failed.length) showToast('這些案件處理失敗：' + d.failed.join('、'));
+    else if(F.editId) showToast('已儲存修改' + ((d.cleared || []).length ? '；' + d.cleared.join('、') + ' 選的日期被拿掉了，需要屋主重新回覆' : '') + ((d.removed || []).length ? '；已移除 ' + d.removed.join('、') : ''));
     loadJoint();
     JOINT_CUR = d.joint; JOINT_EDIT = {}; JOINT_DATE = '';
     renderJointDetail();
   }catch(err){
-    showToast('建立失敗：' + err.message);
-    btn.disabled = false; btn.textContent = '建立聯合排程';
+    showToast((F.editId ? '儲存失敗：' : '建立失敗：') + err.message);
+    btn.disabled = false; btn.textContent = F.editId ? '儲存修改' : '建立聯合排程';
   }
 }
 
