@@ -22,6 +22,9 @@ function mcNum(v){ return (v === null || v === undefined || v === '') ? null : N
 function mcSame(a, b, eps){ return a !== null && b !== null && Math.abs(a - b) < eps; }
 function mcFmt(v){ return v === null || v === undefined || v === '' ? '' : String(Number(v)); }
 function mcDate(d){ return d ? d.replace(/^(\d{4})-0?(\d+)-0?(\d+)$/, '$1/$2/$3') : ''; }
+// 容量確認：人工填的優先，沒填就用台電契約／細部協商上讀到的容量（後端 doc_cap）
+function mcDocCap(c){ return c.doc_cap ? mcNum(c.doc_cap.value) : null; }
+function mcCapOk(c){ const v = mcNum(c.cap_confirm); return v !== null ? v : mcDocCap(c); }
 
 // ---- 電價表（2026-10-22 使用者提供 115 年度第一期(1/1-6/30)、第二期(7/1-12/31)）----
 // 我們用最右邊兩欄：高效&模組(南)／高效&模組(北)。期別（1–6 月第一期、7–12 月第二期）看哪一天：
@@ -61,7 +64,7 @@ function mcTariff(c){
   let region = regionOf(c.case_no), byAddr = false;
   if(!region){ region = regionOf(c.address); byAddr = !!region; }
   if(!region) return {price: null, label: c.address ? '地址看不出縣市：' + c.address : '案號看不出縣市、也沒有地址'};
-  const cap = mcNum(c.cap_confirm) !== null ? mcNum(c.cap_confirm) : mcNum(c.capacity);
+  const cap = mcCapOk(c) !== null ? mcCapOk(c) : mcNum(c.capacity);
   if(cap === null) return {price: null, label: '沒有容量'};
   let tier = MC_TIERS.findIndex(x => cap < x);
   if(tier < 0) tier = MC_TIERS.length;
@@ -86,7 +89,7 @@ function mcPriceBase(c){ const t = mcTariff(c).price; return t !== null ? t : mc
 
 // 每筆的確認狀態：待確認（還有沒填的）／不一致（填了但跟基準不同；基準沒有就不算不一致）／已確認
 function mcState(c){
-  const cap = mcNum(c.capacity), capOk = mcNum(c.cap_confirm), price = mcPriceBase(c), priceOk = mcNum(c.price_confirm);
+  const cap = mcNum(c.capacity), capOk = mcCapOk(c), price = mcPriceBase(c), priceOk = mcNum(c.price_confirm);
   const capBad = capOk !== null && cap !== null && !mcSame(cap, capOk, 0.0005);
   const priceBad = priceOk !== null && price !== null && !mcSame(price, priceOk, 0.00005);
   if(capBad || priceBad) return 'bad';
@@ -142,6 +145,19 @@ function mcShiftMonth(delta){
 }
 function mcSetFilter(k){ mcFilter = k; renderMeterCheck(); }
 
+// 容量確認下面的小字：值從哪份文件來（可以點開 PDF）、或為什麼沒有
+function mcDocCapNote(c, fromDoc){
+  const d = c.doc_cap;
+  const style = 'font-size:11px;margin-top:2px;white-space:nowrap;';
+  if(!d) return mcNum(c.cap_confirm) === null ? '<div class="cert-src" style="' + style + 'color:#B54708;">沒有台電契約／細部協商</div>' : '';
+  const name = '📄 ' + mcEsc(d.kind) + (d.date ? ' ' + mcEsc(mcDate(d.date)) : '');
+  const link = d.file_url ? '<a href="' + mcEsc(d.file_url) + '" target="_blank" rel="noopener" title="' + mcEsc(d.src || d.filename || '') + '">' + name + '</a>' : name;
+  if(d.value === null || d.value === undefined) return '<div class="cert-src" style="' + style + 'color:#B54708;" title="' + mcEsc(d.src || '') + '">' + link + ' 讀不到容量</div>';
+  if(fromDoc) return '<div class="cert-src" style="' + style + '" title="' + mcEsc(d.src || '') + '">' + link + '</div>';
+  return mcSame(mcNum(d.value), mcNum(c.cap_confirm), 0.0005) ? '<div class="cert-src" style="' + style + '">' + link + '</div>'
+    : '<div class="cert-src" style="' + style + '">手動填（' + link + '：' + mcEsc(mcFmt(d.value)) + '）</div>';
+}
+
 function renderMeterCheck(){
   const box = document.getElementById('mcBox');
   if(!box || !MC_DATA) return;
@@ -156,13 +172,15 @@ function renderMeterCheck(){
 
   const cell = (c, kind) => {
     const sys = kind === 'cap' ? mcNum(c.capacity) : mcPriceBase(c);
-    const val = mcNum(kind === 'cap' ? c.cap_confirm : c.price_confirm);
+    const val = kind === 'cap' ? mcCapOk(c) : mcNum(c.price_confirm);
+    const fromDoc = kind === 'cap' && mcNum(c.cap_confirm) === null && val !== null;   // 這個值是從文件帶的，還沒人工改過
     const eps = kind === 'cap' ? 0.0005 : 0.00005;
     const bg = val === null || sys === null ? '' : (mcSame(sys, val, eps) ? 'background:#E7F6EC;' : 'background:#FDECEC;color:#B42318;font-weight:700;');
     return '<td style="white-space:nowrap;">'
       + '<input type="number" step="any" class="quick-mark-input" style="width:92px;padding:4px 6px;' + bg + '" value="' + mcEsc(mcFmt(val)) + '"'
       + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'' + kind + '\',this.value)">'
       + (sys !== null && !mcSame(sys, val, eps) ? ' <button class="btn btn-ghost" title="' + (kind === 'cap' ? '跟 Airtable 一樣' : '跟電價表一樣') + '" style="padding:2px 7px;font-size:12px;" onclick="mcSave(\'' + mcJs(c.case_no) + '\',\'' + kind + '\',\'' + sys + '\')">✓</button>' : '')
+      + (kind === 'cap' ? mcDocCapNote(c, fromDoc) : '')
       + '</td>';
   };
   const stPill = c => ({
@@ -327,7 +345,7 @@ function mcCopyTable(){
   if(!MC_DATA) return;
   const lines = [['案號', '別名', '掛表日期', '施工廠商', '容量', '容量確認', '工程合約電價', '電價確認', '備註'].join('\t')];
   (MC_DATA.cases || []).forEach(c => lines.push([c.case_no, c.alias, mcDate(c.meter_date), c.vendor, mcFmt(c.capacity),
-    mcFmt(c.cap_confirm), mcFmt(mcPriceBase(c)), mcFmt(c.price_confirm), (c.note || '').replace(/\s+/g, ' ')].join('\t')));
+    mcFmt(mcCapOk(c)), mcFmt(mcPriceBase(c)), mcFmt(c.price_confirm), (c.note || '').replace(/\s+/g, ' ')].join('\t')));
   if((MC_DATA.withdrawn || []).length){
     lines.push('', '撤案案件', ['案號', '別名', '容量', '施工廠商', '案件狀況'].join('\t'));
     MC_DATA.withdrawn.forEach(w => lines.push([w.case_no, w.alias, mcFmt(w.capacity), w.vendor, (w.note || '').replace(/\s+/g, ' ')].join('\t')));
