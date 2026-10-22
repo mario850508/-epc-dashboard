@@ -928,9 +928,15 @@
           <div class="nav-sub-item" data-sub="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨&植筋</div>
           <div class="nav-sub-item" data-sub="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
           <div class="nav-sub-item" data-sub="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
-          <div class="nav-sub-item" data-sub="epc-metercheck" onclick="showEpcTab('epc-metercheck')">掛表資訊確認</div>
           <div class="nav-sub-item" data-sub="epc-issue" onclick="showEpcTab('epc-issue')">異常案件</div>
           <div class="nav-sub-item" data-sub="epc-archive" onclick="showEpcTab('epc-archive')">歷史紀錄</div>
+        </div>
+        <div class="nav-item" data-view="metercheck" onclick="toggleNavSection('metercheck'); showMcTab(MC_TAB);">
+          <span class="nav-icon">🔌</span> 掛表資訊確認
+        </div>
+        <div class="nav-sub" id="navSub-metercheck">
+          <div class="nav-sub-item" data-sub="mc-cases" onclick="showMcTab('cases')">掛表案件</div>
+          <div class="nav-sub-item" data-sub="mc-withdrawn" onclick="showMcTab('withdrawn')">撤案案件</div>
         </div>
         <div class="nav-item" data-view="ops" onclick="showView('ops'); loadOpsCases();">
           <span class="nav-icon">🔧</span> 維運團隊
@@ -1217,7 +1223,6 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <div class="tab" data-tab="epc-pending" onclick="showEpcTab('epc-pending')">待安排出貨&植筋</div>
         <div class="tab" data-tab="epc-entry" onclick="showEpcTab('epc-entry')">案件進場安排</div>
         <div class="tab" data-tab="epc-meter" onclick="showEpcTab('epc-meter')">掛表安排</div>
-        <div class="tab" data-tab="epc-metercheck" onclick="showEpcTab('epc-metercheck')">掛表資訊確認</div>
         <div class="tab" data-tab="epc-issue" onclick="showEpcTab('epc-issue')">異常案件</div>
         <div class="tab" data-tab="epc-archive" onclick="showEpcTab('epc-archive')">歷史紀錄</div>
       </div>
@@ -1400,25 +1405,6 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           </table>
           <div class="login-note">
             🔗 這裡列出已完工、但「細部協商」跟「台電購售契約」還沒有全部取得的案件——這兩份函文的目前狀態直接顯示在這裡（跟 Airtable「進度管理」表同步，每 6 小時自動更新一次，或點「待安排出貨&植筋」的「手動更新」立即重查）。「掛表安排」按鈕在函文還沒到齊時是灰色、按不動的；等兩份都取得日期後，案件會自動移到上方「待安排掛表」，才能真的排掛表日期。
-          </div>
-        </div>
-      </div>
-
-      <!-- 掛表資訊確認（2026-10-22，取代 Google 試算表「7月掛錶案件異動」；meter-check.js） -->
-      <div class="subview" id="tab-epc-metercheck">
-        <div class="panel">
-          <div class="panel-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            掛表資訊確認
-            <span style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;">
-              <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="mcShiftMonth(-1)">◀</button>
-              <input type="month" id="mcMonth" class="quick-mark-input" style="width:150px;padding:4px 8px;" onchange="mcSetMonth(this.value)">
-              <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="mcShiftMonth(1)">▶</button>
-              <button class="btn btn-ghost" style="padding:3px 10px;font-size:12px;" onclick="loadMeterCheck()">🔄</button>
-            </span>
-          </div>
-          <div id="mcBox"><div class="login-note">載入中…</div></div>
-          <div class="login-note">
-            🔗 選月份後，自動列出那個月掛表的案件（掛表日期＝Airtable「進度管理」掛表那筆的實際日期），「容量」「工程合約電價」直接讀 Airtable「專案細節」。在「容量確認」「電價確認」填你核對到的數字（按 ✓ 代表跟 Airtable 一樣），跟 Airtable 不同會標紅色「不一致」。確認值與撤案案件存在 Airtable「掛表資訊確認」表，不同電腦都看得到。「📋 複製表格」可以直接貼回試算表。
           </div>
         </div>
       </div>
@@ -2253,6 +2239,42 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
     </section>
 
     <!-- ============ 維運團隊（維運驗收，2026-09-08 新增） ============ -->
+    <!-- 掛表資訊確認（2026-10-22，取代 Google 試算表「7月掛錶案件異動」；meter-check.js）-->
+    <section class="view" id="view-metercheck">
+      <div class="topbar">
+        <div>
+          <div class="crumb">功能模組 / 掛表資訊確認</div>
+          <h1 class="page-title">掛表資訊確認</h1>
+          <div class="page-sub">每月掛表案件的容量／工程合約電價核對，以及當月撤案案件</div>
+        </div>
+        <span style="display:inline-flex;align-items:center;gap:4px;">
+          <button class="btn btn-ghost" style="padding:5px 10px;font-size:12.5px;" onclick="mcShiftMonth(-1)">◀</button>
+          <input type="month" id="mcMonth" class="quick-mark-input" style="width:150px;padding:5px 8px;" onchange="mcSetMonth(this.value)">
+          <button class="btn btn-ghost" style="padding:5px 10px;font-size:12.5px;" onclick="mcShiftMonth(1)">▶</button>
+          <button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;white-space:nowrap;" onclick="loadMeterCheck()">🔄 重新整理</button>
+        </span>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active" data-tab="mc-cases" onclick="showMcTab('cases')">掛表案件 <span id="mcCasesCount"></span></div>
+        <div class="tab" data-tab="mc-withdrawn" onclick="showMcTab('withdrawn')">撤案案件 <span id="mcWdCount"></span></div>
+      </div>
+
+      <div class="panel" id="mcCasesPanel">
+        <div id="mcBox"><div class="login-note">載入中…</div></div>
+        <div class="login-note">
+          🔗 選月份後，自動列出那個月掛表的案件（掛表日期＝Airtable「進度管理」掛表那筆的實際日期），「容量」「工程合約電價」直接讀 Airtable「專案細節」。在「容量確認」「電價確認」填你核對到的數字（按 ✓ 代表跟 Airtable 一樣），跟 Airtable 不同會標紅色「不一致」；Airtable 沒填的不算不一致。確認值存在 Airtable「掛表資訊確認」表，不同電腦都看得到。「📋 複製表格」可以直接貼回試算表。
+        </div>
+      </div>
+
+      <div class="panel" id="mcWdPanel" style="display:none;">
+        <div id="mcWdBox"><div class="login-note">載入中…</div></div>
+        <div class="login-note">
+          🔗 記錄這個月撤案的案件和原因。同一個原因的案件一起加，會合併成一格顯示（跟試算表一樣），按「✏️ 修改說明」整組一起改。這裡只是紀錄，不會改 Airtable 案件本身的狀態。
+        </div>
+      </div>
+    </section>
+
     <section class="view" id="view-ops">
       <div class="topbar">
         <div>
@@ -6420,7 +6442,6 @@ function showEpcTab(tab){
   if(tab === 'epc-calendar') renderCalendar();
   if(tab === 'epc-week') renderWeekList();
   if(tab === 'epc-survey') loadSurveyPendingCases();
-  if(tab === 'epc-metercheck' && typeof loadMeterCheck === 'function') loadMeterCheck();
   saveNavState({view: 'epc', epcTab: tab});
 }
 function changeCalMonth(delta){
@@ -9447,6 +9468,9 @@ async function confirmCertAbbr(id){
     loadVendorSlots();
   } else if(state && state.view === 'procure'){
     showProcureTab(state.procureTab || 'orders');
+  } else if(state && state.view === 'metercheck'){
+    window.MC_RESTORE_TAB = state.mcTab;   // showView 會覆寫導覽狀態，先記下分頁給 meter-check.js
+    showView('metercheck');
   } else {
     showView('home');
   }
@@ -9458,7 +9482,7 @@ async function confirmCertAbbr(id){
 <script src="vendor-requests.js?v=2"></script>
 <script src="line-health.js?v=2"></script>
 <script src="shipping.js?v=4"></script>
-<script src="meter-check.js?v=1"></script>
+<script src="meter-check.js?v=2"></script>
 
 </body>
 </html>

@@ -1,5 +1,5 @@
 // ===================================================================
-// EPC → 掛表資訊確認（2026-10-22）
+// 掛表資訊確認（2026-10-22；左側選單獨立一項，分頁：掛表案件／撤案案件）
 // 取代 Google 試算表「7月掛錶案件異動」：選月份 → 列出當月掛表的案件（掛表日期＝Airtable「進度管理」
 // 掛表里程碑的實際日期），對照「專案細節」的系統容量／工程合約電價，人工填「容量確認」「電價確認」，
 // 不一致標紅；下方記當月撤案案件＋案件狀況（同一段說明的案件合併顯示）。
@@ -8,6 +8,7 @@
 // ===================================================================
 let MC_DATA = null;
 let mcFilter = 'all';
+let MC_TAB = 'cases';
 let MC_MONTH = (function(){
   try{ const m = localStorage.getItem('mcMonth'); if(/^\d{4}-\d{2}$/.test(m || '')) return m; }catch(e){}
   const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);   // 預設上個月（通常是確認上個月掛表的案件）
@@ -32,12 +33,26 @@ function mcState(c){
   return 'ok';
 }
 
+function showMcTab(tab){
+  if(!['cases', 'withdrawn'].includes(tab)) tab = 'cases';
+  MC_TAB = tab;
+  showView('metercheck');
+  document.getElementById('mcCasesPanel').style.display = tab === 'cases' ? '' : 'none';
+  document.getElementById('mcWdPanel').style.display = tab === 'withdrawn' ? '' : 'none';
+  document.querySelectorAll('#view-metercheck .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'mc-' + tab));
+  document.querySelectorAll('.nav-sub-item').forEach(n => n.classList.remove('active'));
+  document.querySelector('.nav-sub-item[data-sub="mc-' + tab + '"]').classList.add('active');
+  saveNavState({view: 'metercheck', mcTab: tab});
+  if(!MC_DATA || MC_DATA.month !== MC_MONTH) loadMeterCheck();
+}
+
 async function loadMeterCheck(){
   const box = document.getElementById('mcBox');
   if(!box) return;
   const m = document.getElementById('mcMonth');
   if(m) m.value = MC_MONTH;
   box.innerHTML = '<div class="login-note">載入 ' + mcEsc(MC_MONTH) + ' 掛表案件…</div>';
+  document.getElementById('mcWdBox').innerHTML = '<div class="login-note">載入 ' + mcEsc(MC_MONTH) + ' 撤案案件…</div>';
   try{
     const res = await fetch(API_BASE + '/api/meter-check?month=' + encodeURIComponent(MC_MONTH), {cache: 'no-store'});
     const d = await res.json();
@@ -46,6 +61,7 @@ async function loadMeterCheck(){
     MC_DATA = d;
   }catch(e){
     box.innerHTML = '<div class="login-note">載入失敗：' + mcEsc(e.message) + '</div>';
+    document.getElementById('mcWdBox').innerHTML = box.innerHTML;
     return;
   }
   renderMeterCheck();
@@ -121,8 +137,10 @@ function renderMeterCheck(){
       + (c.by || c.updated ? '<div class="cert-src" style="font-size:11px;">' + mcEsc([c.by, c.updated].filter(Boolean).join(' ')) + '</div>' : '') + '</td>'
       + '</tr>').join('')
       : '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px 0;">' + (cases.length ? '沒有符合的案件' : MC_MONTH + ' 沒有掛表的案件') + '</td></tr>')
-    + '</tbody></table></div>'
-    + renderMcWithdrawn();
+    + '</tbody></table></div>';
+  document.getElementById('mcCasesCount').textContent = '(' + cases.length + ')';
+  document.getElementById('mcWdCount').textContent = '(' + ((MC_DATA.withdrawn || []).length) + ')';
+  document.getElementById('mcWdBox').innerHTML = renderMcWithdrawn();
   ['mcWdCases', 'mcWdNote'].forEach((id, i) => { if(draft[i]) document.getElementById(id).value = draft[i]; });
   if(keep){ const el = document.getElementById('mcSearch'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
 }
@@ -145,8 +163,8 @@ function renderMcWithdrawn(){
         + '</tr>';
     });
   });
-  return '<div style="margin-top:22px;">'
-    + '<div class="panel-title">撤案案件 <span class="module-tag tag-cloud" style="margin-left:6px;">共 ' + list.length + ' 筆</span></div>'
+  return '<div>'
+    + '<div class="panel-title">' + mcEsc(MC_MONTH) + ' 撤案案件 <span class="module-tag tag-cloud" style="margin-left:6px;">共 ' + list.length + ' 筆</span></div>'
     + '<div style="overflow:auto;"><table><thead><tr><th>案號</th><th>別名</th><th>容量</th><th>施工廠商</th><th style="min-width:280px;">案件狀況</th><th></th></tr></thead><tbody>'
     + (body || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px 0;">' + mcEsc(MC_MONTH) + ' 還沒有記錄撤案案件</td></tr>')
     + '</tbody></table></div>'
@@ -249,5 +267,9 @@ function mcCopyTable(){
   navigator.clipboard.writeText(lines.join('\n')).then(() => showToast('已複製，可以直接貼到試算表'), () => showToast('複製失敗'));
 }
 
-// 重新整理頁面時如果停在這一頁（導覽狀態還原比這支檔案早執行），補載入一次
-if(document.getElementById('tab-epc-metercheck') && document.getElementById('tab-epc-metercheck').classList.contains('active')) loadMeterCheck();
+// 重新整理頁面時如果停在這一頁（導覽狀態還原比這支檔案早執行），切回記住的分頁
+(function(){
+  const v = document.getElementById('view-metercheck');
+  if(!v || !v.classList.contains('active')) return;
+  showMcTab(window.MC_RESTORE_TAB || 'cases');
+})();
