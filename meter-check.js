@@ -86,10 +86,12 @@ function mcTariff(c){
 }
 // 電價確認要對照的基準：電價表算得出來就用電價表，否則用 Airtable 工程合約電價
 function mcPriceBase(c){ const t = mcTariff(c).price; return t !== null ? t : mcNum(c.price); }
+// 電價確認：人工填的優先，沒填就直接帶依規則算出來的電價（2026-10-22 使用者：預計電價要直接帶出來，不要空白）
+function mcPriceOk(c){ const v = mcNum(c.price_confirm); return v !== null ? v : mcPriceBase(c); }
 
 // 每筆的確認狀態：待確認（還有沒填的）／不一致（填了但跟基準不同；基準沒有就不算不一致）／已確認
 function mcState(c){
-  const cap = mcNum(c.capacity), capOk = mcCapOk(c), price = mcPriceBase(c), priceOk = mcNum(c.price_confirm);
+  const cap = mcNum(c.capacity), capOk = mcCapOk(c), price = mcPriceBase(c), priceOk = mcPriceOk(c);
   const capBad = capOk !== null && cap !== null && !mcSame(cap, capOk, 0.0005);
   const priceBad = priceOk !== null && price !== null && !mcSame(price, priceOk, 0.00005);
   if(capBad || priceBad) return 'bad';
@@ -172,8 +174,9 @@ function renderMeterCheck(){
 
   const cell = (c, kind) => {
     const sys = kind === 'cap' ? mcNum(c.capacity) : mcPriceBase(c);
-    const val = kind === 'cap' ? mcCapOk(c) : mcNum(c.price_confirm);
+    const val = kind === 'cap' ? mcCapOk(c) : mcPriceOk(c);
     const fromDoc = kind === 'cap' && mcNum(c.cap_confirm) === null && val !== null;   // 這個值是從文件帶的，還沒人工改過
+    const fromRule = kind === 'price' && mcNum(c.price_confirm) === null && val !== null;   // 依規則帶的電價
     const eps = kind === 'cap' ? 0.0005 : 0.00005;
     const bg = val === null || sys === null ? '' : (mcSame(sys, val, eps) ? 'background:#E7F6EC;' : 'background:#FDECEC;color:#B42318;font-weight:700;');
     return '<td style="white-space:nowrap;">'
@@ -181,6 +184,7 @@ function renderMeterCheck(){
       + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'' + kind + '\',this.value)">'
       + (sys !== null && !mcSame(sys, val, eps) ? ' <button class="btn btn-ghost" title="' + (kind === 'cap' ? '跟 Airtable 一樣' : '跟電價表一樣') + '" style="padding:2px 7px;font-size:12px;" onclick="mcSave(\'' + mcJs(c.case_no) + '\',\'' + kind + '\',\'' + sys + '\')">✓</button>' : '')
       + (kind === 'cap' ? mcDocCapNote(c, fromDoc) : '')
+      + (fromRule ? '<div class="cert-src" style="font-size:11px;margin-top:2px;">依規則帶入</div>' : '')
       + '</td>';
   };
   const stPill = c => ({
@@ -345,7 +349,7 @@ function mcCopyTable(){
   if(!MC_DATA) return;
   const lines = [['案號', '別名', '掛表日期', '施工廠商', '容量', '容量確認', '工程合約電價', '電價確認', '備註'].join('\t')];
   (MC_DATA.cases || []).forEach(c => lines.push([c.case_no, c.alias, mcDate(c.meter_date), c.vendor, mcFmt(c.capacity),
-    mcFmt(mcCapOk(c)), mcFmt(mcPriceBase(c)), mcFmt(c.price_confirm), (c.note || '').replace(/\s+/g, ' ')].join('\t')));
+    mcFmt(mcCapOk(c)), mcFmt(mcPriceBase(c)), mcFmt(mcPriceOk(c)), (c.note || '').replace(/\s+/g, ' ')].join('\t')));
   if((MC_DATA.withdrawn || []).length){
     lines.push('', '撤案案件', ['案號', '別名', '容量', '施工廠商', '案件狀況'].join('\t'));
     MC_DATA.withdrawn.forEach(w => lines.push([w.case_no, w.alias, mcFmt(w.capacity), w.vendor, (w.note || '').replace(/\s+/g, ' ')].join('\t')));
