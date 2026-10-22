@@ -271,6 +271,7 @@ function renderSlotTasks(){
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="editSlotTask('${t.record_id}')">✏️ 編輯</button>
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="adjustSlotDeadline('${t.record_id}')">⏰ 期限</button>
       <button class="btn btn-warm-primary" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="openOwnerMessageFor('${t.record_id}')">🏠 屋主版</button>
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;color:#16A34A;border-color:#BFE6CF;" onclick="openCompleteTask('${t.record_id}')" title="已經跟屋主約好了：直接填預約資料完成預約，不用等屋主填表">✅ 已約好</button>
       <details style="flex-shrink:0;display:inline-block;"><summary class="btn btn-ghost" style="padding:4px 8px;font-size:11px;list-style:none;cursor:pointer;color:var(--text-muted);" title="業務自己選時間的版本（現在多半用屋主版）">⋯ 更多</summary>
         <div style="margin-top:4px;"><button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;color:var(--text-muted);" onclick="copySlotTaskMessage('${t.record_id}')">📎 業務版訊息</button></div></details>
       <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotTask('${t.record_id}')">刪除</button>
@@ -1463,6 +1464,67 @@ async function sendSlackNotice(kind, recordId, rep){
   }catch(e){
     showToast(e.message);
     btn.disabled = false; btn.textContent = '💬 傳送 Slack 私訊';
+  }
+}
+// 2026-10-22：窗口直接完成預約（已經跟屋主約好了，不用等屋主／業務填預約表）
+function closeCompleteTask(){ const ov = document.getElementById('completeTaskOverlay'); if(ov) ov.remove(); }
+function openCompleteTask(recordId){
+  const t = SLOT_TASKS.find(x => x.record_id === recordId);
+  if(!t){ showToast('找不到這個任務，請重新整理'); return; }
+  closeCompleteTask();
+  const dateOnly = (t.type || []).includes('進場');
+  const dur = t.duration_min || 60;
+  const st = t.est_start || '09:00';
+  const sm = (() => { const [h, m] = st.split(':').map(Number); return h * 60 + m; })();
+  const en = String(Math.floor((sm + dur) / 60)).padStart(2, '0') + ':' + String((sm + dur) % 60).padStart(2, '0');
+  const opts = sel => { let h = slotTimeOptionsHtml(); if(sel && !h.includes('value="' + sel + '"')) h = h.replace('</option>', '</option><option value="' + sel + '">' + sel + '</option>'); return h.replace('value="' + sel + '"', 'value="' + sel + '" selected'); };
+  const ov = document.createElement('div');
+  ov.id = 'completeTaskOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.onclick = e => { if(e.target === ov) closeCompleteTask(); };
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:22px;max-width:460px;width:100%;color:#1B2333;max-height:92vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-size:17px;font-weight:800;">✅ 直接完成預約</div>
+      <button type="button" onclick="closeCompleteTask()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button></div>
+    <div style="font-size:13px;color:#6B7280;margin:6px 0 12px;line-height:1.7;">已經跟屋主約好了？直接填預約資料，這筆就算預約完成，不用再等屋主或業務填表。<br><b>${escHtml(t.vendor)}｜${escHtml((t.type || []).join('＋'))}｜${escHtml(t.case)} ${escHtml(t.alias || '')}</b>${(t.companions || []).length ? '<br>🔗 同時預約：' + t.companions.map(escHtml).join('、') : ''}</div>
+    <div style="font-size:12px;font-weight:700;margin:6px 0;">預約日期</div>
+    <input type="date" class="quick-mark-input" id="ctDate" value="${escHtml((t.candidate_dates || [])[0] || '')}">
+    ${dateOnly ? `<div style="font-size:12px;color:#6B7280;margin-top:8px;">進場是整天、多天施工，不用填時間；日期＝開始進場日。</div>` : `
+    <div style="display:flex;gap:10px;margin-top:10px;">
+      <div style="flex:1;"><div style="font-size:12px;font-weight:700;margin-bottom:6px;">開始時間</div><select class="quick-mark-input" id="ctStart">${opts(st)}</select></div>
+      <div style="flex:1;"><div style="font-size:12px;font-weight:700;margin-bottom:6px;">結束時間</div><select class="quick-mark-input" id="ctEnd">${opts(en)}</select></div>
+    </div>`}
+    <div style="display:flex;gap:10px;margin-top:10px;">
+      <div style="flex:1;"><div style="font-size:12px;font-weight:700;margin-bottom:6px;">屋主姓名</div><input class="quick-mark-input" id="ctName" value="${escHtml(t.owner_name || '')}"></div>
+      <div style="flex:1;"><div style="font-size:12px;font-weight:700;margin-bottom:6px;">屋主電話</div><input class="quick-mark-input" id="ctPhone" value="${escHtml(t.owner_phone || '')}"></div>
+    </div>
+    <div style="font-size:12px;font-weight:700;margin:10px 0 6px;">備註（選填）</div>
+    <textarea class="quick-mark-input" id="ctNote" rows="2"></textarea>
+    <div id="ctError" style="display:none;background:#FDECEC;color:#D64545;border-radius:10px;padding:10px 12px;font-size:12px;margin-top:10px;line-height:1.6;"></div>
+    <button type="button" class="btn btn-primary" id="ctSubmit" style="width:100%;justify-content:center;padding:11px;margin-top:14px;background:#16A34A;border-color:#16A34A;" onclick="submitCompleteTask('${recordId}', ${dateOnly})">✅ 完成預約</button></div>`;
+  document.body.appendChild(ov);
+}
+async function submitCompleteTask(recordId, dateOnly){
+  const err = document.getElementById('ctError'), btn = document.getElementById('ctSubmit');
+  err.style.display = 'none';
+  const body = {date: document.getElementById('ctDate').value, owner_name: document.getElementById('ctName').value.trim(),
+    owner_phone: document.getElementById('ctPhone').value.trim(), note: document.getElementById('ctNote').value.trim()};
+  if(!dateOnly){ body.start_time = document.getElementById('ctStart').value; body.end_time = document.getElementById('ctEnd').value; }
+  if(!body.date || (!dateOnly && (!body.start_time || !body.end_time))){ showToast('請填好日期與時間'); return; }
+  btn.disabled = true; btn.textContent = '處理中…';
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(recordId) + '/complete', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const d = await res.json().catch(() => ({}));
+    if(res.status === 409 && d.conflict){
+      err.innerHTML = `⚠️ 這個時段已經被佔用了：<b>${escHtml(d.conflict.start_time)}-${escHtml(d.conflict.end_time)}</b>　${escHtml((d.conflict.type || []).join('+'))}｜${escHtml(d.conflict.case || '')}`;
+      err.style.display = 'block'; btn.disabled = false; btn.textContent = '✅ 完成預約'; return;
+    }
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    closeCompleteTask();
+    showToast('✅ 已完成預約，已移到「完成安排」');
+    loadVendorSlots();
+  }catch(e){
+    err.textContent = e.message; err.style.display = 'block';
+    btn.disabled = false; btn.textContent = '✅ 完成預約';
   }
 }
 function copyVnText(text, okMsg){
