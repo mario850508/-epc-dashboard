@@ -443,7 +443,7 @@ async function confirmJointPlan(){
   }
 }
 function cancelJoint(id){
-  confirmDanger('確定取消這個聯合排程？<br><span style="font-size:12.5px;font-weight:500;color:#6B7280;">還沒確認的案件任務會一起取消，屋主連結失效。</span>', () => cancelJointNow(id), '是，取消');
+  confirmDanger('確定取消這個聯合排程？<br><span style="font-size:12.5px;font-weight:500;color:#6B7280;">會直接移除，不留紀錄；還沒確認的案件任務一起刪除，屋主連結失效。已經成立的預約不受影響。</span>', () => cancelJointNow(id), '是，取消並移除');
 }
 async function cancelJointNow(id){
   try{
@@ -451,7 +451,7 @@ async function cancelJointNow(id){
     if(!res.ok) throw new Error('HTTP ' + res.status);
     document.getElementById('jointDetailOverlay').remove();
     loadJoint();
-    showToast('已取消');
+    showToast('已取消並移除');
   }catch(err){ showToast('取消失敗：' + err.message); }
 }
 
