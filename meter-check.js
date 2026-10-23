@@ -280,7 +280,8 @@ function renderMeterCheck(){
     + '</thead><tbody>'
     + (rows.length ? rows.map(c => '<tr>'
       + '<td style="white-space:nowrap;"><b>' + mcEsc(c.case_no) + '</b>' + (c.alias && c.alias !== c.case_no ? '<div class="cert-src">' + mcEsc(c.alias) + '</div>' : '')
-      + (c.close_status && c.close_status !== '進行中' ? '<div class="cert-src">' + mcEsc(c.close_status) + '</div>' : '') + '</td>'
+      + (c.close_status && c.close_status !== '進行中' ? '<div class="cert-src">' + mcEsc(c.close_status) + '</div>' : '')
+      + '<div style="display:flex;gap:4px;margin-top:5px;">' + mcDocBtn(c, 'tp') + mcDocBtn(c, 'eng') + '</div></td>'
       + '<td style="white-space:nowrap;">' + mcEsc(mcDate(c.meter_date)) + '</td>'
       + '<td style="white-space:nowrap;">' + mcEsc(c.vendor) + '</td>'
       + contractCell(c, 'contract_cap', mcContractCap(c), 'cap', mcNum(c.capacity))
@@ -401,6 +402,64 @@ function renderMcTariff(){
     + '<div>・容量級距：下限含、上限不含（10 kWp 算 10–20），有台電契約／細協的容量就用那個。</div>'
     + '<div>新的一期電價出來，把表傳給 Claude 加進來（meter-check.js 的 MC_TARIFF_TABLES）。</div>'
     + '</div></div>';
+}
+
+// ---- 文件懸浮視窗（2026-10-23 使用者要求）：案號下面兩顆鈕，左邊看 PDF、右邊對照數字 ----
+// 台電契約優先、沒有就細部協商（兩份都有可以切換）；另一顆看 03 工程合約
+function mcTpFiles(c){ const f = (c.doc_cap && c.doc_cap.files) || {}; return ['台電契約', '細部協商'].filter(k => f[k]).map(k => f[k]); }
+function mcDocBtn(c, which){
+  const has = which === 'tp' ? mcTpFiles(c).length > 0 : !!(c.eng && c.eng.file_url);
+  const label = which === 'tp' ? (mcTpFiles(c)[0] && mcTpFiles(c)[0].kind === '細部協商' ? '📄 細部協商' : '📄 台電契約') : '📑 工程合約';
+  return '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;' + (has ? '' : 'opacity:.4;cursor:not-allowed;') + '"'
+    + (has ? ' onclick="mcOpenDoc(\'' + mcJs(c.case_no) + '\',\'' + which + '\')"' : ' disabled title="還沒有這份文件（要從 G 槽同步上來）"') + '>' + label + '</button>';
+}
+function mcCloseDoc(){ const m = document.getElementById('mcDocModal'); if(m) m.remove(); document.removeEventListener('keydown', mcDocEsc); }
+function mcDocEsc(e){ if(e.key === 'Escape') mcCloseDoc(); }
+function mcOpenDoc(caseNo, which, idx){
+  const c = ((MC_DATA && MC_DATA.cases) || []).find(x => x.case_no === caseNo);
+  if(!c) return;
+  const docs = which === 'tp' ? mcTpFiles(c) : (c.eng && c.eng.file_url ? [Object.assign({kind: '工程合約', value: c.eng.cap}, c.eng)] : []);
+  const d = docs[idx || 0];
+  if(!d) return;
+  mcCloseDoc();
+  const row = (k, v, hl) => '<tr><td style="color:var(--text-muted);white-space:nowrap;padding:5px 8px 5px 0;">' + k + '</td><td style="padding:5px 0;font-weight:' + (hl ? 700 : 500) + ';">' + v + '</td></tr>';
+  const f = v => v === null || v === undefined || v === '' ? '<span class="cert-src">—</span>' : mcEsc(mcFmt(v));
+  const t = mcTariff(c), r = mcCompare(c);
+  const side = '<div style="font-size:13px;">'
+    + '<div style="font-weight:700;font-size:15px;margin-bottom:2px;">' + mcEsc(c.case_no) + '</div>'
+    + '<div class="cert-src" style="margin-bottom:10px;">' + mcEsc(c.alias || '') + '・掛表 ' + mcEsc(mcDate(c.meter_date)) + '・' + mcEsc(c.vendor || '') + '</div>'
+    + (docs.length > 1 ? '<div style="display:flex;gap:4px;margin-bottom:10px;">' + docs.map((x, i) => '<button class="cert-filter-btn ' + (i === (idx || 0) ? 'active' : '') + '" onclick="mcOpenDoc(\'' + mcJs(caseNo) + '\',\'' + which + '\',' + i + ')">' + mcEsc(x.kind) + '</button>').join('') + '</div>' : '')
+    + '<div style="font-weight:700;margin:4px 0;">這份文件系統讀到的</div><table style="width:100%;">'
+    + row('文件', mcEsc(d.kind) + (d.date ? ' ' + mcEsc(mcDate(d.date)) : ''))
+    + row('容量', f(d.kind === '工程合約' ? c.eng.cap : d.value) + (d.kind !== '工程合約' || c.eng.cap !== null ? ' kW' : ''), true)
+    + (d.kind === '工程合約' ? row('躉購電價', f(c.eng.price), true) + row('工程單價', c.eng.unit_price ? mcEsc(Number(c.eng.unit_price).toLocaleString()) + ' 元/kWp' : f(null)) : '')
+    + row('讀取依據', '<span class="cert-src">' + mcEsc(d.src || '—') + '</span>')
+    + '</table>'
+    + '<div style="font-weight:700;margin:14px 0 4px;">頁面上的比對</div><table style="width:100%;">'
+    + row('📑 工程合約 容量／電價', f(mcContractCap(c)) + ' kW／' + f(mcContractPrice(c)))
+    + row('🔌 掛表時 容量／電價', f(mcCapOk(c)) + ' kW／' + f(mcPriceOk(c)))
+    + row('電價依據', '<span class="cert-src">' + mcEsc(t.label || '') + (t.basis ? '；' + mcEsc(t.basis) : '') + '</span>')
+    + row('結果', r.state === 'ok' ? '<span class="ops-status-pill ops-status-done">OK</span>'
+      : r.state === 'missing' ? '<span class="cert-src" style="color:#B54708;">資料不足：缺' + mcEsc(r.missing.join('、')) + '</span>'
+      : r.items.map(x => '<div style="color:' + (x.dir === 'down' ? '#B42318' : '#1E70C8') + ';font-weight:700;">' + x.what + (x.dir === 'down' ? '下修 ' : '上調 ') + mcEsc(mcFmt(x.from)) + ' → ' + mcEsc(mcFmt(x.to)) + '</div>').join('') + '<div>需' + mcEsc(r.need.join('、')) + '</div>')
+    + '</table>'
+    + '<div class="cert-src" style="margin-top:12px;line-height:1.6;">數字不對可以關掉視窗後直接在表格裡改。大檔只存了前 6 頁；要看完整檔請開 G 槽。</div>'
+    + '<div style="margin-top:10px;"><a class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" href="' + mcEsc(d.file_url) + '" target="_blank" rel="noopener">↗ 新分頁開啟</a></div>'
+    + '</div>';
+  const m = document.createElement('div');
+  m.id = 'mcDocModal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  m.onclick = e => { if(e.target === m) mcCloseDoc(); };
+  m.innerHTML = '<div style="background:var(--card,#fff);border-radius:14px;width:min(1280px,100%);height:min(92vh,960px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25);">'
+    + '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border,#E3E6EA);">'
+    + '<b>' + mcEsc(d.kind) + '｜' + mcEsc(c.case_no) + '</b><span class="cert-src">' + mcEsc(d.filename || '') + '</span>'
+    + '<button class="btn btn-ghost" style="margin-left:auto;padding:3px 10px;" onclick="mcCloseDoc()">✕ 關閉</button></div>'
+    + '<div style="display:flex;flex:1;min-height:0;flex-wrap:wrap;">'
+    + '<iframe src="' + mcEsc(d.file_url) + '#view=FitH" style="flex:1 1 560px;min-height:50vh;border:0;background:#525659;"></iframe>'
+    + '<div style="flex:0 1 330px;padding:14px 16px;overflow:auto;border-left:1px solid var(--border,#E3E6EA);">' + side + '</div>'
+    + '</div></div>';
+  document.body.appendChild(m);
+  document.addEventListener('keydown', mcDocEsc);
 }
 
 async function mcReparse(){
