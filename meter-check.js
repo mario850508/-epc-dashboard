@@ -174,7 +174,8 @@ function mcDocCapNote(c, fromDoc){
   if(!d) return mcNum(c.cap_confirm) === null ? '<div class="cert-src" style="' + style + 'color:#B54708;">沒有台電契約／細部協商</div>' : '';
   const name = '📄 ' + mcEsc(d.kind) + (d.date ? ' ' + mcEsc(mcDate(d.date)) : '');
   const link = d.file_url ? '<a href="' + mcEsc(d.file_url) + '" target="_blank" rel="noopener" title="' + mcEsc(d.src || d.filename || '') + '">' + name + '</a>' : name;
-  if(d.value === null || d.value === undefined) return '<div class="cert-src" style="' + style + 'color:#B54708;" title="' + mcEsc(d.src || '') + '">' + link + ' 讀不到容量</div>';
+  if(d.value === null || d.value === undefined) return '<div class="cert-src" style="' + style + 'color:#B54708;" title="' + mcEsc(d.src || '') + '">' + link
+    + (String(d.src || '').startsWith('讀取中') ? ' 讀取中…' : ' 讀不到容量') + '</div>';
   if(fromDoc) return '<div class="cert-src" style="' + style + '" title="' + mcEsc(d.src || '') + '">' + link + '</div>';
   return mcSame(mcNum(d.value), mcNum(c.cap_confirm), 0.0005) ? '<div class="cert-src" style="' + style + '">' + link + '</div>'
     : '<div class="cert-src" style="' + style + '">手動填（' + link + '：' + mcEsc(mcFmt(d.value)) + '）</div>';
@@ -211,8 +212,11 @@ function renderMeterCheck(){
     let note;
     if(mcNum(c[key]) !== null) note = sub('手動修正（' + (engVal !== null ? engLink(c) + '：' + mcEsc(mcFmt(engVal)) : '專案細節 ' + mcEsc(mcFmt(airVal))) + '）');
     else if(engVal !== null) note = sub(engLink(c));
-    else if(val === null) note = sub(c.eng ? engLink(c) + ' 讀不到' : '沒有工程合約、專案細節也未填', '#B54708');
-    else note = sub('專案細節' + (c.eng ? '（' + engLink(c) + ' 讀不到）' : '（沒有工程合約）'), c.eng ? '#B54708' : '');
+    else {
+      const why = c.eng ? engLink(c) + (String(c.eng.src || '').startsWith('讀取中') ? ' 讀取中…' : ' 讀不到') : '';
+      note = val === null ? sub(c.eng ? why : '沒有工程合約、專案細節也未填', '#B54708')
+        : sub('專案細節' + (c.eng ? '（' + why + '）' : '（沒有工程合約）'), c.eng ? '#B54708' : '');
+    }
     return '<td style="white-space:nowrap;">' + inp(c, key, val, null, 0) + note + '</td>';
   };
   const meterPriceNote = c => {
