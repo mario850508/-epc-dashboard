@@ -7716,6 +7716,20 @@ function openPdfDetail(id){
             <button class="btn btn-ghost" style="padding:5px 10px;font-size:11.5px;" onclick="downloadPdf('${x.id}')">不歸檔，下載就好</button>
           </div></div>`;
       })()}
+      ${(() => {
+        // 背景程式歸檔失敗（找不到案場資料夾、沒分類…）：讓人自己選資料夾，直接從瀏覽器寫進去
+        if(x.status !== '已確認' || !/⚠ 歸檔失敗/.test(x.writeback || '') || /⚠ 同類型已存在/.test(x.writeback || '')) return '';
+        const line = (x.writeback || '').split('\n').reverse().find(l => l.startsWith('⚠ 歸檔失敗')) || '';
+        const cat0 = x.category || '06';
+        return `<div class="pdf-issue" style="border-color:#E0A100;">📂 ${pdfEsc(line.replace('⚠ 歸檔失敗：', '歸檔失敗：'))}
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;">
+            <span class="pdf-sub" style="color:var(--text);">放進分類</span>
+            <select id="pdfManualCat" class="quick-mark-input" style="width:auto;margin:0;padding:5px 8px;font-size:12px;">
+              ${[['03', '03 契約'], ['04', '04 電廠設計圖'], ['06', '06 政府函文'], ['07', '07 設備保固']].map(([v, t]) => `<option value="${v}" ${v === cat0 ? 'selected' : ''}>${t}</option>`).join('')}</select>
+            <button class="btn btn-primary" style="padding:5px 10px;font-size:11.5px;" onclick="manualArchivePdf('${x.id}')">📂 選擇資料夾並歸檔</button>
+          </div>
+          <div class="pdf-sub" style="margin-top:4px;">按下去後選這個案場在 G 槽的資料夾（也可以直接選 06 之類的分類資料夾），系統會把檔案放進去並標成已歸檔。需要用電腦版 Chrome／Edge。</div></div>`;
+      })()}
       <div id="pdfSameType"></div>
       ${meta}
       <label>案號${fieldTip(0, x.case_no, '案號')}</label>
@@ -7723,7 +7737,18 @@ function openPdfDetail(id){
       <datalist id="pdfCaseList"></datalist>
       <div class="pdf-sub" id="pdfFormAlias">${pdfEsc(x.alias)}</div>
       <label>函文類型${fieldTip(1, x.doc_type && x.doc_type !== '其他' ? x.doc_type : '', '類型')}</label>
-      <select class="quick-mark-input ${fieldCls(1, x.doc_type && x.doc_type !== '其他' ? x.doc_type : '')}" id="pdfFormType" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>${pdfDocTypeOptions(x.doc_type)}</select>
+      <select class="quick-mark-input ${fieldCls(1, x.doc_type && x.doc_type !== '其他' ? x.doc_type : '')}" id="pdfFormType" onchange="onPdfTypeChange()" ${editable ? '' : 'disabled'}>${pdfDocTypeOptions(x.doc_type)}</select>
+      ${editable && x.status !== '已歸檔' ? `<div id="pdfNewTypeBox" style="display:${(x.doc_type || '其他') === '其他' ? 'block' : 'none'};margin-top:8px;padding:10px 12px;border:1px dashed #E0A100;border-radius:10px;background:#FFFBEF;">
+        <div style="font-size:12.5px;font-weight:700;">這是新的函文類型嗎？幫它取個名字</div>
+        <div class="pdf-sub" style="margin:2px 0 6px;">按確認後系統會記住這個類型：以後文件上出現這個名稱（或下面的關鍵字）就會自動判成它，歸檔也會放進你選的分類資料夾。不取名＝維持「其他」。</div>
+        <input class="quick-mark-input" id="pdfNewTypeName" maxlength="30" placeholder="類型名稱，例如：電費單、土地使用同意書" style="margin:0;" oninput="refreshPdfName()">
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 8px;align-items:center;margin-top:6px;">
+          <span class="pdf-sub" style="color:var(--text);">歸到分類</span>
+          <select class="quick-mark-input" id="pdfNewTypeCat" style="margin:0;padding:6px 8px;">
+            <option value="06" selected>06 政府函文／台電文件</option><option value="04">04 電廠設計圖</option><option value="03">03 契約</option><option value="07">07 設備保固</option></select>
+          <span class="pdf-sub" style="color:var(--text);">辨識關鍵字</span>
+          <input class="quick-mark-input" id="pdfNewTypeKw" placeholder="選填，頓號分隔；不填就用類型名稱" style="margin:0;padding:6px 8px;">
+        </div></div>` : ''}
       <label>發文日期${fieldTip(2, x.doc_date, '日期')}</label>
       <input type="date" class="quick-mark-input ${fieldCls(2, x.doc_date)}" id="pdfFormDate" value="${pdfEsc(x.doc_date)}" onchange="refreshPdfName()" ${editable ? '' : 'disabled'}>
       ${(() => {
@@ -7893,6 +7918,18 @@ function pickPdfCase(caseNo){
 }
 
 // 案號／類型／日期變更時，檔名如果還是系統產生的（沒被手動改過），就跟著更新
+function onPdfTypeChange(){
+  const box = document.getElementById('pdfNewTypeBox');
+  if(box) box.style.display = document.getElementById('pdfFormType').value === '其他' ? 'block' : 'none';
+  refreshPdfName();
+}
+// 選「其他」又填了新類型名稱 → 用新名稱；否則用下拉選的
+function pdfTypeValue(){
+  const v = document.getElementById('pdfFormType').value;
+  if(v !== '其他') return v;
+  const n = ((document.getElementById('pdfNewTypeName') || {}).value || '').replace(/\s+/g, '');
+  return n || '其他';
+}
 async function refreshPdfName(force){
   const x = PDF_STATE.current;
   if(!x) return;
@@ -7903,7 +7940,7 @@ async function refreshPdfName(force){
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         case_no: document.getElementById('pdfFormCase').value.trim(),
-        doc_type: document.getElementById('pdfFormType').value,
+        doc_type: pdfTypeValue(),
         doc_date: document.getElementById('pdfFormDate').value,
         ext: x.file_ext || '.pdf', id: x.id,
       })});
@@ -7922,7 +7959,7 @@ async function confirmPdf(goNext){
   const nextId = goNext ? (order[pos + 1] || order.find(id => id !== x.id) || '') : '';
   const body = {
     case_no: document.getElementById('pdfFormCase').value.trim(),
-    doc_type: document.getElementById('pdfFormType').value,
+    doc_type: pdfTypeValue(),
     doc_date: document.getElementById('pdfFormDate').value,
     final_name: document.getElementById('pdfFormName').value.trim(),
     user: pdfUser() || '主控台',
@@ -7937,13 +7974,25 @@ async function confirmPdf(goNext){
   if(PDF_STATE.confirming) return;   // 處理中不重複送出（Ctrl+Enter 連按也會被擋）
   PDF_STATE.confirming = true;
   pdfProgressStart(body.final_name, body.archive);
+  let newName = '';
   try{
+    // 選「其他」並取了新名字：先把新類型存起來（以後自動辨識、歸檔分類都會用到）
+    newName = document.getElementById('pdfFormType').value === '其他' && body.doc_type !== '其他' ? body.doc_type : '';
+    if(newName){
+      const tr = await fetch(API_BASE + '/api/pdf-rename/doc-types', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: newName, category: document.getElementById('pdfNewTypeCat').value,
+                              keywords: (document.getElementById('pdfNewTypeKw') || {}).value || ''})});
+      const td = await tr.json();
+      if(!tr.ok) throw new Error(td.error || '新增函文類型失敗');
+      if(PDF_STATE.status && PDF_STATE.status.settings) PDF_STATE.status.settings.doc_types = td.doc_types;
+    }
     const res = await fetch(API_BASE + `/api/pdf-rename/${x.id}/confirm`, {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || '確認失敗');
     await pdfProgressDone(data.writeback);
-    showToast('已確認' + (data.writeback ? '｜' + data.writeback : ''));
+    showToast((newName ? `已新增函文類型「${newName}」｜` : '') + '已確認' + (data.writeback ? '｜' + data.writeback : ''));
     if(downloadAfter) downloadPdf(x.id);   // 沒有要自動歸檔的，直接用新檔名下載
     if(nextId){
       // 先在畫面上標成已確認，直接開下一份（清單在背景更新）
@@ -8019,6 +8068,52 @@ function pdfProgressClear(){
   if(_pdfProg){ clearInterval(_pdfProg.timer); _pdfProg = null; }
   const ov = document.getElementById('pdfProgOverlay');
   if(ov) ov.remove();
+}
+
+// 手動歸檔：用瀏覽器的「選資料夾」功能，由使用者指定案場資料夾，檔案直接寫進去（不經過背景程式）
+async function manualArchivePdf(id){
+  const x = PDF_STATE.items.find(i => i.id === id);
+  if(!x) return;
+  if(!window.showDirectoryPicker){ alert('這個瀏覽器不支援選資料夾，請改用電腦版 Chrome 或 Edge。'); return; }
+  const cat = (document.getElementById('pdfManualCat') || {}).value || x.category || '06';
+  const fname = x.final_name;
+  if(!fname){ showToast('這份還沒有確認檔名'); return; }
+  let root;
+  try{ root = await window.showDirectoryPicker({id: 'epc-pdf-archive', mode: 'readwrite'}); }
+  catch(e){ return; }   // 按取消
+  try{
+    const re = new RegExp('^\\s*0?' + Number(cat) + '(\\D|$)');
+    let target = null, path = root.name;
+    if(re.test(root.name)) target = root;
+    else{
+      for await (const [name, h] of root.entries()){
+        if(h.kind === 'directory' && re.test(name)){ target = h; path = root.name + '/' + name; break; }
+      }
+    }
+    let note = '';
+    if(!target){ target = root; note = `\n\n⚠ 「${root.name}」裡面找不到「${cat}」開頭的分類資料夾，會直接放在這一層。`; }
+    let exists = false;
+    try{ await target.getFileHandle(fname); exists = true; }catch(e){}
+    if(exists) note += `\n\n⚠ 這個資料夾已經有同名檔案，會被覆蓋。`;
+    if(!confirm(`要把\n${fname}\n放到：${path}\n嗎？${note}`)) return;
+    showToast('下載並寫入資料夾中…');
+    const res = await fetch(epcAuthUrl(API_BASE + `/api/pdf-rename/${id}/file`));
+    if(!res.ok) throw new Error('下載檔案失敗（' + res.status + '）');
+    const blob = await res.blob();
+    const fh = await target.getFileHandle(fname, {create: true});
+    const w = await fh.createWritable();
+    await w.write(blob);
+    await w.close();
+    const r2 = await fetch(API_BASE + `/api/pdf-rename/${id}/archived`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ok: true, result: `已放到 ${path}/${fname}（${pdfUser() || '主控台'}手動選擇資料夾）`})});
+    if(!r2.ok) throw new Error('檔案已寫入，但更新狀態失敗，請重新整理');
+    showToast('已歸檔：' + path);
+    closePdfDetailModal();
+    loadPdfRename();
+  }catch(e){
+    showToast('歸檔失敗：' + (e.message || e));
+  }
 }
 
 function downloadPdf(id){
