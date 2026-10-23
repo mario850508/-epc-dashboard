@@ -107,6 +107,7 @@
 - 2026-10-22 使用者：電價就依規則算，頁面拿掉「Airtable 合約電價」欄（只改顯示，**不寫回 Airtable**，使用者選的）；規則算不出來才退回 Airtable 值並標「依 Airtable」。
 - 電價確認沒手動填時直接帶依規則算的電價（標「依規則帶入」，2026-10-22 使用者要求不要空白）；手動填的蓋過。
 - 契約同步在使用者電腦（2026-10-23）：程式放 `C:\sunny-tools`（curl 從 GitHub raw 抓 tools/drawing_sync.py）。**這台電腦 `py` 是 Anaconda，沒設 PATH 會「ssl module not available」**，要先 `set PATH=%USERPROFILE%\anaconda3;...\Library\bin;...\Scripts;%PATH%`。drawing_sync 沒給資料夾時用 DEFAULT_ROOTS（06 潤特綠能、07 陽光工程，契約／細協都在這）。每日排程用 `tools/sunny_contract_sync.bat`（ASCII、會先更新程式、記錄寫 C:\sunny-tools\sync_log.txt），工作排程名稱「陽光_契約容量同步」每天 12:30。G 槽有些資料夾檔名編號跟案號不同（例：潤特宜蘭6號資料夾裡是 蘭12_…台電契約移轉），程式以資料夾案號為準，已請使用者確認。
+- **2026-10-23 頁面改成「工程合約 vs 掛表時」比對（使用者說明的流程）**：工程合約＝03 資料夾的工程合約（容量、跟 EPC 簽約的電價），目前先用專案細節 系統容量／工程合約電價（`fldzJoM0X3Gcnfq3z`），可人工修正（掛表資訊確認表新欄位 合約容量 fldHU68zisgepVeG0、合約電價 fld8rAXXGV4VVrrp3）；掛表時＝台電契約／細協容量（cap_confirm 蓋過）＋依規則電價（price_confirm 蓋過，不再退回 Airtable）。結果：都一樣＝OK；下修→需折讓、上調→需發票（使用者指定），「調整處理」欄（fldRlGGa6HHwuQnX8：待廠商提供／已收到折讓／發票／已通知內部）在頁面追蹤（使用者選不發 LINE）。篩選：OK／有調整／調整待處理／資料不足／電價掉了。**待辦：使用者提供一份 03 工程合約範例，才能做從合約 PDF 自動讀容量和電價**（PDF 公文更名表目前沒有任何工程合約）。
 - 撤案案件：手動加案號＋案件狀況，同一段說明合併顯示、可一起改。
 - 後端：`GET/POST /api/meter-check`、`DELETE /api/meter-check/<id>`；Airtable 新表「掛表資訊確認」`tblLm4MbcByd2VrV8`（月份／案號／類型 掛表|撤案／容量確認／電價確認／備註／確認人（取 PDF 頁「我是」）／更新時間）。
 - 試算表最右邊那欄（截圖只看到「原始…」）沒搬，待使用者說明用途。7 月的舊確認值沒有匯入。
