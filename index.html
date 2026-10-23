@@ -988,6 +988,23 @@
   ::-webkit-scrollbar-thumb{background:rgba(196,83,10,.24);border-radius:8px;border:2px solid transparent;background-clip:content-box;}
   ::-webkit-scrollbar-thumb:hover{background:rgba(196,83,10,.42);background-clip:content-box;}
 
+  /* PDF 確認進度條 */
+  #pdfProgOverlay{position:fixed;inset:0;z-index:3000;background:rgba(30,26,18,.38);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);animation:fadeIn .2s ease;}
+  .pdfprog-card{width:min(380px,88vw);background:#fff;border-radius:16px;padding:20px 22px 18px;box-shadow:0 18px 50px rgba(60,40,10,.28);animation:popIn .28s var(--ease-out);}
+  .pdfprog-title{font-size:16px;font-weight:700;color:#1B2333;}
+  .pdfprog-file{font-size:12px;color:#7A8294;margin:3px 0 12px;word-break:break-all;}
+  .pdfprog-track{height:10px;border-radius:999px;background:#F1E8D6;overflow:hidden;}
+  .pdfprog-bar{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,#FFB648,#F2790C);transition:width .18s linear;position:relative;overflow:hidden;}
+  .pdfprog-bar::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.55) 50%,transparent 70%);animation:pdfShimmer 1.2s linear infinite;}
+  .pdfprog-bar.done{background:linear-gradient(90deg,#34C77B,#1FA463);}
+  .pdfprog-bar.done::after{display:none;}
+  .pdfprog-bar.fail{background:#E5484D;}
+  .pdfprog-bar.fail::after{display:none;}
+  @keyframes pdfShimmer{from{transform:translateX(-100%);}to{transform:translateX(100%);}}
+  .pdfprog-row{display:flex;justify-content:space-between;gap:10px;margin-top:8px;font-size:13px;color:#4A5468;}
+  .pdfprog-row span:last-child{font-variant-numeric:tabular-nums;font-weight:700;color:#C4530A;}
+  .pdfprog-steps{font-size:12px;color:#1FA463;margin-top:6px;min-height:0;}
+
   /* --- 使用者在系統設定開了「減少動態效果」就全部關掉 --- */
   @media (prefers-reduced-motion:reduce){
     *,*::before,*::after{animation:none !important;transition:none !important;scroll-behavior:auto !important;}
@@ -7917,11 +7934,15 @@ async function confirmPdf(goNext){
   body.archive = arcBox ? arcBox.checked : true;
   const downloadAfter = !arcBox || !arcBox.checked;
   if(!body.case_no || !body.doc_type || !body.final_name){ showToast('案號、函文類型、檔名都要填'); return; }
+  if(PDF_STATE.confirming) return;   // 處理中不重複送出（Ctrl+Enter 連按也會被擋）
+  PDF_STATE.confirming = true;
+  pdfProgressStart(body.final_name, body.archive);
   try{
     const res = await fetch(API_BASE + `/api/pdf-rename/${x.id}/confirm`, {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || '確認失敗');
+    await pdfProgressDone(data.writeback);
     showToast('已確認' + (data.writeback ? '｜' + data.writeback : ''));
     if(downloadAfter) downloadPdf(x.id);   // 沒有要自動歸檔的，直接用新檔名下載
     if(nextId){
@@ -7935,8 +7956,69 @@ async function confirmPdf(goNext){
     closePdfDetailModal();
     loadPdfRename();
   }catch(e){
+    pdfProgressFail(e.message);
     showToast('確認失敗：' + e.message);
+  }finally{
+    PDF_STATE.confirming = false;
   }
+}
+
+// ---- 確認時的進度條：後端是一次做完（存確認內容 → 寫回 Airtable → 同步同案日期），
+// 沒有分段回報，所以進度依處理時間往前走（越接近 90% 越慢），等後端回應才跳到 100% ----
+let _pdfProg = null;
+function pdfProgressStart(name, archive){
+  pdfProgressClear();
+  const ov = document.createElement('div');
+  ov.id = 'pdfProgOverlay';
+  ov.innerHTML = `<div class="pdfprog-card">
+      <div class="pdfprog-title" id="pdfProgTitle">確認中…</div>
+      <div class="pdfprog-file">${pdfEsc(name || '')}</div>
+      <div class="pdfprog-track"><div class="pdfprog-bar" id="pdfProgBar"></div></div>
+      <div class="pdfprog-row"><span id="pdfProgStep">儲存確認內容…</span><span id="pdfProgPct">0%</span></div>
+      <div class="pdfprog-steps" id="pdfProgSteps"></div>
+    </div>`;
+  document.body.appendChild(ov);
+  const t0 = Date.now();
+  const steps = [[0, '儲存確認內容…'], [1.2, '寫回 Airtable 專案細節（空白欄位）…'], [4, '同步同案其他文件日期…'], [9, '還在處理中，Airtable 比較慢，請再等一下…']];
+  _pdfProg = {pct: 0, timer: setInterval(() => {
+    const sec = (Date.now() - t0) / 1000;
+    const pct = 90 * (1 - Math.exp(-sec / 3.2));
+    _pdfProg.pct = pct;
+    const bar = document.getElementById('pdfProgBar'), pc = document.getElementById('pdfProgPct'), st = document.getElementById('pdfProgStep');
+    if(!bar) return;
+    bar.style.width = pct.toFixed(1) + '%';
+    pc.textContent = Math.floor(pct) + '%';
+    st.textContent = steps.filter(x => sec >= x[0]).pop()[1];
+  }, 120)};
+}
+function pdfProgressDone(writeback){
+  return new Promise(resolve => {
+    if(_pdfProg){ clearInterval(_pdfProg.timer); }
+    const bar = document.getElementById('pdfProgBar');
+    if(!bar){ resolve(); return; }
+    bar.style.width = '100%';
+    bar.classList.add('done');
+    document.getElementById('pdfProgPct').textContent = '100%';
+    document.getElementById('pdfProgTitle').textContent = '✅ 已確認';
+    document.getElementById('pdfProgStep').textContent = '完成';
+    document.getElementById('pdfProgSteps').textContent = writeback ? ('寫回 Airtable：' + writeback) : '';
+    setTimeout(() => { pdfProgressClear(); resolve(); }, writeback ? 900 : 450);
+  });
+}
+function pdfProgressFail(msg){
+  if(_pdfProg){ clearInterval(_pdfProg.timer); }
+  const bar = document.getElementById('pdfProgBar');
+  if(!bar){ return; }
+  bar.classList.add('fail');
+  document.getElementById('pdfProgTitle').textContent = '❌ 確認失敗';
+  document.getElementById('pdfProgStep').textContent = msg || '';
+  document.getElementById('pdfProgPct').textContent = '';
+  setTimeout(pdfProgressClear, 2800);
+}
+function pdfProgressClear(){
+  if(_pdfProg){ clearInterval(_pdfProg.timer); _pdfProg = null; }
+  const ov = document.getElementById('pdfProgOverlay');
+  if(ov) ov.remove();
 }
 
 function downloadPdf(id){
