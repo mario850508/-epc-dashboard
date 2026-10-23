@@ -90,9 +90,16 @@ function mcTariff(c){
 }
 // 掛表時電價：人工填的優先，沒填就直接帶依規則算出來的電價（不退回 Airtable：Airtable 那個是工程合約電價，是比對的另一邊）
 function mcPriceOk(c){ const v = mcNum(c.price_confirm); return v !== null ? v : mcTariff(c).price; }
-// 工程合約那側：人工修正優先，沒有就用專案細節的系統容量／工程合約電價
-function mcContractCap(c){ const v = mcNum(c.contract_cap); return v !== null ? v : mcNum(c.capacity); }
-function mcContractPrice(c){ const v = mcNum(c.contract_price); return v !== null ? v : mcNum(c.price); }
+// 工程合約那側：人工修正 > 03 資料夾工程合約讀到的（後端 eng）> 專案細節的系統容量／工程合約電價
+function mcEng(c, k){ return c.eng ? mcNum(c.eng[k]) : null; }
+function mcContractCap(c){ const v = mcNum(c.contract_cap); return v !== null ? v : mcEng(c, 'cap') !== null ? mcEng(c, 'cap') : mcNum(c.capacity); }
+function mcContractPrice(c){ const v = mcNum(c.contract_price); return v !== null ? v : mcEng(c, 'price') !== null ? mcEng(c, 'price') : mcNum(c.price); }
+// 容量有差時估算折讓／發票金額：差的容量 × 工程單價 × 1.05（合約第參條六：價金依實際掛表容量結算）
+function mcAdjAmount(c){
+  const unit = mcEng(c, 'unit_price'), a = mcContractCap(c), b = mcCapOk(c);
+  if(unit === null || a === null || b === null || mcSame(a, b, 0.0005)) return null;
+  return Math.round(Math.abs(b - a) * unit * 1.05);
+}
 const MC_ADJ = ['待廠商提供', '已收到折讓／發票', '已通知內部'];
 // 比對結果：{state: ok|adj|missing, items:[{what, from, to, dir}], need:[折讓|發票], missing:[…], done}
 function mcCompare(c){
@@ -194,8 +201,20 @@ function renderMeterCheck(){
     return '<input type="number" step="any" class="quick-mark-input" style="width:84px;padding:4px 6px;' + bg + '" value="' + mcEsc(mcFmt(val)) + '"'
       + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'' + key + '\',this.value)">';
   };
-  const contractCell = (c, key, val, airVal) => '<td style="white-space:nowrap;">' + inp(c, key, val, null, 0)
-    + (val === null ? sub('專案細節未填', '#B54708') : mcNum(c[key]) !== null ? sub('手動修正' + (airVal !== null ? '（專案細節 ' + mcEsc(mcFmt(airVal)) + '）' : '')) : sub('專案細節')) + '</td>';
+  const engLink = c => {
+    const e = c.eng, name = '📄 工程合約' + (e.date ? ' ' + mcEsc(mcDate(e.date)) : '');
+    return e.file_url ? '<a href="' + mcEsc(e.file_url) + '" target="_blank" rel="noopener" title="' + mcEsc(e.src || e.filename || '') + '">' + name + '</a>' : name;
+  };
+  // 工程合約那側的來源小字：手動修正／工程合約（可點開）／專案細節
+  const contractCell = (c, key, val, engKey, airVal) => {
+    const engVal = mcEng(c, engKey);
+    let note;
+    if(mcNum(c[key]) !== null) note = sub('手動修正（' + (engVal !== null ? engLink(c) + '：' + mcEsc(mcFmt(engVal)) : '專案細節 ' + mcEsc(mcFmt(airVal))) + '）');
+    else if(engVal !== null) note = sub(engLink(c));
+    else if(val === null) note = sub(c.eng ? engLink(c) + ' 讀不到' : '沒有工程合約、專案細節也未填', '#B54708');
+    else note = sub('專案細節' + (c.eng ? '（' + engLink(c) + ' 讀不到）' : '（沒有工程合約）'), c.eng ? '#B54708' : '');
+    return '<td style="white-space:nowrap;">' + inp(c, key, val, null, 0) + note + '</td>';
+  };
   const meterPriceNote = c => {
     const t = mcTariff(c);
     return (mcNum(c.price_confirm) !== null ? sub('手動填（規則：' + (t.price === null ? mcEsc(t.label) : mcEsc(mcFmt(t.price))) + '）')
@@ -210,6 +229,7 @@ function renderMeterCheck(){
     return r.items.map(x => '<div style="font-size:12.5px;white-space:nowrap;font-weight:700;color:' + (x.dir === 'down' ? '#B42318' : '#1E70C8') + ';">'
         + x.what + (x.dir === 'down' ? '下修 ' : '上調 ') + mcEsc(mcFmt(x.from)) + ' → ' + mcEsc(mcFmt(x.to)) + '</div>').join('')
       + '<div style="margin-top:3px;">' + r.need.map(n => '<span class="ops-status-pill" style="background:' + (n === '折讓' ? '#FDECEC;color:#B42318' : '#E8F1FB;color:#1E70C8') + ';margin-right:4px;">需' + n + '</span>').join('') + '</div>'
+      + (mcAdjAmount(c) !== null ? sub('容量差估 NT$ ' + mcAdjAmount(c).toLocaleString() + '（含稅，單價 ' + mcEng(c, 'unit_price').toLocaleString() + '/kWp）') : '')
       + (r.missing.length ? sub('缺：' + mcEsc(r.missing.join('、')), '#B54708') : '');
   };
   const adjCell = c => {
@@ -240,8 +260,8 @@ function renderMeterCheck(){
       + (c.close_status && c.close_status !== '進行中' ? '<div class="cert-src">' + mcEsc(c.close_status) + '</div>' : '') + '</td>'
       + '<td style="white-space:nowrap;">' + mcEsc(mcDate(c.meter_date)) + '</td>'
       + '<td style="white-space:nowrap;">' + mcEsc(c.vendor) + '</td>'
-      + contractCell(c, 'contract_cap', mcContractCap(c), mcNum(c.capacity))
-      + contractCell(c, 'contract_price', mcContractPrice(c), mcNum(c.price))
+      + contractCell(c, 'contract_cap', mcContractCap(c), 'cap', mcNum(c.capacity))
+      + contractCell(c, 'contract_price', mcContractPrice(c), 'price', mcNum(c.price))
       + '<td style="white-space:nowrap;">' + inp(c, 'cap', mcCapOk(c), mcContractCap(c), 0.0005) + mcDocCapNote(c, mcNum(c.cap_confirm) === null && mcCapOk(c) !== null) + '</td>'
       + '<td style="white-space:nowrap;">' + inp(c, 'price', mcPriceOk(c), mcContractPrice(c), 0.00005) + meterPriceNote(c) + '</td>'
       + '<td>' + resultCell(c) + '</td>'
@@ -375,7 +395,8 @@ function mcCopyTable(){
   (MC_DATA.cases || []).forEach(c => {
     const r = mcCompare(c);
     const res = r.state === 'ok' ? 'OK' : r.state === 'missing' ? '資料不足（缺' + r.missing.join('、') + '）'
-      : r.items.map(x => x.what + (x.dir === 'down' ? '下修' : '上調') + mcFmt(x.from) + '→' + mcFmt(x.to)).join('；') + '（需' + r.need.join('、') + '）';
+      : r.items.map(x => x.what + (x.dir === 'down' ? '下修' : '上調') + mcFmt(x.from) + '→' + mcFmt(x.to)).join('；') + '（需' + r.need.join('、')
+        + (mcAdjAmount(c) !== null ? '，容量差估 NT$' + mcAdjAmount(c) + ' 含稅' : '') + '）';
     lines.push([c.case_no, c.alias, mcDate(c.meter_date), c.vendor, mcFmt(mcContractCap(c)), mcFmt(mcContractPrice(c)),
       mcFmt(mcCapOk(c)), mcFmt(mcPriceOk(c)), res, r.state === 'adj' ? (c.adj_status || '待廠商提供') : '', (c.note || '').replace(/\s+/g, ' ')].join('\t'));
   });
