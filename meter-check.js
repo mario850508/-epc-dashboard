@@ -35,10 +35,26 @@ function mcCapOk(c){ const v = mcNum(c.cap_confirm); return v !== null ? v : mcD
 //   掛表日在同意備案日 4 個月內 → 用同意備案日那一期；超過 4 個月 → 用掛表日那一期（電價可能已經掉了）。
 // 依容量級距（10 kWp 以上算 10–20，以此類推）、案號裡的縣市決定北／南。
 // 新的一期電價出來時，在這裡加一筆（key＝民國年-期別）。地面型、併網高壓等加乘沒有放進來。
-const MC_TARIFF = {
-  '115-1': {south: [6.0312, 5.7704, 4.5711, 4.3543, 4.0037, 3.9066], north: [6.8754, 6.5777, 5.2087, 4.9612, 4.5610, 4.4501]},
-  '115-2': {south: [6.0312, 5.7704, 4.5711, 4.3543, 4.0037, 3.9066], north: [6.8754, 6.5777, 5.2087, 4.9612, 4.5610, 4.4501]},
+// 完整電價表（「電價表」分頁顯示用；計算只用最後兩欄）。列：1-10／10-20／20-50／50-100／100-500／>500 kWp／地面型
+const MC_TARIFF_COLS = ['原始電價', '北部加乘', 'nonvpc&回收(南)', 'nonvpc&回收(北)', '高效&模組(南)', '高效&模組(北)'];
+const MC_TARIFF_ROWS = ['1 - 10 kWp', '10 - 20 kWp', '20 - 50 kWp', '50 - 100 kWp', '100 - 500 kWp', '>500 kWp', '地面型'];
+const MC_TARIFF_FULL_115 = [
+  [5.6279, 6.4721, 5.6935, 6.5377, 6.0312, 6.8754],
+  [5.3819, 6.1892, 5.4475, 6.2548, 5.7704, 6.5777],
+  [4.2505, 4.8881, 4.3161, 4.9537, 4.5711, 5.2087],
+  [4.0459, 4.6528, 4.1115, 4.7184, 4.3543, 4.9612],
+  [3.7152, 4.2725, 3.7808, 4.3381, 4.0037, 4.5610],
+  [3.6236, 4.1671, 3.6892, 4.2327, 3.9066, 4.4501],
+  [3.5037, 4.0293, 3.5693, 4.0949, 3.7795, 4.3051],
+];
+const MC_TARIFF_TABLES = {
+  '115-1': {title: '115年度第一期電費(1/1-6/30)', rows: MC_TARIFF_FULL_115},
+  '115-2': {title: '115年度第二期電費(7/1-12/31)', rows: MC_TARIFF_FULL_115,
+    extras: [['併網低壓50-100', '+0.0688'], ['併網低壓100-500', '+0.0964'], ['併網高壓', '+0.0413'], ['加強電力網', '+0.1356']]},
 };
+// 計算用：高效&模組(南／北)，前 6 列（不含地面型）
+const MC_TARIFF = Object.fromEntries(Object.entries(MC_TARIFF_TABLES).map(([k, t]) =>
+  [k, {south: t.rows.slice(0, 6).map(r => r[4]), north: t.rows.slice(0, 6).map(r => r[5])}]));
 const MC_TIERS = [10, 20, 50, 100, 500];   // 1-10／10-20／20-50／50-100／100-500／>500 kWp
 const MC_TIER_LABEL = ['1-10', '10-20', '20-50', '50-100', '100-500', '>500'];
 // 北部加乘地區（台電躉購北部地區；宜蘭使用者確認算北）；其他縣市算南
@@ -120,11 +136,13 @@ function mcCompare(c){
 function mcState(c){ return mcCompare(c).state; }
 
 function showMcTab(tab){
-  if(!['cases', 'withdrawn'].includes(tab)) tab = 'cases';
+  if(!['cases', 'withdrawn', 'tariff'].includes(tab)) tab = 'cases';
   MC_TAB = tab;
   showView('metercheck');
   document.getElementById('mcCasesPanel').style.display = tab === 'cases' ? '' : 'none';
   document.getElementById('mcWdPanel').style.display = tab === 'withdrawn' ? '' : 'none';
+  document.getElementById('mcTariffPanel').style.display = tab === 'tariff' ? '' : 'none';
+  if(tab === 'tariff') renderMcTariff();
   document.querySelectorAll('#view-metercheck .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'mc-' + tab));
   document.querySelectorAll('.nav-sub-item').forEach(n => n.classList.remove('active'));
   document.querySelector('.nav-sub-item[data-sub="mc-' + tab + '"]').classList.add('active');
@@ -357,6 +375,32 @@ async function mcSave(caseNo, kind, value){
     renderMeterCheck();
     showToast('儲存失敗：' + e.message);
   }
+}
+
+// 「電價表」分頁：每一期一張完整表，標出我們用的兩欄（高效&模組 南／北）和今天適用的那一期
+function renderMcTariff(){
+  const box = document.getElementById('mcTariffBox');
+  if(!box) return;
+  const now = mcPeriod(new Date().toISOString().slice(0, 10));
+  const use = i => i >= 4;
+  box.innerHTML = Object.entries(MC_TARIFF_TABLES).sort((a, b) => b[0].localeCompare(a[0])).map(([k, t]) =>
+    '<div style="margin-bottom:22px;">'
+    + '<div class="panel-title">' + mcEsc(t.title) + (k === now ? ' <span class="module-tag tag-cloud" style="margin-left:6px;">目前這一期</span>' : '') + '</div>'
+    + '<div style="overflow:auto;"><table style="min-width:760px;"><thead><tr><th>容量</th>'
+    + MC_TARIFF_COLS.map((c, i) => '<th style="text-align:right;' + (use(i) ? 'background:#FFF4E5;color:#B54708;' : '') + '">' + mcEsc(c) + '</th>').join('')
+    + '</tr></thead><tbody>'
+    + t.rows.map((r, ri) => '<tr><td style="white-space:nowrap;font-weight:600;">' + mcEsc(MC_TARIFF_ROWS[ri]) + '</td>'
+      + r.map((v, i) => '<td style="text-align:right;font-variant-numeric:tabular-nums;' + (use(i) ? 'background:#FFF8EC;font-weight:700;' : '') + '">' + v.toFixed(4) + '</td>').join('') + '</tr>').join('')
+    + '</tbody></table></div>'
+    + (t.extras ? '<div class="cert-src" style="margin-top:6px;">加乘：' + t.extras.map(e => mcEsc(e[0]) + ' ' + mcEsc(e[1])).join('　') + '</div>' : '')
+    + '</div>').join('')
+    + '<div class="login-note"><div style="line-height:1.7;">'
+    + '<div>🔗 橘色兩欄「高效&模組(南／北)」是我們用的電價，掛表案件分頁的電價就是從這兩欄算的：</div>'
+    + '<div>・期別：1–6 月第一期、7–12 月第二期，看掛表日；掛表日在同意備案日 4 個月內，用同備日那一期。</div>'
+    + '<div>・北／南：新北、桃園、新竹、苗栗、宜蘭等北部用（北），其他用（南）；案號看不出縣市就看地址。</div>'
+    + '<div>・容量級距：下限含、上限不含（10 kWp 算 10–20），有台電契約／細協的容量就用那個。</div>'
+    + '<div>新的一期電價出來，把表傳給 Claude 加進來（meter-check.js 的 MC_TARIFF_TABLES）。</div>'
+    + '</div></div>';
 }
 
 async function mcReparse(){
