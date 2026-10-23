@@ -33,7 +33,7 @@ function vrCard(r, pending){
       <span style="font-size:12px;font-weight:800;color:${stColor};">${escHtml(r.status)}</span>
     </div>
     <div style="font-size:13px;margin-top:6px;line-height:1.7;">
-      📅 希望：${r.dates.map(d => escHtml(fmtDate(d)) + '（' + fmtWeekday(d) + '）').join('、') || '—'}${r.time_pref ? '｜⏰ ' + escHtml(r.time_pref) : ''}
+      📅 希望：${[r.dates.map(d => escHtml(fmtDate(d)) + '（' + fmtWeekday(d) + '）').join('、'), r.weekdays_text ? '🔁 ' + escHtml(r.weekdays_text) : ''].filter(Boolean).join('　') || '—'}${r.time_pref ? '｜⏰ ' + escHtml(r.time_pref) : ''}
       ${r.contact ? '<br>👤 ' + escHtml(r.contact) : ''}${r.note ? '<br>📝 ' + escHtml(r.note) : ''}
       ${r.reply ? '<br>💬 回覆：' + escHtml(r.reply) : ''}
       <br><span style="color:var(--text-muted);font-size:12px;">申請時間 ${escHtml(when)}</span>
@@ -73,7 +73,23 @@ function handleVendorRequest(id){
   updateSlotTypeLabel('slot-task-type-check', 'slotTaskTypeLabel');
   const rows = document.getElementById('slotTaskDateRows');
   rows.innerHTML = '';
-  (r.dates.length ? r.dates : ['']).forEach((d, i) => {
+  // 廠商只填了星期偏好（沒指定日期）：依「可以／不行的星期」＋期間，預填接下來符合的日期（最多 8 天），窗口再自己調整
+  let candDates = r.dates.slice();
+  let wdHint = '';
+  if(!candDates.length && r.weekdays){
+    const ok = new Set(r.weekdays.ok || []), no = new Set(r.weekdays.no || []);
+    const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    const d = new Date(); d.setHours(12, 0, 0, 0);
+    for(let i = 1; i <= (r.weekdays.within || 14) && candDates.length < 8; i++){
+      const x = new Date(d.getTime() + i * 86400000);
+      const w = (x.getDay() + 6) % 7;      // 0＝週一 … 6＝週日
+      if(no.has(w)) continue;
+      if(ok.size ? !ok.has(w) : w >= 5) continue;     // 沒指定可以的星期：預設只排週一到週五
+      candDates.push(iso(x));
+    }
+    wdHint = '廠商的星期偏好：' + (r.weekdays_text || '') + '，已預填接下來符合的日期，請自行調整';
+  }
+  (candDates.length ? candDates : ['']).forEach((d, i) => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:8px;align-items:center;';
     row.innerHTML = `<input type="date" class="quick-mark-input slot-task-date-input" style="flex:1;" value="${d}">` + (i ? '<button class="btn btn-ghost" style="padding:6px 10px;font-size:12px;" onclick="this.parentElement.remove()">✕</button>' : '');
@@ -81,7 +97,7 @@ function handleVendorRequest(id){
   });
   applySlotTaskTimeDefault();
   const hint = [r.time_pref ? '希望時段：' + r.time_pref : '', r.contact ? '聯絡人：' + r.contact : '', r.note ? '備註：' + r.note : ''].filter(Boolean).join('｜');
-  showToast('已帶入廠商申請的案號／項目／希望日期' + (hint ? '（' + hint + '）' : ''));
+  showToast('已帶入廠商申請的案號／項目／希望日期' + (hint ? '（' + hint + '）' : '') + (wdHint ? '。' + wdHint : ''));
   if(typeof applyMeterDefaultScheduler === 'function') applyMeterDefaultScheduler();
 }
 

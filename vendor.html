@@ -23,6 +23,17 @@
     background:radial-gradient(ellipse 900px 500px at 100% 0%, rgba(255,182,72,.18), transparent 60%), var(--bg);color:var(--text);}
   .wrap{max-width:560px;margin:0 auto;padding:20px 16px 70px;}
   .brand{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+  .seg{display:flex;gap:6px;margin:2px 0 10px;background:#F1ECE0;border-radius:12px;padding:4px;}
+  .seg-b{flex:1;text-align:center;padding:9px 6px;border-radius:9px;font-size:14.5px;font-weight:700;cursor:pointer;color:var(--text-muted);transition:background .2s,color .2s;}
+  .seg-b.on{background:#fff;color:var(--sun-3);box-shadow:0 1px 5px rgba(120,80,20,.15);}
+  .wdrow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:6px 0 4px;}
+  .wd{padding:11px 0;border-radius:11px;border:2px solid var(--border);background:#fff;font-size:15px;font-weight:700;text-align:center;cursor:pointer;transition:background .15s,color .15s,border-color .15s;}
+  .wd.ok{background:linear-gradient(135deg,var(--sun-1),var(--sun-2));color:#fff;border-color:transparent;}
+  .wd.no{background:#FDECEC;color:#B42318;border-color:#F3C5C5;text-decoration:line-through;}
+  .sub{font-size:13px;color:var(--text-muted);margin:10px 0 2px;}
+  .linkbtn{background:none;border:none;color:var(--sun-3);font-size:13.5px;font-weight:700;padding:8px 0 0;cursor:pointer;text-decoration:underline;}
+  .ct-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid #F0E4CC;font-size:14.5px;}
+  .ct-row button{border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;flex:0 0 30px;}
   .sbar{display:flex;gap:7px;overflow-x:auto;margin:12px -4px 2px;padding:2px 4px 6px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
   .sbar::-webkit-scrollbar{display:none;}
   .sb{flex:0 0 auto;padding:8px 14px;border-radius:99px;border:1.5px solid var(--border);background:#fff;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .2s,color .2s,border-color .2s,transform .15s;}
@@ -251,27 +262,114 @@ function choose(c){
   window.scrollTo({top: 0, behavior: 'smooth'});
 }
 function renderForm(pane){
-  const name = lsGet('vp_contact');
   pane.innerHTML = `<div class="card">
       <div class="row"><h2>② 填寫預約內容</h2><button class="btn-ghost" onclick="picked=null;render()">換一案</button></div>
       <div style="margin-top:6px;"><b>${esc(picked.case)}</b> <span class="muted">${esc(picked.alias || '')}</span>${picked.address ? `<div class="muted">📍 ${esc(picked.address)}</div>` : ''}</div>
       <label>預約項目（可複選）</label>
       <div class="types">${D.types.map(t => `<div class="type ${selTypes.has(t) ? 'on' : ''}" onclick="toggleType('${t}')">${t}</div>`).join('')}</div>
-      <label>希望的日期（可以填好幾天，窗口會從中安排）</label>
-      <div id="dateRows"><div class="date-row"><input type="date" class="d" min="${todayIso()}"></div></div>
-      <button class="btn-ghost" onclick="addDate()">＋ 再加一天</button>
+      <label>希望的日期</label>
+      <div class="seg"><div class="seg-b ${dateMode === 'date' ? 'on' : ''}" id="dmDate" onclick="setDateMode('date')">📅 指定日期</div>
+        <div class="seg-b ${dateMode === 'wd' ? 'on' : ''}" id="dmWd" onclick="setDateMode('wd')">🔁 指定星期</div></div>
+      <div id="dateBox" style="display:${dateMode === 'date' ? 'block' : 'none'};">
+        <div class="muted" style="margin:-4px 0 8px;font-size:12.5px;">可以填好幾天，窗口會從中安排</div>
+        <div id="dateRows"><div class="date-row"><input type="date" class="d" min="${todayIso()}"></div></div>
+        <button class="btn-ghost" onclick="addDate()">＋ 再加一天</button>
+      </div>
+      <div id="wdBox" style="display:${dateMode === 'wd' ? 'block' : 'none'};">
+        <div class="muted" style="margin:-4px 0 4px;font-size:12.5px;">不用指定哪一天：告訴窗口星期幾可以／不行，窗口會依此協調</div>
+        <div class="sub">✅ 可以的星期（可複選；都不選＝哪天都可以）</div>
+        <div class="wdrow" id="wdOkRow"></div>
+        <div class="sub">🚫 不行的星期（可複選）</div>
+        <div class="wdrow" id="wdNoRow"></div>
+        <div class="sub">期間</div>
+        <select id="wdWithin"><option value="7">一週內</option><option value="14" selected>兩週內</option><option value="30">一個月內</option><option value="60">兩個月內</option></select>
+      </div>
       <label>希望的時段</label>
       <select id="tp" onchange="document.getElementById('tpOther').style.display=this.value==='其他'?'block':'none'">
         <option value="">不限</option><option>上午</option><option>下午</option><option>整天</option><option>其他</option></select>
       <input id="tpOther" placeholder="例如：10:00 以後、中午前" style="display:none;margin-top:8px;">
-      <label>您的聯絡人／電話（選填）</label>
-      <input id="contact" placeholder="例如：林先生 0912-345-678" value="${esc(name)}">
+      <label>聯絡人／電話（選填）</label>
+      <select id="contactSel" onchange="onContactSel()"></select>
+      <div id="contactNew" style="display:none;margin-top:8px;">
+        <div style="display:flex;gap:8px;"><input id="ctName" placeholder="姓名，例如：林先生" style="flex:1;"><input id="ctPhone" placeholder="電話" inputmode="tel" style="flex:1.2;"></div>
+        <label style="display:flex;gap:8px;align-items:center;font-weight:600;font-size:14px;margin:10px 0 0;"><input type="checkbox" id="ctSave" style="width:auto;" checked> 存成常用聯絡人（下次直接選）</label>
+      </div>
+      <button class="linkbtn" type="button" onclick="toggleContactMgr()">管理常用聯絡人</button>
+      <div id="contactMgr" style="display:none;margin-top:6px;"></div>
       <label>備註（選填）</label>
       <textarea id="note" placeholder="例如：兩案相鄰、希望同一天一起；屋主下午才在家"></textarea>
       <div class="err" id="err"></div>
       <button class="btn" id="submit" onclick="submitReq()">送出預約申請</button>
       <div class="muted" style="text-align:center;margin-top:10px;">送出後窗口會收到通知，並盡快回覆安排結果。</div>
     </div>`;
+  renderWdRows();
+  renderContactSel(lsGet('vp_contact_id'));
+}
+let dateMode = 'date';
+let wdOk = new Set(), wdNo = new Set();
+const WD_LABEL = ['一', '二', '三', '四', '五', '六', '日'];
+function setDateMode(m){
+  dateMode = m;
+  document.getElementById('dmDate').classList.toggle('on', m === 'date');
+  document.getElementById('dmWd').classList.toggle('on', m === 'wd');
+  document.getElementById('dateBox').style.display = m === 'date' ? 'block' : 'none';
+  document.getElementById('wdBox').style.display = m === 'wd' ? 'block' : 'none';
+}
+function renderWdRows(){
+  document.getElementById('wdOkRow').innerHTML = WD_LABEL.map((t, i) => `<div class="wd ${wdOk.has(i) ? 'ok' : ''}" onclick="toggleWd('ok', ${i})">${t}</div>`).join('');
+  document.getElementById('wdNoRow').innerHTML = WD_LABEL.map((t, i) => `<div class="wd ${wdNo.has(i) ? 'no' : ''}" onclick="toggleWd('no', ${i})">${t}</div>`).join('');
+}
+function toggleWd(kind, i){
+  const a = kind === 'ok' ? wdOk : wdNo, b = kind === 'ok' ? wdNo : wdOk;
+  if(a.has(i)) a.delete(i); else { a.add(i); b.delete(i); }   // 同一天不能同時「可以」又「不行」
+  renderWdRows();
+}
+// ---- 聯絡人：每家廠商一份常用清單（存在後端，換手機／換同事也看得到），下拉選；也可以自己填、或不填
+function contactText(c){ return [c.name, c.phone].filter(Boolean).join(' '); }
+function renderContactSel(selected){
+  const sel = document.getElementById('contactSel');
+  if(!sel) return;
+  const list = D.contacts || [];
+  sel.innerHTML = `<option value="">不填聯絡人</option>` + list.map(c => `<option value="${esc(c.id)}">${esc(contactText(c))}</option>`).join('')
+    + `<option value="__new">＋ 自己填（可存成常用聯絡人）</option>`;
+  sel.value = (selected && (selected === '__new' || list.some(c => c.id === selected))) ? selected : '';
+  onContactSel();
+}
+function onContactSel(){
+  const v = document.getElementById('contactSel').value;
+  document.getElementById('contactNew').style.display = v === '__new' ? 'block' : 'none';
+}
+function toggleContactMgr(){
+  const box = document.getElementById('contactMgr');
+  if(box.style.display === 'block'){ box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  renderContactMgr();
+}
+function renderContactMgr(){
+  const box = document.getElementById('contactMgr');
+  const list = D.contacts || [];
+  box.innerHTML = (list.length ? list.map(c => `<div class="ct-row"><span>${esc(contactText(c))}</span><button type="button" onclick="removeContact('${esc(c.id)}')" aria-label="刪除">✕</button></div>`).join('')
+      : '<div class="muted">還沒有常用聯絡人。</div>')
+    + `<div style="display:flex;gap:8px;margin-top:10px;"><input id="mgName" placeholder="姓名" style="flex:1;"><input id="mgPhone" placeholder="電話" inputmode="tel" style="flex:1.2;"></div>
+       <button class="btn-ghost" type="button" style="width:100%;margin-top:8px;" onclick="addContact()">＋ 新增常用聯絡人</button>`;
+}
+async function addContact(){
+  const name = document.getElementById('mgName').value.trim(), phone = document.getElementById('mgPhone').value.trim();
+  if(!name && !phone){ alert('請填姓名或電話'); return; }
+  try{
+    const d = await api('/contacts', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action: 'add', name, phone})});
+    D.contacts = d.contacts;
+    const cur = document.getElementById('contactSel').value;
+    renderContactSel(cur); renderContactMgr();
+  }catch(e){ alert(e.message); }
+}
+async function removeContact(id){
+  try{
+    const d = await api('/contacts', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action: 'remove', id})});
+    D.contacts = d.contacts;
+    const cur = document.getElementById('contactSel').value;
+    renderContactSel(cur === id ? '' : cur); renderContactMgr();
+  }catch(e){ alert(e.message); }
 }
 function toggleType(t){ if(selTypes.has(t)) selTypes.delete(t); else selTypes.add(t); document.querySelectorAll('.type').forEach(el => el.classList.toggle('on', selTypes.has(el.textContent.trim()))); }
 function addDate(){
@@ -284,17 +382,31 @@ function addDate(){
 async function submitReq(){
   const err = document.getElementById('err'), btn = document.getElementById('submit');
   err.style.display = 'none';
-  const dates = [...document.querySelectorAll('.d')].map(i => i.value).filter(Boolean);
+  const dates = dateMode === 'date' ? [...document.querySelectorAll('.d')].map(i => i.value).filter(Boolean) : [];
   let tp = document.getElementById('tp').value;
   if(tp === '其他') tp = document.getElementById('tpOther').value.trim() || '其他';
-  const body = {case: picked.case, items: [...selTypes], dates, time_pref: tp,
-    contact: document.getElementById('contact').value.trim(), note: document.getElementById('note').value.trim()};
+  // 聯絡人：不填／下拉選常用的／自己填（可順便存成常用）
+  const csel = document.getElementById('contactSel').value;
+  let contact = '', saveNew = null;
+  if(csel === '__new'){
+    const n = document.getElementById('ctName').value.trim(), ph = document.getElementById('ctPhone').value.trim();
+    contact = [n, ph].filter(Boolean).join(' ');
+    if(contact && document.getElementById('ctSave').checked) saveNew = {name: n, phone: ph};
+  }else if(csel){
+    const c = (D.contacts || []).find(x => x.id === csel);
+    contact = c ? contactText(c) : '';
+  }
+  const body = {case: picked.case, items: [...selTypes], dates, time_pref: tp, contact, note: document.getElementById('note').value.trim()};
+  if(dateMode === 'wd') body.weekdays = {ok: [...wdOk].sort(), no: [...wdNo].sort(), within: +document.getElementById('wdWithin').value};
   if(!body.items.length){ err.textContent = '請至少勾選一個預約項目'; err.style.display = 'block'; return; }
-  if(!dates.length){ err.textContent = '請至少填一個希望的日期'; err.style.display = 'block'; return; }
+  if(dateMode === 'date' && !dates.length){ err.textContent = '請至少填一個希望的日期，或切到「指定星期」選星期'; err.style.display = 'block'; return; }
+  if(dateMode === 'wd' && !wdOk.size && !wdNo.size){ err.textContent = '請選擇可以或不行的星期（也可以切回「指定日期」）'; err.style.display = 'block'; return; }
   btn.disabled = true; btn.textContent = '送出中…';
   try{
     await api('/requests', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-    lsSet('vp_contact', body.contact);
+    if(saveNew){ try{ await api('/contacts', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(Object.assign({action: 'add'}, saveNew))}); }catch(e){} }
+    lsSet('vp_contact_id', csel === '__new' ? '' : csel);
+    wdOk.clear(); wdNo.clear();
     const done = picked.case;
     picked = null;
     D = await api('/info');
@@ -316,7 +428,8 @@ function renderMine(){
   pane.innerHTML = D.requests.map(r => `<div class="card">
       <div class="row"><div><b>${esc(r.case)}</b> <span class="muted">${esc(r.alias || '')}</span></div><span class="st st-${esc(r.status)}">${esc(r.status === '已轉任務' ? '已受理' : r.status)}</span></div>
       <div style="margin-top:6px;">${r.items.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>
-      <div class="muted" style="margin-top:6px;">希望日期：${r.dates.map(d => esc(dayLabel(d))).join('、') || '—'}${r.time_pref ? '｜' + esc(r.time_pref) : ''}</div>
+      <div class="muted" style="margin-top:6px;">希望日期：${[r.dates.map(d => esc(dayLabel(d))).join('、'), esc(r.weekdays_text || '')].filter(Boolean).join('；') || '—'}${r.time_pref ? '｜' + esc(r.time_pref) : ''}</div>
+      ${r.contact ? `<div class="muted">聯絡人：${esc(r.contact)}</div>` : ''}
       ${r.note ? `<div class="muted">備註：${esc(r.note)}</div>` : ''}
       <div class="muted" style="font-size:12.5px;">送出時間：${esc((r.submitted_at || '').replace('T', ' ').slice(0, 16))}</div>
       ${r.reply ? `<div class="reply">窗口回覆：${esc(r.reply)}</div>` : ''}
