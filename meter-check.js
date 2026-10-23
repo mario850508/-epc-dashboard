@@ -251,6 +251,7 @@ function renderMeterCheck(){
     + btn('all', '全部') + btn('ok', 'OK') + btn('adj', '有調整') + btn('todo', '調整待處理') + btn('missing', '資料不足') + (counts.drop ? btn('drop', '⚠️ 電價掉了') : '')
     + '<input id="mcSearch" class="quick-mark-input" placeholder="搜尋案號、別名、廠商…" value="' + mcEsc(kw) + '" oninput="renderMeterCheck()" style="max-width:220px;">'
     + '<span class="cert-src" style="margin-left:auto;">共 ' + cases.length + ' 件・總容量 ' + (Math.round(totalCap * 1000) / 1000) + ' kW</span>'
+    + '<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" title="台電契約／細協／工程合約讀不到數字的，用新的規則重讀一次" onclick="mcReparse()">🔁 重讀讀不到的文件</button>'
     + '<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="mcCopyTable()">📋 複製表格</button>'
     + '</div>'
     + '<div style="overflow:auto;"><table style="min-width:1280px;"><thead>'
@@ -356,6 +357,15 @@ async function mcSave(caseNo, kind, value){
     renderMeterCheck();
     showToast('儲存失敗：' + e.message);
   }
+}
+
+async function mcReparse(){
+  try{
+    const res = await fetch(API_BASE + '/api/procurement/drawings/reparse', {method: 'POST'});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    showToast(d.queued ? '已排 ' + d.queued + ' 份重讀（一份約 10～40 秒），過一陣子再按 🔄 重新整理' : '沒有讀不到的文件');
+  }catch(e){ showToast('重讀失敗：' + e.message); }
 }
 
 async function mcAddWithdrawn(){
