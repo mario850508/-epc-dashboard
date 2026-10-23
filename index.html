@@ -7535,10 +7535,13 @@ async function confirmPdfBatch(){
   if(!list.length) return;
   const arcOn = !!(((PDF_STATE.status || {}).settings || {}).archive || {}).enabled;
   if(!confirm(`一次確認 ${list.length} 份？\n會用畫面上的案號、類型、日期與檔名` + (arcOn ? '，並自動歸檔到 G 槽。' : '。'))) return;
+  if(PDF_STATE.confirming) return;
+  PDF_STATE.confirming = true;
   let ok = 0; const failed = [];
+  pdfBatchProgressStart(list.length);
   for(let i = 0; i < list.length; i++){
     const x = list[i];
-    showToast(`確認中 ${i + 1} / ${list.length}…`);
+    pdfBatchProgressItem(i, list.length, x.final_name || x.suggested_name || x.src_name, ok, failed.length);
     try{
       const res = await fetch(API_BASE + `/api/pdf-rename/${x.id}/confirm`, {method: 'POST', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({case_no: x.case_no, doc_type: x.doc_type, doc_date: x.doc_date, final_name: x.final_name || x.suggested_name,
@@ -7549,8 +7552,69 @@ async function confirmPdfBatch(){
     }catch(e){ failed.push(`${x.src_name}（${e.message}）`); }
   }
   PDF_STATE.selected.clear();
+  PDF_STATE.confirming = false;
+  await pdfBatchProgressDone(ok, failed, arcOn);
   showToast(failed.length ? `已確認 ${ok} 份；失敗：${failed.join('、')}` : `已確認 ${ok} 份` + (arcOn ? '，背景程式會自動歸檔' : '，可以到「已確認」下載'));
   loadPdfRename();
+}
+
+// ---- 一次確認多份的進度條：逐份處理，所以「第幾份／共幾份」是真的；
+// 目前這一份處理中，進度條在它那一格裡慢慢往前走，做完才跳到下一格 ----
+function pdfBatchProgressStart(n){
+  pdfProgressClear();
+  const ov = document.createElement('div');
+  ov.id = 'pdfProgOverlay';
+  ov.innerHTML = `<div class="pdfprog-card">
+      <div class="pdfprog-title" id="pdfProgTitle">一次確認 ${n} 份…</div>
+      <div class="pdfprog-file" id="pdfProgFile"></div>
+      <div class="pdfprog-track"><div class="pdfprog-bar" id="pdfProgBar"></div></div>
+      <div class="pdfprog-row"><span id="pdfProgStep">準備中…</span><span id="pdfProgPct">0%</span></div>
+      <div class="pdfprog-steps" id="pdfProgSteps"></div>
+    </div>`;
+  document.body.appendChild(ov);
+  _pdfProg = {timer: null};
+}
+function pdfBatchProgressItem(i, n, name, ok, bad){
+  if(!_pdfProg) return;
+  clearInterval(_pdfProg.timer);
+  const t0 = Date.now();
+  const set = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+  set('pdfProgTitle', `確認中 ${i + 1} / ${n}`);
+  set('pdfProgFile', name || '');
+  set('pdfProgStep', `已完成 ${ok} 份` + (bad ? `，失敗 ${bad} 份` : ''));
+  const tick = () => {
+    const sec = (Date.now() - t0) / 1000;
+    const pct = (i + 0.9 * (1 - Math.exp(-sec / 2.5))) / n * 100;
+    const bar = document.getElementById('pdfProgBar');
+    if(!bar) return;
+    bar.style.width = pct.toFixed(1) + '%';
+    set('pdfProgPct', Math.floor(pct) + '%');
+  };
+  tick();
+  _pdfProg.timer = setInterval(tick, 120);
+}
+function pdfBatchProgressDone(ok, failed, arcOn){
+  return new Promise(resolve => {
+    if(_pdfProg) clearInterval(_pdfProg.timer);
+    const bar = document.getElementById('pdfProgBar');
+    if(!bar){ resolve(); return; }
+    bar.style.width = '100%';
+    bar.classList.add(failed.length ? 'fail' : 'done');
+    if(failed.length && ok) bar.style.background = 'linear-gradient(90deg,#34C77B 0 ' + Math.round(ok / (ok + failed.length) * 100) + '%,#E5484D 0)';
+    document.getElementById('pdfProgPct').textContent = '100%';
+    document.getElementById('pdfProgTitle').textContent = failed.length ? `完成：成功 ${ok} 份、失敗 ${failed.length} 份` : `✅ 已確認 ${ok} 份`;
+    document.getElementById('pdfProgFile').textContent = '';
+    document.getElementById('pdfProgStep').textContent = failed.length ? '' : (arcOn ? '背景程式會自動歸檔到 G 槽' : '可以到「已確認」下載');
+    if(failed.length){
+      const box = document.getElementById('pdfProgSteps');
+      box.style.color = '#C9383D';
+      box.innerHTML = failed.slice(0, 8).map(t => '✗ ' + pdfEsc(t)).join('<br>') + (failed.length > 8 ? `<br>…還有 ${failed.length - 8} 份` : '')
+        + '<div style="text-align:right;margin-top:10px;"><button class="btn btn-primary" style="padding:6px 16px;" id="pdfProgOk">知道了</button></div>';
+      document.getElementById('pdfProgOk').onclick = () => { pdfProgressClear(); resolve(); };
+    }else{
+      setTimeout(() => { pdfProgressClear(); resolve(); }, 900);
+    }
+  });
 }
 
 // ---- 上傳 ----
