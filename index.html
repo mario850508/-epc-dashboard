@@ -10,6 +10,12 @@
      真手機不正常」的落差）。加上這行以後，瀏覽器才會照手機螢幕的實際寬度
      渲染，前面寫的手機版 RWD 樣式才會真的生效。-->
 <title>陽光管理主控台</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#F2790C">
+<link rel="manifest" href="manifest.webmanifest">
 <style>
   :root{
     --bg:#F7F3EC;
@@ -880,6 +886,112 @@
     #view-pdf .pdf-bar-actions .btn{font-size:12.5px;padding:9px 10px;}
     #view-pdf .pdf-bar .pdf-stat{padding:9px 12px;}
   }
+
+  /* =====================================================================
+     2026-10-23 介面美化（使用者：主控台看起來有點阳春、缺少過渡動畫）
+     只加「質感與動態」：品牌 logo、頁面切換淡入、視窗彈出、按鈕／選單／卡片的互動回饋、
+     輸入框聚焦光暈、捲軸、載入脈動。不改任何版面尺寸與功能；
+     尊重「減少動態效果」的系統設定（見最下面 prefers-reduced-motion）。
+     ===================================================================== */
+  html{scroll-behavior:smooth;}
+  ::selection{background:rgba(255,182,72,.38);}
+  :root{--ease-out:cubic-bezier(.22,.8,.3,1);--ease-spring:cubic-bezier(.34,1.56,.64,1);}
+
+  /* --- 品牌 logo（側邊欄／手機頂欄／登入）：慢慢呼吸的光暈，滑過去會輕輕轉一下 --- */
+  .brand-logo{
+    width:42px;height:42px;border-radius:13px;flex-shrink:0;display:block;
+    box-shadow:0 6px 16px rgba(196,83,10,.32),0 0 0 4px rgba(255,182,72,.14);
+    transition:transform .4s var(--ease-spring);
+    animation:logoGlow 4.8s ease-in-out infinite;
+  }
+  .brand:hover .brand-logo{transform:rotate(-7deg) scale(1.07);}
+  @keyframes logoGlow{
+    0%,100%{box-shadow:0 6px 16px rgba(196,83,10,.32),0 0 0 4px rgba(255,182,72,.12);}
+    50%{box-shadow:0 8px 22px rgba(242,121,12,.45),0 0 0 8px rgba(255,182,72,.22);}
+  }
+  .brand-name{background:linear-gradient(100deg,#1B2333 40%,#C4530A);-webkit-background-clip:text;background-clip:text;color:transparent;}
+
+  /* --- 頁面／分頁切換：由下往上淡入 --- */
+  .view.active{animation:viewIn .34s var(--ease-out);}
+  .subview.active{animation:viewIn .28s var(--ease-out);}
+  @keyframes viewIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+  /* 首頁的統計／模組卡片依序浮現 */
+  .view.active .grid > *{animation:cardIn .46s var(--ease-out) backwards;}
+  .view.active .grid > *:nth-child(1){animation-delay:.02s;}
+  .view.active .grid > *:nth-child(2){animation-delay:.07s;}
+  .view.active .grid > *:nth-child(3){animation-delay:.12s;}
+  .view.active .grid > *:nth-child(4){animation-delay:.17s;}
+  .view.active .grid > *:nth-child(5){animation-delay:.22s;}
+  .view.active .grid > *:nth-child(n+6){animation-delay:.27s;}
+  @keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.985);}to{opacity:1;transform:none;}}
+
+  /* --- 側邊選單：左側橘色指示條、滑過去微微右移 --- */
+  .nav-item,.nav-sub-item{position:relative;transition:background .2s ease,color .2s ease,transform .2s var(--ease-out),box-shadow .2s ease;}
+  .nav-item:hover,.nav-sub-item:hover{transform:translateX(3px);}
+  .nav-item.active{box-shadow:0 3px 10px rgba(43,95,246,.10);}
+  .nav-item.active::before,.nav-sub-item.active::before{
+    content:"";position:absolute;left:-14px;top:22%;bottom:22%;width:4px;border-radius:0 4px 4px 0;
+    background:linear-gradient(180deg,var(--sun-1),var(--sun-2));animation:barIn .3s var(--ease-out);
+  }
+  .nav-sub-item.active::before{left:-8px;top:25%;bottom:25%;width:3px;}
+  @keyframes barIn{from{transform:scaleY(.2);opacity:0;}to{transform:none;opacity:1;}}
+  .nav-icon{transition:transform .3s var(--ease-spring);}
+  .nav-item:hover .nav-icon{transform:scale(1.18) rotate(-6deg);}
+  .slots-nav-badge{animation:badgePulse 2.4s ease-in-out infinite;}
+  @keyframes badgePulse{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.45);}50%{box-shadow:0 0 0 6px rgba(229,72,77,0);}}
+
+  /* --- 按鈕：滑過浮起、按下回彈 --- */
+  .btn{transition:transform .18s var(--ease-out),box-shadow .22s ease,background .2s ease,border-color .2s ease,opacity .2s ease;}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 6px 14px rgba(30,40,70,.12);}
+  .btn:active{transform:translateY(0) scale(.97);box-shadow:none;}
+  .btn:disabled,.btn[disabled]{transform:none !important;box-shadow:none !important;}
+  .btn-ghost:hover{border-color:#E8C98A;background:#FFFAF0;}
+  .btn-primary:hover{box-shadow:0 8px 18px rgba(43,95,246,.28);}
+  .btn-warm-primary:hover{box-shadow:0 8px 18px rgba(230,140,20,.46);}
+
+  /* --- 卡片／面板／表格列 --- */
+  .panel{transition:box-shadow .28s ease,border-color .28s ease;}
+  .panel:hover{box-shadow:0 12px 28px rgba(120,80,20,.09);border-color:#EBD8B0;}
+  .stat-card,.module-card{transition:transform .28s var(--ease-out),box-shadow .28s ease,border-color .28s ease;}
+  .panel table tbody tr,.panel .case-row{transition:background .18s ease;}
+  .panel table tbody tr:hover td{background:#FFF8EA;}
+  .chip,.vendor-pill,.pm-pill{transition:transform .18s var(--ease-out),box-shadow .18s ease;}
+  .chip:hover,.vendor-pill:hover{transform:translateY(-1px);}
+
+  /* --- 輸入框：聚焦時暖色光暈 --- */
+  .quick-mark-input,input[type=text],input[type=search],input[type=date],input[type=number],select,textarea{
+    transition:border-color .2s ease,box-shadow .2s ease,background .2s ease;
+  }
+  .quick-mark-input:focus,input[type=text]:focus,input[type=search]:focus,input[type=date]:focus,input[type=number]:focus,select:focus,textarea:focus{
+    outline:none;border-color:var(--sun-2);box-shadow:0 0 0 3px rgba(242,121,12,.16);background:#fff;
+  }
+
+  /* --- 視窗（固定樣式的 modal 與程式動態產生的各種彈窗）：背景淡入、視窗彈出 --- */
+  .modal-overlay.show{animation:fadeIn .22s ease;}
+  .modal-overlay.show .modal-box{animation:popIn .3s var(--ease-out);}
+  body > div[style*="position:fixed"][style*="inset:0"]{animation:fadeIn .22s ease;}
+  body > div[style*="position:fixed"][style*="inset:0"] > div{animation:popIn .3s var(--ease-out);}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  @keyframes popIn{from{opacity:0;transform:translateY(16px) scale(.97);}to{opacity:1;transform:none;}}
+  .toast{transition:opacity .25s ease,transform .3s var(--ease-spring);}
+  .toast.show{transform:translateX(-50%) translateY(0) scale(1);}
+
+  /* --- 載入中文字：緩慢呼吸，看得出來還在動 --- */
+  .login-note{transition:background .2s ease;}
+  .loading,.login-note:only-child{animation:softPulse 1.8s ease-in-out infinite;}
+  @keyframes softPulse{0%,100%{opacity:1;}50%{opacity:.6;}}
+
+  /* --- 捲軸：細、暖色 --- */
+  *{scrollbar-width:thin;scrollbar-color:rgba(196,83,10,.28) transparent;}
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:rgba(196,83,10,.24);border-radius:8px;border:2px solid transparent;background-clip:content-box;}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(196,83,10,.42);background-clip:content-box;}
+
+  /* --- 使用者在系統設定開了「減少動態效果」就全部關掉 --- */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important;scroll-behavior:auto !important;}
+  }
 </style>
 </head>
 <body>
@@ -889,7 +1001,7 @@
   <div class="mobile-topbar">
     <button class="mobile-hamburger" onclick="toggleSidebar()" aria-label="開啟選單">☰</button>
     <div class="mobile-topbar-brand">
-      <div class="brand-mark" style="width:26px;height:26px;font-size:12px;">陽</div>
+      <img class="brand-logo" src="logo.svg" alt="" style="width:28px;height:28px;border-radius:8px;box-shadow:0 2px 6px rgba(196,83,10,.35);">
       <span>陽光管理主控台</span>
     </div>
   </div>
@@ -897,7 +1009,7 @@
 
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <div class="brand-mark">陽</div>
+      <img class="brand-logo" src="logo.svg" alt="陽光管理主控台" width="42" height="42">
       <div>
         <div class="brand-name">陽光管理主控台</div>
         <div class="brand-sub">Sunny Ops Console</div>

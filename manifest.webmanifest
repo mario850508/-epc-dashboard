@@ -1,0 +1,14 @@
+{
+  "name": "陽光管理主控台",
+  "short_name": "陽光主控台",
+  "description": "陽光伏特家 EPC 出貨、進場排程與廠商時段協調",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F7F3EC",
+  "theme_color": "#F2790C",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+  ]
+}

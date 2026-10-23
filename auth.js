@@ -26,7 +26,7 @@
       ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#FFF6E8,#F3E3C8);display:flex;align-items:center;justify-content:center;padding:20px;font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;';
       ov.innerHTML = `<div style="background:#fff;border-radius:18px;padding:26px 24px;max-width:360px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.18);">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-          <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(150deg,#FFB648,#F2790C 65%,#C4530A);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;">陽</div>
+          <img src="logo.svg" alt="" width="44" height="44" style="border-radius:12px;box-shadow:0 5px 14px rgba(196,83,10,.3);">
           <div><div style="font-weight:800;font-size:17px;">陽光管理主控台</div><div style="font-size:12px;color:#6B7280;">請輸入密碼登入</div></div>
         </div>
         <input id="epcLoginPw" type="password" autocomplete="current-password" placeholder="密碼" style="width:100%;padding:13px 14px;border:1.5px solid #E4E8F1;border-radius:12px;font-size:16px;box-sizing:border-box;">
