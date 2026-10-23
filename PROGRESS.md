@@ -106,6 +106,7 @@
 - 容量確認預設抓台電契約／細部協商的總裝置容量（2026-10-22 使用者要求）：來源①「案場圖面」表（tblTBVkdkG7hx1zlk，新增欄位 容量 fldmW0clYf0kURjci／容量依據 fldUS2ZHK8m84yj2C）：本機 `tools/drawing_sync.py` 現在也同步 06 資料夾的台電契約（檔名含 台電契約／購售契約，排除 契約函／租約／修約）、細部協商（含 細部協商／細協，排除 補件），後端 `/api/procurement/drawings/sync` 上傳時讀文字層、沒有就 Google OCR，`_contract_capacity` 抓「合計總裝置容量為 X (峰)瓩」／「總裝置容量 X kW」；②PDF 公文更名表的台電契約／細部協商（用 result_json 的 text_excerpt）。優先：有讀到容量 > 台電契約 > 細部協商 > 日期新。人工填的容量確認蓋過文件值。**使用者要在自己電腦跑一次 `py drawing_sync.py "G:\共用雲端硬碟\永續電力處\02 專案\01 已上架電廠" --contracts-only`**，之後跟審訖圖一起定期跑。訂單查詢的圖面清單排除這兩種。
 - 2026-10-22 使用者：電價就依規則算，頁面拿掉「Airtable 合約電價」欄（只改顯示，**不寫回 Airtable**，使用者選的）；規則算不出來才退回 Airtable 值並標「依 Airtable」。
 - 電價確認沒手動填時直接帶依規則算的電價（標「依規則帶入」，2026-10-22 使用者要求不要空白）；手動填的蓋過。
+- 契約同步在使用者電腦（2026-10-23）：程式放 `C:\sunny-tools`（curl 從 GitHub raw 抓 tools/drawing_sync.py）。**這台電腦 `py` 是 Anaconda，沒設 PATH 會「ssl module not available」**，要先 `set PATH=%USERPROFILE%\anaconda3;...\Library\bin;...\Scripts;%PATH%`。drawing_sync 沒給資料夾時用 DEFAULT_ROOTS（06 潤特綠能、07 陽光工程，契約／細協都在這）。每日排程用 `tools/sunny_contract_sync.bat`（ASCII、會先更新程式、記錄寫 C:\sunny-tools\sync_log.txt），工作排程名稱「陽光_契約容量同步」每天 12:30。G 槽有些資料夾檔名編號跟案號不同（例：潤特宜蘭6號資料夾裡是 蘭12_…台電契約移轉），程式以資料夾案號為準，已請使用者確認。
 - 撤案案件：手動加案號＋案件狀況，同一段說明合併顯示、可一起改。
 - 後端：`GET/POST /api/meter-check`、`DELETE /api/meter-check/<id>`；Airtable 新表「掛表資訊確認」`tblLm4MbcByd2VrV8`（月份／案號／類型 掛表|撤案／容量確認／電價確認／備註／確認人（取 PDF 頁「我是」）／更新時間）。
 - 試算表最右邊那欄（截圖只看到「原始…」）沒搬，待使用者說明用途。7 月的舊確認值沒有匯入。
