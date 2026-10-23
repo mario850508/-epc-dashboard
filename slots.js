@@ -13,7 +13,7 @@ let SLOT_BOOKINGS = [];
 let SLOT_CANCELLED = [];   // 2026-10-08：已取消的預約（只在歷史紀錄顯示，不算佔用時段）
 let SLOT_TASKS = [];
 
-async function loadVendorSlots(){
+async function loadVendorSlots(_retry){
   const container = document.getElementById('slotsContainer');
   const btn = document.getElementById('slotsRefreshBtn');
   if(container && SLOT_BOOKINGS.length === 0){
@@ -37,8 +37,15 @@ async function loadVendorSlots(){
       renderSlotTasks();
     }
   }catch(err){
-    if(container) container.innerHTML = '<div class="login-note">載入失敗：' + err.message + '</div>';
     console.error(err);
+    // 「Failed to fetch」＝連不到後端（剛部署更新、或閒置後正在喚醒，通常 1～2 分鐘內會好）：自動重試幾次
+    if(/Failed to fetch|NetworkError|Load failed/i.test(err.message || '') && (_retry || 0) < 6){
+      const n = (_retry || 0) + 1;
+      if(container) container.innerHTML = `<div class="login-note">後端正在更新或喚醒中，自動重試（${n} / 6）…</div>`;
+      setTimeout(() => loadVendorSlots(n), 8000);
+      return;
+    }
+    if(container) container.innerHTML = '<div class="login-note">載入失敗：' + err.message + '　<a href="javascript:void(0)" onclick="loadVendorSlots()">重試</a></div>';
   }finally{
     if(btn) btn.disabled = false;
   }
