@@ -2392,8 +2392,8 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
       <div class="panel" id="mcCasesPanel">
         <div id="mcBox"><div class="login-note">載入中…</div></div>
         <div class="login-note">
-          🔗 選月份後，自動列出那個月掛表的案件（掛表日期＝Airtable「進度管理」掛表那筆的實際日期），「容量」直接讀 Airtable「專案細節」。「電價」依下面的規則算（算不出來才用 Airtable 工程合約電價，會標「依 Airtable」）。「電價表」看期別（1–6 月第一期、7–12 月第二期；掛表日在同意備案日 4 個月內用同備那一期，超過 4 個月用掛表那一期，如果因此電價掉了會標「⚠️ 電價掉了」；目前有 115 年第一、二期）、案號縣市（新北／桃園／新竹／苗栗等北部算「北」，其他算「南」）、容量級距，取電價表最右邊兩欄「高效&模組(南／北)」。「容量確認」預設帶台電契約（沒有就細部協商）上的總裝置容量（📄 可以點開文件；G 槽的契約要先用本機同步程式上傳），（按 ✓ 代表跟 Airtable 容量／電價表一樣），不同會標紅色「不一致」。確認值存在 Airtable「掛表資訊確認」表，不同電腦都看得到。「📋 複製表格」可以直接貼回試算表。
-        </div>
+          <div style="line-height:1.7;"><div>🔗 選月份後，自動列出那個月掛表的案件（掛表日期＝Airtable「進度管理」掛表那筆的實際日期），逐件比對「📑 工程合約」跟「🔌 掛表時」的容量和電價：</div><div>・工程合約：容量、跟 EPC 簽約的電價，目前帶專案細節的「系統容量」「工程合約電價」，不對可以直接改（之後會接 03 資料夾的工程合約）。</div><div>・掛表時：容量帶台電契約（沒有就細部協商）上的總裝置容量（📄 可點開文件）；電價依規則算——期別看掛表日（同意備案 4 個月內掛表用同備那一期）、北／南看案號縣市（看不出來看地址）、容量級距，取電價表「高效&模組」欄。兩邊都可以手動改。</div><div>・比對結果：容量、電價都一樣＝OK；有下修→需廠商開折讓、上調→需廠商開發票，在「調整處理」追蹤：待廠商提供 → 已收到折讓／發票 → 已通知內部。</div><div>資料存在 Airtable「掛表資訊確認」表，不同電腦都看得到。「📋 複製表格」可以直接貼到試算表。</div></div>
+          </div>
       </div>
 
       <div class="panel" id="mcWdPanel" style="display:none;">
@@ -9676,7 +9676,7 @@ async function confirmCertAbbr(id){
 <script src="vendor-requests.js?v=2"></script>
 <script src="line-health.js?v=2"></script>
 <script src="shipping.js?v=4"></script>
-<script src="meter-check.js?v=8"></script>
+<script src="meter-check.js?v=9"></script>
 
 </body>
 </html>

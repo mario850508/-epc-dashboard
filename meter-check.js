@@ -1,5 +1,9 @@
 // ===================================================================
 // 掛表資訊確認（2026-10-22；左側選單獨立一項，分頁：掛表案件／撤案案件）
+// 2026-10-23 使用者說明的流程：當月掛表的案件，比對「工程合約」（03 資料夾；容量、跟 EPC 簽約的電價）跟
+// 「掛表時」（台電契約／細部協商的容量、依規則算的掛表當下電價）。兩個都一樣＝OK；有下修→廠商開折讓、
+// 上調→廠商開發票，在頁面上追蹤處理進度（待廠商提供 → 已收到折讓／發票 → 已通知內部）。
+// 工程合約那側目前用專案細節的系統容量／工程合約電價（可人工修正），之後再接 03 資料夾的合約檔。
 // 取代 Google 試算表「7月掛錶案件異動」：選月份 → 列出當月掛表的案件（掛表日期＝Airtable「進度管理」
 // 掛表里程碑的實際日期），對照「專案細節」的系統容量／工程合約電價，人工填「容量確認」「電價確認」，
 // 電價對照電價表（MC_TARIFF，北／南＋容量級距），不一致標紅；下方記當月撤案案件＋案件狀況（同一段說明的案件合併顯示）。
@@ -84,20 +88,29 @@ function mcTariff(c){
   if(price === null) return {price: null, label: '沒有 ' + mcPeriodName(period) + '電價表', basis};
   return {price, label: mcPeriodName(period) + '・' + (region === 'north' ? '北' : '南') + (byAddr ? '（依地址）' : '') + ' ' + MC_TIER_LABEL[tier] + ' kWp', basis, dropped};
 }
-// 電價確認要對照的基準：電價表算得出來就用電價表，否則用 Airtable 工程合約電價
-function mcPriceBase(c){ const t = mcTariff(c).price; return t !== null ? t : mcNum(c.price); }
-// 電價確認：人工填的優先，沒填就直接帶依規則算出來的電價（2026-10-22 使用者：預計電價要直接帶出來，不要空白）
-function mcPriceOk(c){ const v = mcNum(c.price_confirm); return v !== null ? v : mcPriceBase(c); }
-
-// 每筆的確認狀態：待確認（還有沒填的）／不一致（填了但跟基準不同；基準沒有就不算不一致）／已確認
-function mcState(c){
-  const cap = mcNum(c.capacity), capOk = mcCapOk(c), price = mcPriceBase(c), priceOk = mcPriceOk(c);
-  const capBad = capOk !== null && cap !== null && !mcSame(cap, capOk, 0.0005);
-  const priceBad = priceOk !== null && price !== null && !mcSame(price, priceOk, 0.00005);
-  if(capBad || priceBad) return 'bad';
-  if(capOk === null || priceOk === null) return 'todo';
-  return 'ok';
+// 掛表時電價：人工填的優先，沒填就直接帶依規則算出來的電價（不退回 Airtable：Airtable 那個是工程合約電價，是比對的另一邊）
+function mcPriceOk(c){ const v = mcNum(c.price_confirm); return v !== null ? v : mcTariff(c).price; }
+// 工程合約那側：人工修正優先，沒有就用專案細節的系統容量／工程合約電價
+function mcContractCap(c){ const v = mcNum(c.contract_cap); return v !== null ? v : mcNum(c.capacity); }
+function mcContractPrice(c){ const v = mcNum(c.contract_price); return v !== null ? v : mcNum(c.price); }
+const MC_ADJ = ['待廠商提供', '已收到折讓／發票', '已通知內部'];
+// 比對結果：{state: ok|adj|missing, items:[{what, from, to, dir}], need:[折讓|發票], missing:[…], done}
+function mcCompare(c){
+  const pairs = [['容量', mcContractCap(c), mcCapOk(c), 0.0005, 'kW'], ['電價', mcContractPrice(c), mcPriceOk(c), 0.00005, '']];
+  const items = [], missing = [];
+  pairs.forEach(([what, a, b, eps]) => {
+    if(a === null) missing.push('工程合約' + what);
+    if(b === null) missing.push('掛表時' + what);
+    if(a !== null && b !== null && !mcSame(a, b, eps)) items.push({what, from: a, to: b, dir: b < a ? 'down' : 'up'});
+  });
+  const need = [];
+  if(items.some(x => x.dir === 'down')) need.push('折讓');
+  if(items.some(x => x.dir === 'up')) need.push('發票');
+  const state = items.length ? 'adj' : missing.length ? 'missing' : 'ok';
+  return {state, items, need, missing, done: state === 'adj' && c.adj_status === '已通知內部'};
 }
+
+function mcState(c){ return mcCompare(c).state; }
 
 function showMcTab(tab){
   if(!['cases', 'withdrawn'].includes(tab)) tab = 'cases';
@@ -165,66 +178,76 @@ function renderMeterCheck(){
   if(!box || !MC_DATA) return;
   const cases = MC_DATA.cases || [];
   const kw = ((document.getElementById('mcSearch') || {}).value || '').trim().replace(/台/g, '臺');
-  const counts = {all: cases.length, todo: 0, bad: 0, ok: 0, drop: 0};
-  cases.forEach(c => { counts[mcState(c)]++; if(mcTariff(c).dropped) counts.drop++; });
-  let rows = mcFilter === 'all' ? cases : mcFilter === 'drop' ? cases.filter(c => mcTariff(c).dropped) : cases.filter(c => mcState(c) === mcFilter);
+  const cmp = new Map(cases.map(c => [c, mcCompare(c)]));
+  const counts = {all: cases.length, ok: 0, adj: 0, todo: 0, missing: 0, drop: 0};
+  cases.forEach(c => { const r = cmp.get(c); counts[r.state]++; if(r.state === 'adj' && !r.done) counts.todo++; if(mcTariff(c).dropped) counts.drop++; });
+  const flt = {all: c => true, ok: c => cmp.get(c).state === 'ok', adj: c => cmp.get(c).state === 'adj',
+    todo: c => cmp.get(c).state === 'adj' && !cmp.get(c).done, missing: c => cmp.get(c).state === 'missing', drop: c => mcTariff(c).dropped};
+  let rows = cases.filter(flt[mcFilter] || flt.all);
   if(kw) rows = rows.filter(c => [c.case_no, c.alias, c.vendor].some(v => String(v || '').replace(/台/g, '臺').includes(kw)));
   const totalCap = cases.reduce((s, c) => s + (mcNum(c.capacity) || 0), 0);
   const btn = (k, label) => '<button class="cert-filter-btn ' + (mcFilter === k ? 'active' : '') + '" onclick="mcSetFilter(\'' + k + '\')">' + label + ' ' + counts[k] + '</button>';
-
-  const cell = (c, kind) => {
-    const sys = kind === 'cap' ? mcNum(c.capacity) : mcPriceBase(c);
-    const val = kind === 'cap' ? mcCapOk(c) : mcPriceOk(c);
-    const fromDoc = kind === 'cap' && mcNum(c.cap_confirm) === null && val !== null;   // 這個值是從文件帶的，還沒人工改過
-    const fromRule = kind === 'price' && mcNum(c.price_confirm) === null && val !== null;   // 依規則帶的電價
-    const eps = kind === 'cap' ? 0.0005 : 0.00005;
-    const bg = val === null || sys === null ? '' : (mcSame(sys, val, eps) ? 'background:#E7F6EC;' : 'background:#FDECEC;color:#B42318;font-weight:700;');
-    return '<td style="white-space:nowrap;">'
-      + '<input type="number" step="any" class="quick-mark-input" style="width:92px;padding:4px 6px;' + bg + '" value="' + mcEsc(mcFmt(val)) + '"'
-      + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'' + kind + '\',this.value)">'
-      + (sys !== null && !mcSame(sys, val, eps) ? ' <button class="btn btn-ghost" title="' + (kind === 'cap' ? '跟 Airtable 一樣' : '跟電價表一樣') + '" style="padding:2px 7px;font-size:12px;" onclick="mcSave(\'' + mcJs(c.case_no) + '\',\'' + kind + '\',\'' + sys + '\')">✓</button>' : '')
-      + (kind === 'cap' ? mcDocCapNote(c, fromDoc) : '')
-      + (fromRule ? '<div class="cert-src" style="font-size:11px;margin-top:2px;">依規則帶入</div>' : '')
-      + '</td>';
+  const sub = (t, color) => '<div class="cert-src" style="font-size:11px;margin-top:2px;white-space:nowrap;' + (color ? 'color:' + color + ';' : '') + '">' + t + '</div>';
+  // 一格數字輸入：base＝要比對的另一邊（工程合約），不同就標紅
+  const inp = (c, key, val, base, eps) => {
+    const bg = val === null || base === null ? '' : mcSame(val, base, eps) ? 'background:#E7F6EC;' : 'background:#FDECEC;color:#B42318;font-weight:700;';
+    return '<input type="number" step="any" class="quick-mark-input" style="width:84px;padding:4px 6px;' + bg + '" value="' + mcEsc(mcFmt(val)) + '"'
+      + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'' + key + '\',this.value)">';
   };
-  const stPill = c => ({
-    ok: '<span class="ops-status-pill ops-status-done">已確認</span>',
-    bad: '<span class="ops-status-pill" style="background:#FDECEC;color:#B42318;">不一致</span>',
-    todo: '<span class="ops-status-pill ops-status-pending">待確認</span>',
-  })[mcState(c)];
+  const contractCell = (c, key, val, airVal) => '<td style="white-space:nowrap;">' + inp(c, key, val, null, 0)
+    + (val === null ? sub('專案細節未填', '#B54708') : mcNum(c[key]) !== null ? sub('手動修正' + (airVal !== null ? '（專案細節 ' + mcEsc(mcFmt(airVal)) + '）' : '')) : sub('專案細節')) + '</td>';
+  const meterPriceNote = c => {
+    const t = mcTariff(c);
+    return (mcNum(c.price_confirm) !== null ? sub('手動填（規則：' + (t.price === null ? mcEsc(t.label) : mcEsc(mcFmt(t.price))) + '）')
+        : t.price === null ? sub(mcEsc(t.label), '#B54708') : sub(mcEsc(t.label)))
+      + (t.basis ? sub(mcEsc(t.basis)) : '')
+      + (t.dropped ? sub('⚠️ 電價掉了 ' + mcEsc(mcFmt(t.dropped.from)) + ' → ' + mcEsc(mcFmt(t.dropped.to)), '#B42318') : '');
+  };
+  const resultCell = c => {
+    const r = cmp.get(c);
+    if(r.state === 'ok') return '<span class="ops-status-pill ops-status-done">OK</span>';
+    if(r.state === 'missing') return '<span class="ops-status-pill ops-status-pending">資料不足</span>' + sub('缺：' + mcEsc(r.missing.join('、')), '#B54708');
+    return r.items.map(x => '<div style="font-size:12.5px;white-space:nowrap;font-weight:700;color:' + (x.dir === 'down' ? '#B42318' : '#1E70C8') + ';">'
+        + x.what + (x.dir === 'down' ? '下修 ' : '上調 ') + mcEsc(mcFmt(x.from)) + ' → ' + mcEsc(mcFmt(x.to)) + '</div>').join('')
+      + '<div style="margin-top:3px;">' + r.need.map(n => '<span class="ops-status-pill" style="background:' + (n === '折讓' ? '#FDECEC;color:#B42318' : '#E8F1FB;color:#1E70C8') + ';margin-right:4px;">需' + n + '</span>').join('') + '</div>'
+      + (r.missing.length ? sub('缺：' + mcEsc(r.missing.join('、')), '#B54708') : '');
+  };
+  const adjCell = c => {
+    if(cmp.get(c).state !== 'adj') return '<span class="cert-src">—</span>';
+    const cur = c.adj_status || '待廠商提供';
+    return '<select class="quick-mark-input" style="min-width:132px;padding:4px 6px;font-size:12.5px;' + (cur === '已通知內部' ? 'background:#E7F6EC;' : cur === '待廠商提供' ? 'background:#FFF4E5;' : '') + '"'
+      + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'adj\',this.value)">'
+      + MC_ADJ.map(x => '<option' + (x === cur ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
+      + (c.by || c.updated ? sub(mcEsc([c.by, c.updated].filter(Boolean).join(' '))) : '');
+  };
 
   const keep = document.activeElement && document.activeElement.id === 'mcSearch';
   const draft = ['mcWdCases', 'mcWdNote'].map(id => (document.getElementById(id) || {}).value || '');
   box.innerHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">'
-    + btn('all', '全部') + btn('todo', '待確認') + btn('bad', '不一致') + btn('ok', '已確認') + (counts.drop ? btn('drop', '⚠️ 電價掉了') : '')
+    + btn('all', '全部') + btn('ok', 'OK') + btn('adj', '有調整') + btn('todo', '調整待處理') + btn('missing', '資料不足') + (counts.drop ? btn('drop', '⚠️ 電價掉了') : '')
     + '<input id="mcSearch" class="quick-mark-input" placeholder="搜尋案號、別名、廠商…" value="' + mcEsc(kw) + '" oninput="renderMeterCheck()" style="max-width:220px;">'
     + '<span class="cert-src" style="margin-left:auto;">共 ' + cases.length + ' 件・總容量 ' + (Math.round(totalCap * 1000) / 1000) + ' kW</span>'
     + '<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="mcCopyTable()">📋 複製表格</button>'
     + '</div>'
-    + '<div style="overflow:auto;"><table><thead><tr>'
-    + '<th>案號</th><th>別名</th><th>掛表日期</th><th>施工廠商</th><th>容量</th><th>容量確認</th><th>電價</th><th>電價確認</th><th>備註</th><th>狀態</th>'
-    + '</tr></thead><tbody>'
+    + '<div style="overflow:auto;"><table style="min-width:1280px;"><thead>'
+    + '<tr><th rowspan="2">案號／別名</th><th rowspan="2">掛表日期</th><th rowspan="2">施工廠商</th>'
+    + '<th colspan="2" style="text-align:center;background:#F4F6F8;">📑 工程合約</th><th colspan="2" style="text-align:center;background:#FFF8EC;">🔌 掛表時</th>'
+    + '<th rowspan="2">比對結果</th><th rowspan="2" style="white-space:nowrap;">調整處理</th><th rowspan="2">備註</th></tr>'
+    + '<tr><th style="background:#F4F6F8;">容量</th><th style="background:#F4F6F8;">電價</th><th style="background:#FFF8EC;">容量<div class="cert-src" style="font-weight:400;">台電契約／細協</div></th><th style="background:#FFF8EC;">電價<div class="cert-src" style="font-weight:400;">依規則</div></th></tr>'
+    + '</thead><tbody>'
     + (rows.length ? rows.map(c => '<tr>'
-      + '<td style="white-space:nowrap;"><b>' + mcEsc(c.case_no) + '</b>'
+      + '<td style="white-space:nowrap;"><b>' + mcEsc(c.case_no) + '</b>' + (c.alias && c.alias !== c.case_no ? '<div class="cert-src">' + mcEsc(c.alias) + '</div>' : '')
       + (c.close_status && c.close_status !== '進行中' ? '<div class="cert-src">' + mcEsc(c.close_status) + '</div>' : '') + '</td>'
-      + '<td style="white-space:nowrap;">' + mcEsc(c.alias) + '</td>'
       + '<td style="white-space:nowrap;">' + mcEsc(mcDate(c.meter_date)) + '</td>'
       + '<td style="white-space:nowrap;">' + mcEsc(c.vendor) + '</td>'
-      + '<td>' + (mcNum(c.capacity) === null ? '<span class="cert-src" style="color:#B54708;">未填</span>' : mcEsc(mcFmt(c.capacity))) + '</td>'
-      + cell(c, 'cap')
-      // 電價依規則（電價表＋同備 4 個月）算；算不出來才退回 Airtable 工程合約電價（2026-10-22 使用者：Airtable 那欄不用顯示）
-      + (t => '<td style="white-space:nowrap;">' + (t.price === null
-          ? (mcNum(c.price) !== null ? '<b>' + mcEsc(mcFmt(c.price)) + '</b><div class="cert-src" style="font-size:11px;color:#B54708;">依 Airtable（' + mcEsc(t.label) + '）</div>'
-            : '<span class="cert-src" style="color:#B54708;">' + mcEsc(t.label) + '</span>')
-          : '<b>' + mcEsc(mcFmt(t.price)) + '</b><div class="cert-src" style="font-size:11px;">' + mcEsc(t.label) + '</div>')
-        + (t.basis ? '<div class="cert-src" style="font-size:11px;">' + mcEsc(t.basis) + '</div>' : '')
-        + (t.dropped ? '<div style="font-size:11px;color:#B42318;font-weight:700;">⚠️ 電價掉了 ' + mcEsc(mcFmt(t.dropped.from)) + ' → ' + mcEsc(mcFmt(t.dropped.to)) + '</div>' : '')
-        + '</td>')(mcTariff(c))
-      + cell(c, 'price')
-      + '<td><input class="quick-mark-input" style="min-width:120px;padding:4px 6px;" value="' + mcEsc(c.note) + '" placeholder="—"'
+      + contractCell(c, 'contract_cap', mcContractCap(c), mcNum(c.capacity))
+      + contractCell(c, 'contract_price', mcContractPrice(c), mcNum(c.price))
+      + '<td style="white-space:nowrap;">' + inp(c, 'cap', mcCapOk(c), mcContractCap(c), 0.0005) + mcDocCapNote(c, mcNum(c.cap_confirm) === null && mcCapOk(c) !== null) + '</td>'
+      + '<td style="white-space:nowrap;">' + inp(c, 'price', mcPriceOk(c), mcContractPrice(c), 0.00005) + meterPriceNote(c) + '</td>'
+      + '<td>' + resultCell(c) + '</td>'
+      + '<td>' + adjCell(c) + '</td>'
+      + '<td><input class="quick-mark-input" style="min-width:110px;padding:4px 6px;" value="' + mcEsc(c.note) + '" placeholder="—"'
       + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'note\',this.value)"></td>'
-      + '<td style="white-space:nowrap;">' + stPill(c)
-      + (c.by || c.updated ? '<div class="cert-src" style="font-size:11px;">' + mcEsc([c.by, c.updated].filter(Boolean).join(' ')) + '</div>' : '') + '</td>'
       + '</tr>').join('')
       : '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px 0;">' + (cases.length ? '沒有符合的案件' : MC_MONTH + ' 沒有掛表的案件') + '</td></tr>')
     + '</tbody></table></div>';
@@ -293,9 +316,10 @@ async function mcPost(body){
 async function mcSave(caseNo, kind, value){
   const c = (MC_DATA.cases || []).find(x => x.case_no === caseNo);
   if(!c) return;
-  const key = {cap: 'cap_confirm', price: 'price_confirm', note: 'note'}[kind];
-  const v = kind === 'note' ? String(value || '').trim() : (String(value).trim() === '' ? null : Number(value));
-  if(kind !== 'note' && v !== null && isNaN(v)){ showToast('請輸入數字'); return; }
+  const key = {cap: 'cap_confirm', price: 'price_confirm', note: 'note', contract_cap: 'contract_cap', contract_price: 'contract_price', adj: 'adj_status'}[kind];
+  const text = kind === 'note' || kind === 'adj';
+  const v = text ? String(value || '').trim() : (String(value).trim() === '' ? null : Number(value));
+  if(!text && v !== null && isNaN(v)){ showToast('請輸入數字'); return; }
   const old = c[key];
   c[key] = v;
   renderMeterCheck();
@@ -347,9 +371,14 @@ async function mcRemoveWithdrawn(id, caseNo){
 // 複製成 Tab 分隔，可以直接貼回 Google 試算表／Excel（欄位順序跟原本試算表一樣）
 function mcCopyTable(){
   if(!MC_DATA) return;
-  const lines = [['案號', '別名', '掛表日期', '施工廠商', '容量', '容量確認', '工程合約電價', '電價確認', '備註'].join('\t')];
-  (MC_DATA.cases || []).forEach(c => lines.push([c.case_no, c.alias, mcDate(c.meter_date), c.vendor, mcFmt(c.capacity),
-    mcFmt(mcCapOk(c)), mcFmt(mcPriceBase(c)), mcFmt(mcPriceOk(c)), (c.note || '').replace(/\s+/g, ' ')].join('\t')));
+  const lines = [['案號', '別名', '掛表日期', '施工廠商', '工程合約容量', '工程合約電價', '掛表時容量', '掛表時電價', '比對結果', '調整處理', '備註'].join('\t')];
+  (MC_DATA.cases || []).forEach(c => {
+    const r = mcCompare(c);
+    const res = r.state === 'ok' ? 'OK' : r.state === 'missing' ? '資料不足（缺' + r.missing.join('、') + '）'
+      : r.items.map(x => x.what + (x.dir === 'down' ? '下修' : '上調') + mcFmt(x.from) + '→' + mcFmt(x.to)).join('；') + '（需' + r.need.join('、') + '）';
+    lines.push([c.case_no, c.alias, mcDate(c.meter_date), c.vendor, mcFmt(mcContractCap(c)), mcFmt(mcContractPrice(c)),
+      mcFmt(mcCapOk(c)), mcFmt(mcPriceOk(c)), res, r.state === 'adj' ? (c.adj_status || '待廠商提供') : '', (c.note || '').replace(/\s+/g, ' ')].join('\t'));
+  });
   if((MC_DATA.withdrawn || []).length){
     lines.push('', '撤案案件', ['案號', '別名', '容量', '施工廠商', '案件狀況'].join('\t'));
     MC_DATA.withdrawn.forEach(w => lines.push([w.case_no, w.alias, mcFmt(w.capacity), w.vendor, (w.note || '').replace(/\s+/g, ' ')].join('\t')));
