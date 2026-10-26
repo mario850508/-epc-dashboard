@@ -101,6 +101,7 @@ function sbRow(p, i){
       ${p.line ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-top:4px;white-space:nowrap;" onclick="sbCopyLineLink(${i})">📋 複製 LINE 綁定連結</button>`}</div>
     ${sbInput(p.slack_id, p.slack_name, `sbBind(${i}, this)`, 'style="flex:1;min-width:180px;margin:0;"')}
     <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px;${p.slack_id ? '' : 'visibility:hidden;'}" onclick="sbTest('${escHtml(p.slack_id)}')">測試</button>
+    <button class="btn btn-ghost" style="padding:5px 8px;font-size:12px;color:#B42318;" title="這個人已離職：刪除，並可選職務代理人接手案件" onclick="sbResign(${i})">🗑 離職</button>
   </div>`;
 }
 
@@ -185,4 +186,68 @@ async function sbAutoMatch(){
   }
   showToast('已綁定 ' + ok + ' 位');
   sbRender();
+}
+
+
+// ---- 離職人員：刪除，並可選「職務代理人」把他還沒完成的任務／預約轉過去 ----
+async function sbResign(i){
+  const p = SB.people[i];
+  let pv = null;
+  try{ pv = await sbPost('/api/people/resign-preview', {name: p.name}); }
+  catch(e){ showToast('查詢失敗：' + e.message); return; }
+  const others = SB.people.filter((x, j) => j !== i);
+  const total = pv.tasks_as_rep + pv.tasks_as_creator + pv.bookings + pv.groups;
+  const ov = document.createElement('div');
+  ov.id = 'sbResignOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML = `<div style="background:#fff;border-radius:16px;padding:22px;max-width:460px;width:100%;max-height:90vh;overflow-y:auto;color:#1B2333;">
+    <div style="font-size:17px;font-weight:800;">🗑 ${escHtml(p.name)} 離職</div>
+    <div style="font-size:13px;line-height:1.8;margin:10px 0;">
+      會做這些事：<br>・解除 LINE／Slack 綁定（機器人不會再通知他）<br>・從業務名單、公文更名 PM 名單移除
+    </div>
+    <div style="background:${total ? '#FFF7E6' : '#F4F7FF'};border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.8;">
+      <b>目前還沒完成的資料</b><br>
+      指派任務（他是業務）：<b>${pv.tasks_as_rep}</b> 筆　指派任務（他是安排人員）：<b>${pv.tasks_as_creator}</b> 筆<br>
+      今天起的預約（登記人）：<b>${pv.bookings}</b> 筆　進行中的聯合排程（安排人員）：<b>${pv.groups}</b> 筆
+      ${pv.samples.length ? `<div style="font-size:11.5px;color:#6B7280;margin-top:4px;">例如：${pv.samples.map(escHtml).join('、')}${total > pv.samples.length ? '…' : ''}</div>` : ''}
+    </div>
+    <div style="font-weight:800;font-size:13.5px;margin-top:14px;">這位同仁有職務代理人嗎？</div>
+    <div style="font-size:12px;color:#6B7280;margin:2px 0 6px;line-height:1.6;">選了之後，上面這些資料會全部轉給代理人，舊名字也會記成代理人的別名；不選就只刪除，資料維持原樣（會變成沒人負責）。</div>
+    <input id="sbReplInput" class="quick-mark-input" list="sbReplList" autocomplete="off" placeholder="輸入代理人名字搜尋（可不填）" style="margin:0;" onfocus="this.select()">
+    <datalist id="sbReplList">${others.map(x => `<option value="${escHtml(x.name)}"></option>`).join('')}</datalist>
+    <div id="sbReplErr" style="color:#B42318;font-size:12.5px;margin-top:6px;display:none;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn btn-ghost" style="padding:8px 16px;" onclick="document.getElementById('sbResignOverlay').remove()">取消</button>
+      <button class="btn" id="sbResignGo" style="padding:8px 16px;background:#D64545;color:#fff;border:none;border-radius:10px;font-weight:800;cursor:pointer;" onclick="sbResignGo(${i})">確認離職</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+}
+async function sbResignGo(i){
+  const p = SB.people[i];
+  const err = document.getElementById('sbReplErr');
+  const raw = document.getElementById('sbReplInput').value.trim();
+  let repl = '';
+  if(raw){
+    const hit = SB.people.find((x, j) => j !== i && x.name === raw) || SB.people.find((x, j) => j !== i && sbNorm(x.name) === sbNorm(raw));
+    if(!hit){ err.textContent = '找不到「' + raw + '」，請從清單選一位現有同仁（或清空＝沒有代理人）'; err.style.display = 'block'; return; }
+    repl = hit.name;
+  }
+  const msg = repl ? `確定 ${p.name} 離職，並把他的案件轉給 ${repl}？
+（解除綁定、移出名單，這個動作不能還原）`
+                   : `確定 ${p.name} 離職，而且沒有職務代理人？
+他名下還沒完成的任務會維持原樣（沒人負責）。這個動作不能還原。`;
+  if(!confirm(msg)) return;
+  const btn = document.getElementById('sbResignGo');
+  btn.disabled = true; btn.textContent = '處理中…';
+  try{
+    const d = await sbPost('/api/people/resign', {name: p.name, replacement: repl});
+    document.getElementById('sbResignOverlay').remove();
+    SB.people.splice(i, 1);
+    const m = d.moved || {};
+    showToast(`${p.name} 已離職` + (repl ? `：任務 ${m.tasks || 0}、預約 ${m.bookings || 0}、聯合排程 ${m.groups || 0} 筆已轉給 ${repl}` : '（沒有代理人）') + (d.errors && d.errors.length ? `；有 ${d.errors.length} 項失敗：${d.errors[0]}` : ''));
+    sbRender();
+  }catch(e){
+    btn.disabled = false; btn.textContent = '確認離職';
+    err.textContent = e.message; err.style.display = 'block';
+  }
 }
