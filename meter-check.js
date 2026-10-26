@@ -190,8 +190,7 @@ function mcDocCapNote(c, fromDoc){
   const d = c.doc_cap;
   const style = 'font-size:11px;margin-top:2px;white-space:nowrap;';
   if(!d) return mcNum(c.cap_confirm) === null ? '<div class="cert-src" style="' + style + 'color:#B54708;">沒有台電契約／細部協商</div>' : '';
-  const name = '📄 ' + mcEsc(d.kind) + (d.date ? ' ' + mcEsc(mcDate(d.date)) : '');
-  const link = d.file_url ? '<a href="' + mcEsc(d.file_url) + '" target="_blank" rel="noopener" title="' + mcEsc(d.src || d.filename || '') + '">' + name + '</a>' : name;
+  const link = mcEsc(d.kind);   // 純文字；點開文件用案號下「契約&細協」按鈕
   if(d.value === null || d.value === undefined) return '<div class="cert-src" style="' + style + 'color:#B54708;" title="' + mcEsc(d.src || '') + '">' + link
     + (String(d.src || '').startsWith('讀取中') ? ' 讀取中…' : ' 讀不到容量') + '</div>';
   if(fromDoc) return '<div class="cert-src" style="' + style + '" title="' + mcEsc(d.src || '') + '">' + link + '</div>';
@@ -220,10 +219,8 @@ function renderMeterCheck(){
     return '<input type="number" step="any" class="quick-mark-input" style="width:84px;padding:4px 6px;' + bg + '" value="' + mcEsc(mcFmt(val)) + '"'
       + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'' + key + '\',this.value)">';
   };
-  const engLink = c => {
-    const e = c.eng, name = '📄 工程合約' + (e.date ? ' ' + mcEsc(mcDate(e.date)) : '');
-    return e.file_url ? '<a href="' + mcEsc(e.file_url) + '" target="_blank" rel="noopener" title="' + mcEsc(e.src || e.filename || '') + '">' + name + '</a>' : name;
-  };
+  // 來源只寫文字（2026-10-26 使用者：點開文件用案號下的按鈕就好，格子底下不要再放連結）
+  const engLink = c => '工程合約';
   // 工程合約那側的來源小字：手動修正／工程合約（可點開）／專案細節
   const contractCell = (c, key, val, engKey, airVal) => {
     const engVal = mcEng(c, engKey);
@@ -281,8 +278,7 @@ function renderMeterCheck(){
     + (rows.length ? rows.map(c => '<tr>'
       + '<td style="white-space:nowrap;"><b>' + mcEsc(c.case_no) + '</b>' + (c.alias && c.alias !== c.case_no ? '<div class="cert-src">' + mcEsc(c.alias) + '</div>' : '')
       + (c.close_status && c.close_status !== '進行中' ? '<div class="cert-src">' + mcEsc(c.close_status) + '</div>' : '')
-      + '<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;">' + mcDocBtn(c, 'tp') + mcDocBtn(c, 'eng')
-      + '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;" title="跟台電換文修約改過容量時，上傳修約文件，比對改用修約後的容量" onclick="mcPickAmend(\'' + mcJs(c.case_no) + '\')">⬆ 換文修約</button></div></td>'
+      + '<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;">' + mcDocBtn(c, 'tp') + mcDocBtn(c, 'eng') + '</div></td>'
       + '<td style="white-space:nowrap;">' + mcEsc(mcDate(c.meter_date)) + '</td>'
       + '<td style="white-space:nowrap;">' + mcEsc(c.vendor) + '</td>'
       + contractCell(c, 'contract_cap', mcContractCap(c), 'cap', mcNum(c.capacity))
@@ -410,8 +406,9 @@ function renderMcTariff(){
 // 換文修約（容量改過）> 台電契約 > 細部協商
 function mcTpFiles(c){ const f = (c.doc_cap && c.doc_cap.files) || {}; return ['換文修約', '台電契約', '細部協商'].filter(k => f[k]).map(k => f[k]); }
 function mcDocBtn(c, which){
-  const has = which === 'tp' ? mcTpFiles(c).length > 0 : !!(c.eng && c.eng.file_url);
-  const label = which === 'tp' ? '📄 ' + (mcTpFiles(c)[0] ? mcTpFiles(c)[0].kind : '台電契約') : '📑 工程合約';
+  // 契約&細協：沒有文件也能點（視窗裡可以上傳換文修約）
+  const has = which === 'tp' ? true : !!(c.eng && c.eng.file_url);
+  const label = which === 'tp' ? '📄 契約&細協' : '📑 工程合約';
   return '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;' + (has ? '' : 'opacity:.4;cursor:not-allowed;') + '"'
     + (has ? ' onclick="mcOpenDoc(\'' + mcJs(c.case_no) + '\',\'' + which + '\')"' : ' disabled title="還沒有這份文件（要從 G 槽同步上來）"') + '>' + label + '</button>';
 }
@@ -421,7 +418,7 @@ function mcOpenDoc(caseNo, which, idx){
   const c = ((MC_DATA && MC_DATA.cases) || []).find(x => x.case_no === caseNo);
   if(!c) return;
   const docs = which === 'tp' ? mcTpFiles(c) : (c.eng && c.eng.file_url ? [Object.assign({kind: '工程合約', value: c.eng.cap}, c.eng)] : []);
-  const d = docs[idx || 0];
+  const d = docs[idx || 0] || (which === 'tp' ? {kind: '契約&細協', file_url: '', src: '', filename: ''} : null);   // 沒文件也開，可以上傳換文修約
   if(!d) return;
   mcCloseDoc();
   const row = (k, v, hl) => '<tr><td style="color:var(--text-muted);white-space:nowrap;padding:5px 8px 5px 0;">' + k + '</td><td style="padding:5px 0;font-weight:' + (hl ? 700 : 500) + ';">' + v + '</td></tr>';
@@ -431,12 +428,16 @@ function mcOpenDoc(caseNo, which, idx){
     + '<div style="font-weight:700;font-size:15px;margin-bottom:2px;">' + mcEsc(c.case_no) + '</div>'
     + '<div class="cert-src" style="margin-bottom:10px;">' + mcEsc(c.alias || '') + '・掛表 ' + mcEsc(mcDate(c.meter_date)) + '・' + mcEsc(c.vendor || '') + '</div>'
     + (docs.length > 1 ? '<div style="display:flex;gap:4px;margin-bottom:10px;">' + docs.map((x, i) => '<button class="cert-filter-btn ' + (i === (idx || 0) ? 'active' : '') + '" onclick="mcOpenDoc(\'' + mcJs(caseNo) + '\',\'' + which + '\',' + i + ')">' + mcEsc(x.kind) + '</button>').join('') + '</div>' : '')
-    + '<div style="font-weight:700;margin:4px 0;">這份文件系統讀到的</div><table style="width:100%;">'
+    + (which === 'tp' ? '<div style="margin-bottom:12px;padding:8px 10px;border:1px dashed var(--border,#E3E6EA);border-radius:10px;">'
+      + '<div style="font-size:12px;margin-bottom:6px;">跟台電換文修約改過容量？上傳修約文件，比對改用修約後的容量。</div>'
+      + '<button class="btn btn-primary" style="padding:4px 12px;font-size:12px;" onclick="mcPickAmend(\'' + mcJs(caseNo) + '\')">⬆ 上傳換文修約</button></div>' : '')
+    + (!d.file_url ? '<div class="cert-src" style="color:#B54708;">這個案件還沒有台電契約／細部協商／換文修約（要從 G 槽同步上來，或在上面上傳換文修約）。</div>' : '')
+    + (d.file_url ? '<div style="font-weight:700;margin:4px 0;">這份文件系統讀到的</div><table style="width:100%;">'
     + row('文件', mcEsc(d.kind) + (d.date ? ' ' + mcEsc(mcDate(d.date)) : ''))
     + row('容量', f(d.kind === '工程合約' ? c.eng.cap : d.value) + (d.kind !== '工程合約' || c.eng.cap !== null ? ' kW' : ''), true)
     + (d.kind === '工程合約' ? row('躉購電價', f(c.eng.price), true) + row('工程單價', c.eng.unit_price ? mcEsc(Number(c.eng.unit_price).toLocaleString()) + ' 元/kWp' : f(null)) : '')
     + row('讀取依據', '<span class="cert-src">' + mcEsc(d.src || '—') + '</span>')
-    + '</table>'
+    + '</table>' : '')
     + '<div style="font-weight:700;margin:14px 0 4px;">頁面上的比對</div><table style="width:100%;">'
     + row('📑 工程合約 容量／電價', f(mcContractCap(c)) + ' kW／' + f(mcContractPrice(c)))
     + row('🔌 掛表時 容量／電價', f(mcCapOk(c)) + ' kW／' + f(mcPriceOk(c)))
@@ -446,7 +447,7 @@ function mcOpenDoc(caseNo, which, idx){
       : r.items.map(x => '<div style="color:' + (x.dir === 'down' ? '#B42318' : '#1E70C8') + ';font-weight:700;">' + x.what + (x.dir === 'down' ? '下修 ' : '上調 ') + mcEsc(mcFmt(x.from)) + ' → ' + mcEsc(mcFmt(x.to)) + '</div>').join('') + '<div>需' + mcEsc(r.need.join('、')) + '</div>')
     + '</table>'
     + '<div class="cert-src" style="margin-top:12px;line-height:1.6;">數字不對可以關掉視窗後直接在表格裡改。大檔只存了前 6 頁；要看完整檔請開 G 槽。</div>'
-    + '<div style="margin-top:10px;"><a class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" href="' + mcEsc(d.file_url) + '" target="_blank" rel="noopener">↗ 新分頁開啟</a></div>'
+    + (d.file_url ? '<div style="margin-top:10px;"><a class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" href="' + mcEsc(d.file_url) + '" target="_blank" rel="noopener">↗ 新分頁開啟</a></div>' : '')
     + '</div>';
   const m = document.createElement('div');
   m.id = 'mcDocModal';
@@ -457,7 +458,8 @@ function mcOpenDoc(caseNo, which, idx){
     + '<b>' + mcEsc(d.kind) + '｜' + mcEsc(c.case_no) + '</b><span class="cert-src">' + mcEsc(d.filename || '') + '</span>'
     + '<button class="btn btn-ghost" style="margin-left:auto;padding:3px 10px;" onclick="mcCloseDoc()">✕ 關閉</button></div>'
     + '<div style="display:flex;flex:1;min-height:0;flex-wrap:wrap;">'
-    + '<iframe src="' + mcEsc(d.file_url) + '#view=FitH" style="flex:1 1 560px;min-height:50vh;border:0;background:#525659;"></iframe>'
+    + (d.file_url ? '<iframe src="' + mcEsc(d.file_url) + '#view=FitH" style="flex:1 1 560px;min-height:50vh;border:0;background:#525659;"></iframe>'
+      : '<div style="flex:1 1 560px;min-height:50vh;display:flex;align-items:center;justify-content:center;color:var(--text-muted);">沒有文件</div>')
     + '<div style="flex:0 1 330px;padding:14px 16px;overflow:auto;border-left:1px solid var(--border,#E3E6EA);">' + side + '</div>'
     + '</div></div>';
   document.body.appendChild(m);
@@ -493,6 +495,7 @@ async function mcUploadAmend(caseNo, file){
     });
     const d = await res.json().catch(() => ({}));
     if(!res.ok || d.error) throw new Error(d.error || res.status);
+    mcCloseDoc();
     showToast('已上傳，背景讀容量中（約 10～40 秒），等一下按 🔄 重新整理');
     setTimeout(loadMeterCheck, 30000);
   }catch(e){ showToast('上傳失敗：' + e.message); }
