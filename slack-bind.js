@@ -12,6 +12,26 @@ function sbOptions(selectedId, selectedName){
   if(selectedId && !list.some(u => u.id === selectedId)) list.unshift({id: selectedId, name: selectedName || selectedId, display: '', email: ''});
   return '<option value="">未綁定</option>' + list.map(u => `<option value="${escHtml(u.id)}" ${u.id === selectedId ? 'selected' : ''}>${escHtml(sbUserLabel(u))}</option>`).join('');
 }
+// 可打字搜尋的欄位：<input list> 配一份 datalist，直接打名字／email 的一部分就會篩選；選好或按 Enter 才綁定
+function sbLabelOf(id, name){
+  const u = SB.users.find(x => x.id === id);
+  return u ? sbUserLabel(u) : (id ? (name || id) : '');
+}
+function sbInput(id, name, onchange, extraAttr){
+  return `<input class="quick-mark-input sb-input" list="sbUsers" autocomplete="off" placeholder="輸入名字或 email 搜尋 Slack 帳號…"
+    value="${escHtml(sbLabelOf(id, name))}" onfocus="this.select()" onchange="${onchange}" ${extraAttr || ''}>`;
+}
+// 輸入的字 → 唯一的 Slack 使用者（完全等於選項文字，或只有一位符合）；找不到／好幾位回 null
+function sbResolve(text){
+  const v = (text || '').trim();
+  if(!v) return {empty: true};
+  const exact = SB.users.find(u => sbUserLabel(u) === v);
+  if(exact) return {user: exact};
+  const n = sbNorm(v);
+  const hits = SB.users.filter(u => [u.name, u.display, u.email, sbUserLabel(u)].some(x => sbNorm(x).includes(n)));
+  if(hits.length === 1) return {user: hits[0]};
+  return {user: null, many: hits.length};
+}
 function sbNorm(t){ return String(t || '').normalize('NFKC').toLowerCase().replace(/[\s_.\-()（）]/g, ''); }
 // 名字配對：Slack 顯示名稱／真名／email 前綴 跟人員名字互相包含（至少 2 個字）
 function sbGuess(personName){
@@ -60,13 +80,14 @@ function sbRender(){
       <div style="font-weight:800;font-size:13.5px;">🙋 我的通知</div>
       <div style="font-size:12px;color:#6B7280;margin:2px 0 8px;line-height:1.6;">明日行程總覽、出貨日期更新、廠商預約申請…這些「給你」的通知，同步到下面這個 Slack 帳號。</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <select id="sbDefault" class="quick-mark-input" style="flex:1;min-width:200px;margin:0;" onchange="sbSetDefault(this)">${sbOptions(SB.def.id, SB.def.name)}</select>
-        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="sbTest(document.getElementById('sbDefault').value)">傳測試訊息</button>
+        ${sbInput(SB.def.id, SB.def.name, 'sbSetDefault(this)', 'id="sbDefault" style="flex:1;min-width:200px;margin:0;"')}
+        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="sbTest(SB.def.id)">傳測試訊息</button>
       </div></div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
       <div style="font-weight:800;font-size:13.5px;">👥 人員（${SB.people.length} 位，未綁 Slack ${unbound} 位）</div>
       <button class="btn btn-ghost" style="padding:5px 12px;font-size:12px;" onclick="sbAutoMatch()">🔎 自動配對</button>
     </div>
+    <datalist id="sbUsers">${SB.users.map(u => `<option value="${escHtml(sbUserLabel(u))}"></option>`).join('')}</datalist>
     <div id="sbRows">${SB.people.map((p, i) => sbRow(p, i)).join('')}</div>
     <div style="display:flex;gap:8px;margin-top:12px;">
       <input id="sbNewName" class="quick-mark-input" placeholder="找不到的人：輸入名字新增" style="flex:1;margin:0;">
@@ -77,7 +98,7 @@ function sbRender(){
 function sbRow(p, i){
   return `<div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid #EEE;flex-wrap:wrap;">
     <div style="flex:0 0 120px;min-width:90px;"><b>${escHtml(p.name)}</b><div style="font-size:11px;color:${p.line ? '#16A34A' : '#9CA3AF'};font-weight:700;">${p.line ? '✓ 已綁 LINE' : '未綁 LINE'}${p.scheduler ? '・安排人員' : ''}</div></div>
-    <select class="quick-mark-input" style="flex:1;min-width:180px;margin:0;" onchange="sbBind(${i}, this)">${sbOptions(p.slack_id, p.slack_name)}</select>
+    ${sbInput(p.slack_id, p.slack_name, `sbBind(${i}, this)`, 'style="flex:1;min-width:180px;margin:0;"')}
     <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px;${p.slack_id ? '' : 'visibility:hidden;'}" onclick="sbTest('${escHtml(p.slack_id)}')">測試</button>
   </div>`;
 }
@@ -90,9 +111,16 @@ async function sbPost(path, body){
 }
 function sbUserName(id){ const u = SB.users.find(x => x.id === id); return u ? u.name : ''; }
 
-async function sbBind(i, sel){
+async function sbBind(i, el){
   const p = SB.people[i];
-  const id = sel.value;
+  const r = sbResolve(el.value);
+  if(!r.empty && !r.user){
+    showToast(r.many ? '有 ' + r.many + ' 位符合，請多打幾個字，或從清單選' : '找不到這個 Slack 帳號，請從清單選');
+    el.value = sbLabelOf(p.slack_id, p.slack_name);
+    return;
+  }
+  const id = r.empty ? '' : r.user.id;
+  if(id === p.slack_id) { el.value = sbLabelOf(p.slack_id, p.slack_name); return; }
   try{
     await sbPost('/api/slack/bindings', {name: p.name, slack_id: id, slack_name: sbUserName(id)});
     p.slack_id = id; p.slack_name = sbUserName(id);
@@ -100,8 +128,14 @@ async function sbBind(i, sel){
     sbRender();
   }catch(e){ showToast('綁定失敗：' + e.message); sbRender(); }
 }
-async function sbSetDefault(sel){
-  const id = sel.value;
+async function sbSetDefault(el){
+  const r = sbResolve(el.value);
+  if(!r.empty && !r.user){
+    showToast(r.many ? '有 ' + r.many + ' 位符合，請多打幾個字，或從清單選' : '找不到這個 Slack 帳號，請從清單選');
+    el.value = sbLabelOf(SB.def.id, SB.def.name);
+    return;
+  }
+  const id = r.empty ? '' : r.user.id;
   try{
     await sbPost('/api/slack/default-user', {slack_id: id, slack_name: sbUserName(id)});
     SB.def = {id, name: sbUserName(id)};
