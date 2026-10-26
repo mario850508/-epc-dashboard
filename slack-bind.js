@@ -66,7 +66,7 @@ async function openSlackBindModal(){
 }
 
 function sbHead(){
-  return `<div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:17px;font-weight:800;">💬 Slack 綁定</div>
+  return `<div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:17px;font-weight:800;">💬 Slack、LINE 綁定</div>
     <button type="button" onclick="document.getElementById('sbOverlay').remove()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button></div>`;
 }
 
@@ -75,7 +75,7 @@ function sbRender(){
   if(!box) return;
   const unbound = SB.people.filter(p => !p.slack_id).length;
   box.innerHTML = sbHead() + `
-    <div style="font-size:12.5px;color:#6B7280;margin:6px 0 12px;line-height:1.7;">LINE 每月只有 200 則額度，用完就收不到通知。把人員綁到他的 Slack 後，<b>機器人通知會 LINE 與 Slack 同步私訊</b>（Slack 沒有額度限制，LINE 爆了至少 Slack 看得到）。</div>
+    <div style="font-size:12.5px;color:#6B7280;margin:6px 0 12px;line-height:1.7;"><b>Slack</b>：從下拉選單打字搜尋就能綁定，綁好後機器人通知會 LINE 與 Slack 同步私訊（Slack 沒有額度限制，LINE 爆了至少 Slack 看得到）。<b>LINE</b>：這裡顯示有沒有綁定；還沒綁的，按「複製 LINE 綁定連結」傳給他，他用手機 LINE 打開、綁一次就好。</div>
     <div style="background:#F4F7FF;border-radius:12px;padding:12px 14px;margin-bottom:14px;">
       <div style="font-weight:800;font-size:13.5px;">🙋 我的通知</div>
       <div style="font-size:12px;color:#6B7280;margin:2px 0 8px;line-height:1.6;">明日行程總覽、出貨日期更新、廠商預約申請…這些「給你」的通知，同步到下面這個 Slack 帳號。</div>
@@ -97,10 +97,30 @@ function sbRender(){
 
 function sbRow(p, i){
   return `<div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid #EEE;flex-wrap:wrap;">
-    <div style="flex:0 0 120px;min-width:90px;"><b>${escHtml(p.name)}</b><div style="font-size:11px;color:${p.line ? '#16A34A' : '#9CA3AF'};font-weight:700;">${p.line ? '✓ 已綁 LINE' : '未綁 LINE'}${p.scheduler ? '・安排人員' : ''}</div></div>
+    <div style="flex:0 0 120px;min-width:90px;"><b>${escHtml(p.name)}</b><div style="font-size:11px;color:${p.line ? '#16A34A' : '#D97706'};font-weight:700;">${p.line ? '✓ 已綁 LINE' : '⚠ 未綁 LINE'}${p.scheduler ? '・安排人員' : ''}</div>
+      ${p.line ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-top:4px;white-space:nowrap;" onclick="sbCopyLineLink(${i})">📋 複製 LINE 綁定連結</button>`}</div>
     ${sbInput(p.slack_id, p.slack_name, `sbBind(${i}, this)`, 'style="flex:1;min-width:180px;margin:0;"')}
     <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px;${p.slack_id ? '' : 'visibility:hidden;'}" onclick="sbTest('${escHtml(p.slack_id)}')">測試</button>
   </div>`;
+}
+
+// 產生這個人的 LINE 綁定連結（LIFF，名字已帶入）並複製一段可以直接傳給他的訊息
+async function sbCopyLineLink(i){
+  const p = SB.people[i];
+  try{
+    const d = await (await fetch(API_BASE + '/api/line/rep-bind-url?name=' + encodeURIComponent(p.name), {cache: 'no-store'})).json();
+    if(!d.url){ showToast('LINE 綁定功能尚未設定（LIFF_ID）'); return; }
+    const text = `${p.name} 您好，請用手機 LINE 打開下面的連結，綁定陽光機器人通知（只要綁一次）：
+${d.url}
+綁定後，預約確認、期限提醒、明日行程等通知會傳到你的 LINE。`;
+    try{ await navigator.clipboard.writeText(text); }
+    catch(e){
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    }
+    showToast('已複製「' + p.name + '」的 LINE 綁定連結，請傳給他');
+  }catch(e){ showToast('複製失敗：' + e.message); }
 }
 
 async function sbPost(path, body){
