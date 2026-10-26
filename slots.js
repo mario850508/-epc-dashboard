@@ -225,6 +225,14 @@ async function copyRepBindLink(name){
   }catch(e){ showToast('複製失敗：' + e.message); }
 }
 
+// 2026-10-26：廠商在預約頁按「確認收到」的狀態（只有有預約頁的廠商才有）
+function vendorAckChip(b){
+  if(b.cancelled || !b.vendor_can_ack) return '';
+  if(b.vendor_ack_at) return `<span class="chip" style="flex-shrink:0;background:#DCFCE7;color:#15803D;" title="${escHtml((b.vendor_ack_by || '') + ' ' + fmtDateTimeTW(b.vendor_ack_at))}">✅ 廠商已確認${b.vendor_ack_by ? '・' + escHtml(b.vendor_ack_by) : ''}</span>`;
+  if(b.vendor_issue) return `<span class="chip" style="flex-shrink:0;background:#FDECEC;color:#B42318;cursor:help;" title="${escHtml(b.vendor_issue)}">⚠️ 廠商回報問題</span>`;
+  return `<span class="chip" style="flex-shrink:0;background:#FFF1DC;color:#B45309;" title="廠商還沒在預約頁按「確認收到」，請直接聯絡他們">⏳ 廠商未確認</span>`;
+}
+
 function renderSlotTasks(){
   updateSlotTaskBadges();
   loadBoundNames();
@@ -1121,6 +1129,7 @@ function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, c
               <span style="font-size:12.5px;flex:1;min-width:120px;">${b.case||''}${b.alias?('　'+b.alias):''}${b.companions ? `<span style="font-size:11px;color:#6B21A8;margin-left:6px;">🔗 同時：${escHtml(b.companions)}</span>` : ''}</span>
               <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">${b.registrant||''}</span>
               ${b.cancelled ? `<span class="chip" style="flex-shrink:0;background:#FDECEC;color:#B42318;">❌ 已取消</span>` : ''}
+              ${vendorAckChip(b)}
               <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="showSlotBookingDetail('${b.record_id}')">📄 查看填單</button>
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;${b.vendor_notified_at ? 'color:#16A34A;border-color:#BFE6CF;' : ''}" onclick="openVendorNotice('${b.record_id}')" title="${b.vendor_notified_at ? '已通知廠商：' + fmtDateTimeTW(b.vendor_notified_at) : '確認屋主資料後，傳卡片到廠商群組'}">${b.vendor_notified_at ? '✓ 已通知廠商' : '📤 通知廠商'}</button>`}
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="notifyRep('${b.record_id}')" title="業務有綁 LINE 就直接用機器人通知；沒綁（或離職）會產生連結，讓你轉傳給代辦同事">📨 通知業務</button>
@@ -1224,6 +1233,8 @@ async function showSlotBookingDetail(recordId){
         ${row('屋主電話', escHtml(b.owner_phone))}
         ${row('業務備註', escHtml(b.note))}
         ${row('填單時間', escHtml(fmtDateTimeTW(b.created_at)))}
+        ${b.vendor_can_ack ? row('廠商確認', b.vendor_ack_at ? '✅ ' + escHtml((b.vendor_ack_by || '（沒填名字）') + '・' + fmtDateTimeTW(b.vendor_ack_at)) : '⏳ 還沒確認') : ''}
+        ${b.vendor_issue ? row('廠商回報', '<span style="color:#B42318;white-space:pre-wrap;">' + escHtml(b.vendor_issue) + '</span>') : ''}
       </div>
       ${t ? `<div style="font-size:12.5px;font-weight:700;margin:14px 0 4px;">指派任務資訊</div>
       <div style="background:#fff;border:1px solid #E4E8F1;border-radius:12px;padding:6px 14px;">

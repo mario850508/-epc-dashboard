@@ -23,6 +23,29 @@
     background:radial-gradient(ellipse 900px 500px at 100% 0%, rgba(255,182,72,.18), transparent 60%), var(--bg);color:var(--text);}
   .wrap{max-width:560px;margin:0 auto;padding:20px 16px 70px;}
   .brand{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+  .alertbar{background:#FFF4DC;border:1.5px solid #F2C46B;color:#9A5B00;border-radius:14px;padding:11px 14px;font-size:14.5px;font-weight:700;margin-bottom:12px;cursor:pointer;}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .cal-head b{font-size:17px;} .cal-nav{border:1.5px solid var(--border);background:#fff;border-radius:10px;width:38px;height:36px;font-size:18px;cursor:pointer;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .cal-dow{text-align:center;font-size:12px;color:var(--text-muted);padding:2px 0;font-weight:700;}
+  .cal-day{min-height:58px;border:1.5px solid #F0E4CC;border-radius:10px;background:#fff;padding:4px 3px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;transition:background .15s,border-color .15s;}
+  .cal-day.out{opacity:.35;} .cal-day.today{border-color:var(--sun-2);} .cal-day.sel{background:#FFF1DC;border-color:var(--sun-2);box-shadow:0 0 0 2px rgba(242,121,12,.18);}
+  .cal-day .n{font-size:13.5px;font-weight:700;} .cal-day.today .n{color:var(--sun-3);}
+  .cal-dots{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;}
+  .dot{width:9px;height:9px;border-radius:50%;} .dot.ok{background:#22A559;} .dot.wait{background:#F2A30C;} .dot.issue{background:#E5484D;}
+  .cal-more{font-size:10.5px;color:var(--text-muted);font-weight:700;line-height:1;}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--text-muted);margin-top:10px;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .bk{border:1.5px solid #F0E4CC;background:#fff;border-radius:14px;padding:12px 13px;margin-top:10px;}
+  .bk.focus{border-color:var(--sun-2);box-shadow:0 0 0 3px rgba(242,121,12,.2);}
+  .bk .row2{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;}
+  .sc{font-size:12.5px;font-weight:800;padding:3px 10px;border-radius:99px;white-space:nowrap;}
+  .sc-ok{background:#DCFCE7;color:#15803D;} .sc-wait{background:#FFF1DC;color:#B45309;} .sc-issue{background:#FDECEC;color:#B42318;}
+  .kv{font-size:13.5px;line-height:1.75;margin-top:6px;} .kv .k{color:var(--text-muted);}
+  .bk-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .btn-sm{padding:11px 16px;border:none;border-radius:12px;background:linear-gradient(135deg,var(--sun-1),var(--sun-2));color:#fff;font-size:15px;font-weight:800;cursor:pointer;}
+  .btn-sm:disabled{opacity:.6;}
+  .issue-txt{margin-top:8px;background:#FDECEC;border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.6;white-space:pre-wrap;color:#8A1F1F;}
   .seg{display:flex;gap:6px;margin:2px 0 10px;background:#F1ECE0;border-radius:12px;padding:4px;}
   .seg-b{flex:1;text-align:center;padding:9px 6px;border-radius:9px;font-size:14.5px;font-weight:700;cursor:pointer;color:var(--text-muted);transition:background .2s,color .2s;}
   .seg-b.on{background:#fff;color:var(--sun-3);box-shadow:0 1px 5px rgba(120,80,20,.15);}
@@ -131,6 +154,12 @@ async function init(){
     return;
   }
   document.getElementById('vendorName').textContent = D.vendor;
+  const bid = new URLSearchParams(location.search).get('b');
+  if(bid){
+    const b = (D.bookings || []).find(x => x.id === bid);
+    if(b){ tab = 'booked'; calSel = b.date; calMonth = b.date.slice(0, 7); openB = bid; }
+    else { tab = 'booked'; deepMissing = true; }
+  }
   render();
 }
 
@@ -140,8 +169,8 @@ function render(){
   app.innerHTML = `<div class="tabs">
       <div class="tab ${tab === 'new' ? 'active' : ''}" onclick="setTab('new')">＋ 提出預約</div>
       <div class="tab ${tab === 'mine' ? 'active' : ''}" onclick="setTab('mine')">我的申請${D.requests.length ? '（' + D.requests.length + '）' : ''}</div>
-      <div class="tab ${tab === 'booked' ? 'active' : ''}" onclick="setTab('booked')">已排定</div>
-    </div><div id="pane"></div>`;
+      <div class="tab ${tab === 'booked' ? 'active' : ''}" onclick="setTab('booked')">📅 行程日曆${unackedUpcoming().length ? ' <span style="background:#E5484D;color:#fff;border-radius:99px;padding:1px 7px;font-size:12px;">' + unackedUpcoming().length + '</span>' : ''}</div>
+    </div>${tab !== 'booked' && unackedUpcoming().length ? `<div class="alertbar" onclick="setTab('booked')">⏳ 有 ${unackedUpcoming().length} 筆行程等您確認 ➜ 點這裡查看</div>` : ''}<div id="pane"></div>`;
   if(tab === 'new') renderNew();
   else if(tab === 'mine') renderMine();
   else renderBooked();
@@ -446,15 +475,113 @@ async function cancelReq(id){
   }catch(e){ alert(e.message); }
 }
 
-// ---------- 已排定 ----------
+// ---------- 行程日曆（2026-10-26）：廠商看自己的行程、按「確認收到」、回報問題；陽光窗口看到同一份資料 ----------
+let calMonth = '', calSel = '', openB = '', deepMissing = false;
+function bookingStatus(b){ return b.ack_at ? 'ok' : (b.issue ? 'issue' : 'wait'); }
+function unackedUpcoming(){ const t = todayIso(); return ((D && D.bookings) || []).filter(b => b.date >= t && !b.ack_at); }
+function fmtAck(iso){ return (iso || '').slice(5, 16).replace('T', ' ').replace('-', '/'); }
+function statusChip(b){
+  const st = bookingStatus(b);
+  if(st === 'ok') return `<span class="sc sc-ok">✅ 已確認${b.ack_by ? '・' + esc(b.ack_by) : ''}（${esc(fmtAck(b.ack_at))}）</span>`;
+  if(st === 'issue') return '<span class="sc sc-issue">⚠️ 已回報問題・等陽光窗口處理</span>';
+  return '<span class="sc sc-wait">⏳ 等您確認</span>';
+}
+function calGo(delta){
+  const [y, m] = calMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  calMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  renderBooked();
+}
+function calPick(d){ calSel = d; openB = ''; renderBooked(); }
 function renderBooked(){
   const pane = document.getElementById('pane');
-  if(!D.bookings.length){ pane.innerHTML = '<div class="card muted">目前沒有已排定的時段。</div>'; return; }
+  const today = todayIso();
+  const bks = D.bookings || [];
+  if(!calSel){   // 預設：今天有行程就選今天，沒有就選下一個有行程的日子，再沒有就今天
+    const next = bks.filter(b => b.date >= today).map(b => b.date).sort()[0];
+    calSel = bks.some(b => b.date === today) ? today : (next || today);
+  }
+  if(!calMonth) calMonth = calSel.slice(0, 7);
   const byDay = {};
-  D.bookings.forEach(b => (byDay[b.date] ||= []).push(b));
-  pane.innerHTML = Object.keys(byDay).sort().map(d => `<div class="card"><div class="day" style="margin-top:0;">📅 ${esc(dayLabel(d))}</div>
-      ${byDay[d].map(b => `<div style="padding:8px 0;border-top:1px solid #F0E4CC;"><b>${esc(b.start)}–${esc(b.end)}</b> ${b.types.map(t => `<span class="chip">${esc(t)}</span>`).join('')}
-        <div>${esc(b.case)} <span class="muted">${esc(b.alias || '')}</span></div></div>`).join('')}</div>`).join('');
+  bks.forEach(b => (byDay[b.date] ||= []).push(b));
+  const [y, m] = calMonth.split('-').map(Number);
+  const startDow = new Date(y, m - 1, 1).getDay(), dim = new Date(y, m, 0).getDate();
+  let cells = '';
+  for(let i = 0; i < startDow; i++) cells += '<div></div>';
+  for(let d = 1; d <= dim; d++){
+    const iso = `${calMonth}-${String(d).padStart(2, '0')}`;
+    const list = byDay[iso] || [];
+    const dots = list.slice(0, 4).map(b => `<span class="dot ${bookingStatus(b)}"></span>`).join('');
+    cells += `<div class="cal-day ${iso === today ? 'today' : ''} ${iso === calSel ? 'sel' : ''}" onclick="calPick('${iso}')"><span class="n">${d}</span>
+      <div class="cal-dots">${dots}</div>${list.length > 4 ? `<span class="cal-more">+${list.length - 4}</span>` : ''}</div>`;
+  }
+  const dayList = (byDay[calSel] || []).slice().sort((a, b) => a.start.localeCompare(b.start));
+  const pending = unackedUpcoming();
+  pane.innerHTML = `${deepMissing ? '<div class="card" style="border-color:#F3C5C5;">找不到你點的那筆行程（可能已被取消或改期），請看下面的日曆。</div>' : ''}
+    ${pending.length ? `<div class="card" style="border-color:#F2C46B;background:#FFF9EC;"><h2 style="font-size:15.5px;">⏳ 等您確認的行程（${pending.length}）</h2>
+      ${pending.slice(0, 8).map(b => `<div class="case" style="margin-top:8px;" onclick="calSel='${b.date}';calMonth='${b.date.slice(0, 7)}';openB='${b.id}';renderBooked()">
+        <b>${esc(dayLabel(b.date))} ${esc(b.start)}</b> ${b.types.map(t => `<span class="chip" style="margin-top:0;">${esc(t)}</span>`).join('')}
+        <div>${esc(b.case)} <span class="muted">${esc(b.alias || '')}</span></div></div>`).join('')}${pending.length > 8 ? `<div class="muted" style="margin-top:6px;">還有 ${pending.length - 8} 筆，請看日曆</div>` : ''}</div>` : ''}
+    <div class="card">
+      <div class="cal-head"><button class="cal-nav" onclick="calGo(-1)">‹</button><b>${y} 年 ${m} 月</b><button class="cal-nav" onclick="calGo(1)">›</button></div>
+      <div class="cal-grid">${['日', '一', '二', '三', '四', '五', '六'].map(t => `<div class="cal-dow">${t}</div>`).join('')}${cells}</div>
+      <div class="legend"><span><i class="dot ok"></i>已確認</span><span><i class="dot wait"></i>等您確認</span><span><i class="dot issue"></i>已回報問題</span></div>
+      <div class="muted" style="margin-top:8px;font-size:12.5px;">這份日曆跟陽光窗口看到的是同一份資料；行程改日期或時間後，會需要您重新確認。</div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:16px;">📅 ${esc(dayLabel(calSel))}${calSel === today ? '（今天）' : ''}</h2>
+      <label style="margin-top:8px;">您的名字（確認、回報時留給陽光窗口看）</label>
+      <input id="byName" placeholder="例如：林先生" value="${esc(lsGet('vp_by'))}" onchange="lsSet('vp_by', this.value.trim())">
+      ${dayList.length ? dayList.map(bookingCard).join('') : '<div class="muted" style="margin-top:12px;">這天沒有行程。</div>'}
+    </div>`;
+  if(openB){
+    const el = document.getElementById('bk_' + openB);
+    if(el){ el.classList.add('focus'); setTimeout(() => el.scrollIntoView({behavior: 'smooth', block: 'center'}), 80); }
+  }
+}
+function bookingCard(b){
+  const st = bookingStatus(b), canAct = b.date >= todayIso();
+  return `<div class="bk" id="bk_${esc(b.id)}">
+    <div class="row2"><div><b style="font-size:16px;">${esc(b.start)}–${esc(b.end)}</b> ${b.types.map(t => `<span class="chip" style="margin-top:0;">${esc(t)}</span>`).join('')}</div>${statusChip(b)}</div>
+    <div style="margin-top:6px;"><b>${esc(b.case)}</b> <span class="muted">${esc(b.alias || '')}</span></div>
+    <div class="kv">
+      ${b.time_text && b.time_text !== (b.start + '–' + b.end) ? `<div><span class="k">時間：</span>${esc(b.time_text)}</div>` : ''}
+      ${b.address ? `<div><span class="k">地址：</span>${esc(b.address)} ${b.map ? `<a href="${esc(b.map)}" target="_blank" rel="noopener">🗺 地圖</a>` : ''}</div>` : ''}
+      ${b.owner_name || b.owner_phone ? `<div><span class="k">屋主：</span>${esc(b.owner_name)} ${b.owner_phone ? `<a href="tel:${esc(b.owner_phone)}">📞 ${esc(b.owner_phone)}</a>` : ''}</div>` : ''}
+      ${b.companions ? `<div><span class="k">同時施作：</span>${esc(b.companions)}</div>` : ''}
+      ${b.note ? `<div><span class="k">現場備註：</span>${esc(b.note)}</div>` : ''}
+      ${b.pm_note ? `<div><span class="k">陽光備註：</span>${esc(b.pm_note)}</div>` : ''}
+    </div>
+    ${b.issue ? `<div class="issue-txt">您回報的問題：\n${esc(b.issue)}</div>` : ''}
+    ${canAct ? `<div class="bk-actions">
+        ${st !== 'ok' ? `<button class="btn-sm" id="ackBtn_${esc(b.id)}" onclick="ackBooking('${esc(b.id)}')">✅ 確認收到這筆行程</button>` : ''}
+        <button class="btn-ghost" onclick="toggleIssue('${esc(b.id)}')">⚠️ 回報問題</button></div>
+      <div id="issueBox_${esc(b.id)}" style="display:none;margin-top:8px;">
+        <textarea id="issueTxt_${esc(b.id)}" placeholder="例如：這個時間人手不夠，可以改 16:00 嗎？地址有誤？"></textarea>
+        <button class="btn-sm" style="margin-top:8px;background:#E5484D;" onclick="sendIssue('${esc(b.id)}')">送出回報給陽光窗口</button></div>` : ''}
+  </div>`;
+}
+function toggleIssue(id){ const el = document.getElementById('issueBox_' + id); el.style.display = el.style.display === 'none' ? 'block' : 'none'; }
+function byName(){ const v = (document.getElementById('byName') || {}).value || ''; return v.trim(); }
+async function ackBooking(id){
+  const by = byName();
+  if(!by && !confirm('沒有填名字，陽光窗口會看不出是誰確認的，仍要送出嗎？')) return;
+  const btn = document.getElementById('ackBtn_' + id); if(btn){ btn.disabled = true; btn.textContent = '送出中…'; }
+  try{
+    lsSet('vp_by', by);
+    await api('/bookings/' + encodeURIComponent(id) + '/ack', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({by})});
+    D = await api('/info'); openB = id; render();
+  }catch(e){ alert(e.message); if(btn){ btn.disabled = false; btn.textContent = '✅ 確認收到這筆行程'; } }
+}
+async function sendIssue(id){
+  const msg = (document.getElementById('issueTxt_' + id).value || '').trim();
+  if(!msg){ alert('請寫一下是什麼問題'); return; }
+  try{
+    lsSet('vp_by', byName());
+    await api('/bookings/' + encodeURIComponent(id) + '/issue', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({message: msg, by: byName()})});
+    D = await api('/info'); openB = id; render();
+    alert('已送出，陽光窗口會盡快聯絡您。');
+  }catch(e){ alert(e.message); }
 }
 
 init();
