@@ -503,7 +503,10 @@ async function mcReparse(){
     const res = await fetch(API_BASE + '/api/procurement/drawings/reparse', {method: 'POST'});
     const d = await res.json().catch(() => ({}));
     if(!res.ok || d.error) throw new Error(d.error || res.status);
-    showToast(d.queued ? '已排 ' + d.queued + ' 份重讀（一份約 10～40 秒），過一陣子再按 🔄 重新整理' : '沒有讀不到的文件');
+    const parts = [];
+    if(d.queued) parts.push('已排 ' + d.queued + ' 份用已存的文字重算（很快），再按 🔄 重新整理');
+    if(d.need_local) parts.push(d.need_local + ' 份沒有存文字，要在你電腦重讀：執行 drawing_sync.py --reparse（每天自動同步也會順便重讀一批）');
+    showToast(parts.join('；') || '沒有讀不到的文件');
   }catch(e){ showToast('重讀失敗：' + e.message); }
 }
 
