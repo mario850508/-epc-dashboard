@@ -281,7 +281,8 @@ function renderMeterCheck(){
     + (rows.length ? rows.map(c => '<tr>'
       + '<td style="white-space:nowrap;"><b>' + mcEsc(c.case_no) + '</b>' + (c.alias && c.alias !== c.case_no ? '<div class="cert-src">' + mcEsc(c.alias) + '</div>' : '')
       + (c.close_status && c.close_status !== '進行中' ? '<div class="cert-src">' + mcEsc(c.close_status) + '</div>' : '')
-      + '<div style="display:flex;gap:4px;margin-top:5px;">' + mcDocBtn(c, 'tp') + mcDocBtn(c, 'eng') + '</div></td>'
+      + '<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;">' + mcDocBtn(c, 'tp') + mcDocBtn(c, 'eng')
+      + '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;" title="跟台電換文修約改過容量時，上傳修約文件，比對改用修約後的容量" onclick="mcPickAmend(\'' + mcJs(c.case_no) + '\')">⬆ 換文修約</button></div></td>'
       + '<td style="white-space:nowrap;">' + mcEsc(mcDate(c.meter_date)) + '</td>'
       + '<td style="white-space:nowrap;">' + mcEsc(c.vendor) + '</td>'
       + contractCell(c, 'contract_cap', mcContractCap(c), 'cap', mcNum(c.capacity))
@@ -406,10 +407,11 @@ function renderMcTariff(){
 
 // ---- 文件懸浮視窗（2026-10-23 使用者要求）：案號下面兩顆鈕，左邊看 PDF、右邊對照數字 ----
 // 台電契約優先、沒有就細部協商（兩份都有可以切換）；另一顆看 03 工程合約
-function mcTpFiles(c){ const f = (c.doc_cap && c.doc_cap.files) || {}; return ['台電契約', '細部協商'].filter(k => f[k]).map(k => f[k]); }
+// 換文修約（容量改過）> 台電契約 > 細部協商
+function mcTpFiles(c){ const f = (c.doc_cap && c.doc_cap.files) || {}; return ['換文修約', '台電契約', '細部協商'].filter(k => f[k]).map(k => f[k]); }
 function mcDocBtn(c, which){
   const has = which === 'tp' ? mcTpFiles(c).length > 0 : !!(c.eng && c.eng.file_url);
-  const label = which === 'tp' ? (mcTpFiles(c)[0] && mcTpFiles(c)[0].kind === '細部協商' ? '📄 細部協商' : '📄 台電契約') : '📑 工程合約';
+  const label = which === 'tp' ? '📄 ' + (mcTpFiles(c)[0] ? mcTpFiles(c)[0].kind : '台電契約') : '📑 工程合約';
   return '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;' + (has ? '' : 'opacity:.4;cursor:not-allowed;') + '"'
     + (has ? ' onclick="mcOpenDoc(\'' + mcJs(c.case_no) + '\',\'' + which + '\')"' : ' disabled title="還沒有這份文件（要從 G 槽同步上來）"') + '>' + label + '</button>';
 }
@@ -460,6 +462,40 @@ function mcOpenDoc(caseNo, which, idx){
     + '</div></div>';
   document.body.appendChild(m);
   document.addEventListener('keydown', mcDocEsc);
+}
+
+// ---- 上傳換文修約（2026-10-26）：跟台電換文修改契約（例：14.4 → 12.15 瓩），上傳後背景讀容量，比對優先用它 ----
+function mcPickAmend(caseNo){
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'application/pdf,.pdf';
+  inp.onchange = () => { if(inp.files[0]) mcUploadAmend(caseNo, inp.files[0]); };
+  inp.click();
+}
+async function mcUploadAmend(caseNo, file){
+  if(!/\.pdf$/i.test(file.name)){ showToast('請選 PDF 檔'); return; }
+  if(file.size > 10 * 1024 * 1024){ showToast('檔案超過 10MB，請先只存有容量的那幾頁再上傳'); return; }
+  showToast('上傳中…');
+  try{
+    const b64 = await new Promise((ok, bad) => {
+      const fr = new FileReader();
+      fr.onload = () => ok(String(fr.result).split(',')[1]);
+      fr.onerror = () => bad(fr.error);
+      fr.readAsDataURL(file);
+    });
+    const m = /(20\d{2})(\d{2})(\d{2})/.exec(file.name);   // 檔名有日期就用，沒有就用今天
+    const docDate = m ? m[1] + '-' + m[2] + '-' + m[3] : new Date().toISOString().slice(0, 10);
+    const res = await fetch(API_BASE + '/api/procurement/drawings/sync', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({case_no: caseNo, kind: '換文修約', filename: file.name, doc_date: docDate,
+        src_path: '主控台上傳（' + (mcMe() || '未選我是誰') + '）', mtime: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        orig_size: file.size, data: b64}),
+    });
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    showToast('已上傳，背景讀容量中（約 10～40 秒），等一下按 🔄 重新整理');
+    setTimeout(loadMeterCheck, 30000);
+  }catch(e){ showToast('上傳失敗：' + e.message); }
 }
 
 async function mcReparse(){
