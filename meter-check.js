@@ -188,7 +188,7 @@ function mcSetFilter(k){ mcFilter = k; renderMeterCheck(); }
 // 容量確認下面的小字：值從哪份文件來（可以點開 PDF）、或為什麼沒有
 function mcDocCapNote(c, fromDoc){
   const d = c.doc_cap;
-  const style = 'font-size:11px;margin-top:2px;white-space:nowrap;';
+  const style = 'font-size:11px;margin-top:2px;line-height:1.35;';
   if(!d) return mcNum(c.cap_confirm) === null ? '<div class="cert-src" style="' + style + 'color:#B54708;">沒有台電契約／細部協商</div>' : '';
   const link = mcEsc(d.kind);   // 純文字；點開文件用案號下「契約&細協」按鈕
   if(d.value === null || d.value === undefined) return '<div class="cert-src" style="' + style + 'color:#B54708;" title="' + mcEsc(d.src || '') + '">' + link
@@ -212,11 +212,11 @@ function renderMeterCheck(){
   if(kw) rows = rows.filter(c => [c.case_no, c.alias, c.vendor].some(v => String(v || '').replace(/台/g, '臺').includes(kw)));
   const totalCap = cases.reduce((s, c) => s + (mcNum(c.capacity) || 0), 0);
   const btn = (k, label) => '<button class="cert-filter-btn ' + (mcFilter === k ? 'active' : '') + '" onclick="mcSetFilter(\'' + k + '\')">' + label + ' ' + counts[k] + '</button>';
-  const sub = (t, color) => '<div class="cert-src" style="font-size:11px;margin-top:2px;white-space:nowrap;' + (color ? 'color:' + color + ';' : '') + '">' + t + '</div>';
+  const sub = (t, color) => '<div class="cert-src" style="font-size:11px;margin-top:2px;line-height:1.35;' + (color ? 'color:' + color + ';' : '') + '">' + t + '</div>';
   // 一格數字輸入：base＝要比對的另一邊（工程合約），不同就標紅
   const inp = (c, key, val, base, eps) => {
     const bg = val === null || base === null ? '' : mcSame(val, base, eps) ? 'background:#E7F6EC;' : 'background:#FDECEC;color:#B42318;font-weight:700;';
-    return '<input type="number" step="any" class="quick-mark-input" style="width:84px;padding:4px 6px;' + bg + '" value="' + mcEsc(mcFmt(val)) + '"'
+    return '<input type="number" step="any" class="quick-mark-input" style="width:72px;padding:3px 6px;' + bg + '" value="' + mcEsc(mcFmt(val)) + '"'
       + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'' + key + '\',this.value)">';
   };
   // 來源只寫文字（2026-10-26 使用者：點開文件用案號下的按鈕就好，格子底下不要再放連結）
@@ -232,7 +232,7 @@ function renderMeterCheck(){
       note = val === null ? sub(c.eng ? why : '沒有工程合約、專案細節也未填', '#B54708')
         : sub('專案細節' + (c.eng ? '（' + why + '）' : '（沒有工程合約）'), c.eng ? '#B54708' : '');
     }
-    return '<td style="white-space:nowrap;">' + inp(c, key, val, null, 0) + note + '</td>';
+    return '<td>' + inp(c, key, val, null, 0) + note + '</td>';
   };
   const meterPriceNote = c => {
     const t = mcTariff(c);
@@ -245,7 +245,7 @@ function renderMeterCheck(){
     const r = cmp.get(c);
     if(r.state === 'ok') return '<span class="ops-status-pill ops-status-done">OK</span>';
     if(r.state === 'missing') return '<span class="ops-status-pill ops-status-pending">資料不足</span>' + sub('缺：' + mcEsc(r.missing.join('、')), '#B54708');
-    return r.items.map(x => '<div style="font-size:12.5px;white-space:nowrap;font-weight:700;color:' + (x.dir === 'down' ? '#B42318' : '#1E70C8') + ';">'
+    return r.items.map(x => '<div style="font-size:12.5px;font-weight:700;color:' + (x.dir === 'down' ? '#B42318' : '#1E70C8') + ';">'
         + x.what + (x.dir === 'down' ? '下修 ' : '上調 ') + mcEsc(mcFmt(x.from)) + ' → ' + mcEsc(mcFmt(x.to)) + '</div>').join('')
       + '<div style="margin-top:3px;">' + r.need.map(n => '<span class="ops-status-pill" style="background:' + (n === '折讓' ? '#FDECEC;color:#B42318' : '#E8F1FB;color:#1E70C8') + ';margin-right:4px;">需' + n + '</span>').join('') + '</div>'
       + (mcAdjAmount(c) !== null ? sub('容量差估 NT$ ' + mcAdjAmount(c).toLocaleString() + '（含稅，單價 ' + mcEng(c, 'unit_price').toLocaleString() + '/kWp）') : '')
@@ -254,7 +254,7 @@ function renderMeterCheck(){
   const adjCell = c => {
     if(cmp.get(c).state !== 'adj') return '<span class="cert-src">—</span>';
     const cur = c.adj_status || '待廠商提供';
-    return '<select class="quick-mark-input" style="min-width:132px;padding:4px 6px;font-size:12.5px;' + (cur === '已通知內部' ? 'background:#E7F6EC;' : cur === '待廠商提供' ? 'background:#FFF4E5;' : '') + '"'
+    return '<select class="quick-mark-input" style="width:118px;padding:3px 4px;font-size:12px;' + (cur === '已通知內部' ? 'background:#E7F6EC;' : cur === '待廠商提供' ? 'background:#FFF4E5;' : '') + '"'
       + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'adj\',this.value)">'
       + MC_ADJ.map(x => '<option' + (x === cur ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
       + (c.by || c.updated ? sub(mcEsc([c.by, c.updated].filter(Boolean).join(' '))) : '');
@@ -269,8 +269,8 @@ function renderMeterCheck(){
     + '<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" title="台電契約／細協／工程合約讀不到數字的，用新的規則重讀一次" onclick="mcReparse()">🔁 重讀讀不到的文件</button>'
     + '<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="mcCopyTable()">📋 複製表格</button>'
     + '</div>'
-    + '<div style="overflow:auto;"><table style="min-width:1280px;"><thead>'
-    + '<tr><th rowspan="2">案號／別名</th><th rowspan="2">掛表日期</th><th rowspan="2">施工廠商</th>'
+    + '<div style="overflow-x:auto;"><table class="mc-table"><thead>'
+    + '<tr><th rowspan="2">案號／別名<div class="cert-src" style="font-weight:400;">掛表日・廠商</div></th>'
     + '<th colspan="2" style="text-align:center;background:#F4F6F8;">📑 工程合約</th><th colspan="2" style="text-align:center;background:#FFF8EC;">🔌 掛表時</th>'
     + '<th rowspan="2">比對結果</th><th rowspan="2" style="white-space:nowrap;">調整處理</th><th rowspan="2">備註</th></tr>'
     + '<tr><th style="background:#F4F6F8;">容量</th><th style="background:#F4F6F8;">電價</th><th style="background:#FFF8EC;">容量<div class="cert-src" style="font-weight:400;">台電契約／細協</div></th><th style="background:#FFF8EC;">電價<div class="cert-src" style="font-weight:400;">依規則</div></th></tr>'
@@ -278,19 +278,18 @@ function renderMeterCheck(){
     + (rows.length ? rows.map(c => '<tr>'
       + '<td style="white-space:nowrap;"><b>' + mcEsc(c.case_no) + '</b>' + (c.alias && c.alias !== c.case_no ? '<div class="cert-src">' + mcEsc(c.alias) + '</div>' : '')
       + (c.close_status && c.close_status !== '進行中' ? '<div class="cert-src">' + mcEsc(c.close_status) + '</div>' : '')
+      + '<div class="cert-src" style="margin-top:2px;">掛表 ' + mcEsc(mcDate(c.meter_date).replace(/^\d{4}\//, '')) + '・' + mcEsc(c.vendor || '—') + '</div>'
       + '<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;">' + mcDocBtn(c, 'tp') + mcDocBtn(c, 'eng') + '</div></td>'
-      + '<td style="white-space:nowrap;">' + mcEsc(mcDate(c.meter_date)) + '</td>'
-      + '<td style="white-space:nowrap;">' + mcEsc(c.vendor) + '</td>'
       + contractCell(c, 'contract_cap', mcContractCap(c), 'cap', mcNum(c.capacity))
       + contractCell(c, 'contract_price', mcContractPrice(c), 'price', mcNum(c.price))
-      + '<td style="white-space:nowrap;">' + inp(c, 'cap', mcCapOk(c), mcContractCap(c), 0.0005) + mcDocCapNote(c, mcNum(c.cap_confirm) === null && mcCapOk(c) !== null) + '</td>'
-      + '<td style="white-space:nowrap;">' + inp(c, 'price', mcPriceOk(c), mcContractPrice(c), 0.00005) + meterPriceNote(c) + '</td>'
+      + '<td>' + inp(c, 'cap', mcCapOk(c), mcContractCap(c), 0.0005) + mcDocCapNote(c, mcNum(c.cap_confirm) === null && mcCapOk(c) !== null) + '</td>'
+      + '<td style="max-width:170px;">' + inp(c, 'price', mcPriceOk(c), mcContractPrice(c), 0.00005) + meterPriceNote(c) + '</td>'
       + '<td>' + resultCell(c) + '</td>'
       + '<td>' + adjCell(c) + '</td>'
-      + '<td><input class="quick-mark-input" style="min-width:110px;padding:4px 6px;" value="' + mcEsc(c.note) + '" placeholder="—"'
+      + '<td><input class="quick-mark-input" style="width:96px;padding:3px 6px;" value="' + mcEsc(c.note) + '" placeholder="—"'
       + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'note\',this.value)"></td>'
       + '</tr>').join('')
-      : '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:20px 0;">' + (cases.length ? '沒有符合的案件' : MC_MONTH + ' 沒有掛表的案件') + '</td></tr>')
+      : '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px 0;">' + (cases.length ? '沒有符合的案件' : MC_MONTH + ' 沒有掛表的案件') + '</td></tr>')
     + '</tbody></table></div>';
   document.getElementById('mcCasesCount').textContent = '(' + cases.length + ')';
   document.getElementById('mcWdCount').textContent = '(' + ((MC_DATA.withdrawn || []).length) + ')';

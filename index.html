@@ -578,6 +578,10 @@
   .ops-status-pdf{background:#E9F3FF;color:#1E70C8;}
 
   /* ---------- 採購專區（2026-10-07 新增）---------- */
+  /* 掛表資訊確認表格（2026-10-26）：欄位精簡、不撐寬，一般螢幕不用左右捲就看得到比對結果 */
+  .mc-table{width:100%;font-size:13px;}
+  .mc-table th,.mc-table td{padding:8px 6px;vertical-align:top;}
+  .mc-table th{white-space:nowrap;}
   .cert-filter-btn{border:1px solid var(--border,#E3E6EA);background:transparent;border-radius:20px;padding:5px 12px;font-size:12px;cursor:pointer;color:inherit;}
   .cert-filter-btn.active{background:var(--primary,#F5A623);border-color:var(--primary,#F5A623);color:#fff;font-weight:700;}
   .cert-path{font-size:11px;color:var(--text-muted);word-break:break-all;max-width:360px;}
@@ -9841,7 +9845,7 @@ async function confirmCertAbbr(id){
 <script src="vendor-requests.js?v=3"></script>
 <script src="line-health.js?v=2"></script>
 <script src="shipping.js?v=4"></script>
-<script src="meter-check.js?v=16"></script>
+<script src="meter-check.js?v=17"></script>
 
 </body>
 </html>
