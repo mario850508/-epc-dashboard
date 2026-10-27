@@ -2386,7 +2386,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           <button class="btn btn-ghost" style="padding:5px 10px;font-size:12.5px;" onclick="mcShiftMonth(-1)">◀</button>
           <input type="month" id="mcMonth" class="quick-mark-input" style="width:150px;padding:5px 8px;" onchange="mcSetMonth(this.value)">
           <button class="btn btn-ghost" style="padding:5px 10px;font-size:12.5px;" onclick="mcShiftMonth(1)">▶</button>
-          <button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;white-space:nowrap;" onclick="loadMeterCheck()">🔄 重新整理</button>
+          <button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;white-space:nowrap;" onclick="loadMeterCheck(true)">🔄 重新整理</button>
         </span>
       </div>
 
@@ -9885,7 +9885,7 @@ async function confirmCertAbbr(id){
 <script src="slack-bind.js?v=4"></script>
 <script src="line-health.js?v=2"></script>
 <script src="shipping.js?v=4"></script>
-<script src="meter-check.js?v=17"></script>
+<script src="meter-check.js?v=19"></script>
 
 </body>
 </html>
