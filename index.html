@@ -5302,15 +5302,28 @@ function closeScheduleModal(){
 function openMaterialStockAlertModal(row, matches){
   document.getElementById('materialStockAlertCaseTitle').textContent = row.dataset.case + '　' + row.dataset.vendor;
   const container = document.getElementById('materialStockAlertRows');
-  container.innerHTML = matches.map(n => `
+  // 2026-10-27：分兩區——上面是「這個案件自己廠商」的庫存（優先用），下面是「其他廠商」的庫存（要跨廠商調用才看），其他廠商再依廠商分組
+  const rowHtml = n => `
     <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
       <div style="min-width:0;">
         <div style="font-size:12px;color:var(--text-muted);">${n.case_text || '（未指定案場）'}</div>
         <div style="font-size:13px;white-space:pre-wrap;">${n.content}</div>
       </div>
       <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;flex:0 0 auto;" onclick="useStockForPendingSchedule('${n.app_record_id}')">使用這筆</button>
-    </div>
-  `).join('');
+    </div>`;
+  const myVendor = row.dataset.vendor || '';
+  const mine = matches.filter(n => materialVendorForNote(n) === myVendor);
+  const others = matches.filter(n => materialVendorForNote(n) !== myVendor);
+  const byOther = {};
+  others.forEach(n => { const v = materialVendorForNote(n) || '（未標示廠商）'; (byOther[v] = byOther[v] || []).push(n); });
+  const secTitle = (txt, sub) => `<div style="font-weight:800;font-size:13.5px;margin:4px 0 0;">${txt}</div>${sub ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:-4px;">${sub}</div>` : ''}`;
+  container.innerHTML =
+    secTitle(`✅ ${escHtml(myVendor || '本廠商')} 自己的庫存（優先使用）`) +
+    (mine.length ? mine.map(rowHtml).join('') : '<div style="font-size:12.5px;color:var(--text-muted);padding:4px 2px 8px;">這個廠商目前沒有相符的庫存。</div>') +
+    (others.length ? secTitle('🔁 其他廠商的庫存', '自己廠商不夠、需要跨廠商調用時再看') +
+      Object.keys(byOther).sort((a, b) => a.localeCompare(b, 'zh-Hant')).map(v => `
+        <div style="font-size:12.5px;font-weight:700;margin-top:4px;"><span class="vendor-pill ${VENDOR_CLASS[v] || 'vendor-other'}">${escHtml(v)}</span>　${byOther[v].length} 筆</div>
+        ${byOther[v].map(rowHtml).join('')}`).join('') : '');
   document.getElementById('materialStockAlertModalOverlay').classList.add('show');
 }
 function closeMaterialStockAlertModal(){
