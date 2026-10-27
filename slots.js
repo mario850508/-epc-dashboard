@@ -233,6 +233,33 @@ function vendorAckChip(b){
   return `<span class="chip" style="flex-shrink:0;background:#FFF1DC;color:#B45309;" title="廠商還沒在預約頁按「確認收到」，請直接聯絡他們">⏳ 廠商未確認</span>`;
 }
 
+// 窗口代廠商確認（廠商沒按、已經電話確認過…）：按了就直接標成已確認；已確認的可以取消確認
+function vendorAckForceBtn(b){
+  if(b.cancelled || !b.vendor_can_ack) return '';
+  const st = 'padding:3px 8px;font-size:11px;flex-shrink:0;';
+  return b.vendor_ack_at
+    ? `<button class="btn btn-ghost" style="${st}" onclick="forceVendorAck('${b.record_id}', true)" title="把「廠商已確認」改回未確認">↩ 取消確認</button>`
+    : `<button class="btn btn-ghost" style="${st}color:#15803D;border-color:#BFE6CF;" onclick="forceVendorAck('${b.record_id}', false)" title="廠商沒按、或已經電話確認過：由窗口直接標成已確認">✅ 代廠商確認</button>`;
+}
+async function forceVendorAck(id, unack){
+  let by = '';
+  if(unack){
+    if(!confirm('確定把這筆改回「廠商未確認」嗎？')) return;
+  }else{
+    by = prompt('由窗口代廠商確認這筆行程。
+備註跟誰確認的（選填，例如：電話跟王先生確認）：', '');
+    if(by === null) return;
+  }
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-slots/' + encodeURIComponent(id) + '/vendor-ack', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({by: (by || '').trim(), unack: !!unack})});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    showToast(unack ? '已改回廠商未確認' : '已標成廠商已確認（窗口代確認）');
+    loadVendorSlots();
+  }catch(e){ showToast('操作失敗：' + e.message); }
+}
+
 function renderSlotTasks(){
   updateSlotTaskBadges();
   loadBoundNames();
@@ -1129,7 +1156,7 @@ function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, c
               <span style="font-size:12.5px;flex:1;min-width:120px;">${b.case||''}${b.alias?('　'+b.alias):''}${b.companions ? `<span style="font-size:11px;color:#6B21A8;margin-left:6px;">🔗 同時：${escHtml(b.companions)}</span>` : ''}</span>
               <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">${b.registrant||''}</span>
               ${b.cancelled ? `<span class="chip" style="flex-shrink:0;background:#FDECEC;color:#B42318;">❌ 已取消</span>` : ''}
-              ${vendorAckChip(b)}
+              ${vendorAckChip(b)}${vendorAckForceBtn(b)}
               <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="showSlotBookingDetail('${b.record_id}')">📄 查看填單</button>
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;${b.vendor_notified_at ? 'color:#16A34A;border-color:#BFE6CF;' : ''}" onclick="openVendorNotice('${b.record_id}')" title="${b.vendor_notified_at ? '已通知廠商：' + fmtDateTimeTW(b.vendor_notified_at) : '確認屋主資料後，傳卡片到廠商群組'}">${b.vendor_notified_at ? '✓ 已通知廠商' : '📤 通知廠商'}</button>`}
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="notifyRep('${b.record_id}')" title="業務有綁 LINE 就直接用機器人通知；沒綁（或離職）會產生連結，讓你轉傳給代辦同事">📨 通知業務</button>
