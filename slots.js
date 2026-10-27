@@ -357,6 +357,12 @@ async function adjustSlotDeadline(recordId){
     showToast('調整失敗：' + err.message);
   }
 }
+// 2026-10-27：同廠商同時段已有行程時，不直接擋死：列出那天已有的行程，讓窗口判斷會不會互相阻擋，要不要仍然預約
+function confirmOverlap(d, vendor){
+  const list = (d.conflict && d.conflict.all && d.conflict.all.length) ? d.conflict.all : [d.conflict || {}];
+  const lines = list.map(c => '・' + (c.start_time || '') + '-' + (c.end_time || '') + '　' + (c.type || []).join('+') + '｜' + (c.case || '') + (c.alias ? '（' + c.alias + '）' : '') + (c.registrant ? '　登記人：' + c.registrant : '') + (c.buffer ? '　（時間太近，沒留車程）' : '')).join('\n');
+  return confirm('⚠️ ' + (vendor ? vendor + ' ' : '同廠商') + '這個時段已經有其他行程：\n' + lines + '\n\n要在相同（或重疊）的時段仍然預約嗎？\n請自己判斷兩個行程會不會互相阻擋（例如不同案場、人力夠不夠）。\n\n確定＝仍然預約　取消＝不預約');
+}
 async function chooseSlotAlt(recordId, idx){
   // 2026-10-08：屋主只給日期的備選，選的時候要填開始時間（結束時間依作業時長自動算）
   const tk = SLOT_TASKS.find(x => x.record_id === recordId);
@@ -370,14 +376,17 @@ async function chooseSlotAlt(recordId, idx){
     body.start_time = m[1].padStart(2, '0') + ':' + m[2];
   }
   try{
-    const res = await fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(recordId) + '/choose', {
+    const post = () => fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(recordId) + '/choose', {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
     });
-    const data = await res.json().catch(() => ({}));
+    let res = await post();
+    let data = await res.json().catch(() => ({}));
     if(res.status === 409 && data.conflict){
-      showToast('這個時段已經被別的案件預約了（' + (data.conflict.case || '') + '），請選其他時間');
-      loadVendorSlots();
-      return;
+      // 2026-10-27：同廠商那天已有行程 → 列出來問窗口，要不要在重疊的時段仍然預約（自己判斷會不會互相阻擋）
+      if(!confirmOverlap(data, tk && tk.vendor)) return;
+      body.allow_overlap = true;
+      res = await post();
+      data = await res.json().catch(() => ({}));
     }
     if(!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
     const t = SLOT_TASKS.find(x => x.record_id === recordId);
@@ -1556,11 +1565,15 @@ async function submitCompleteTask(recordId, dateOnly){
   if(!body.date || (!dateOnly && (!body.start_time || !body.end_time))){ showToast('請填好日期與時間'); return; }
   btn.disabled = true; btn.textContent = '處理中…';
   try{
-    const res = await fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(recordId) + '/complete', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-    const d = await res.json().catch(() => ({}));
+    const post = () => fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(recordId) + '/complete', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    let res = await post();
+    let d = await res.json().catch(() => ({}));
     if(res.status === 409 && d.conflict){
-      err.innerHTML = `⚠️ 這個時段已經被佔用了：<b>${escHtml(d.conflict.start_time)}-${escHtml(d.conflict.end_time)}</b>　${escHtml((d.conflict.type || []).join('+'))}｜${escHtml(d.conflict.case || '')}`;
-      err.style.display = 'block'; btn.disabled = false; btn.textContent = '✅ 完成預約'; return;
+      const tk = SLOT_TASKS.find(x => x.record_id === recordId);
+      if(!confirmOverlap(d, tk && tk.vendor)){ btn.disabled = false; btn.textContent = '✅ 完成預約'; return; }
+      body.allow_overlap = true;
+      res = await post();
+      d = await res.json().catch(() => ({}));
     }
     if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
     closeCompleteTask();
@@ -1662,8 +1675,14 @@ async function submitEditBooking(recordId){
   if(!body.date || !body.start_time || !body.end_time){ showToast('日期、開始與結束時間都要填'); return; }
   btn.disabled = true; btn.textContent = '儲存中…';
   try{
-    const res = await fetch(API_BASE + '/api/vendor-slots/' + encodeURIComponent(recordId), {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
-    const d = await res.json().catch(() => ({}));
+    const patch = () => fetch(API_BASE + '/api/vendor-slots/' + encodeURIComponent(recordId), {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    let res = await patch();
+    let d = await res.json().catch(() => ({}));
+    if(res.status === 409 && d.conflict && confirmOverlap(d, b && b.vendor)){
+      body.allow_overlap = true;
+      res = await patch();
+      d = await res.json().catch(() => ({}));
+    }
     if(res.status === 409 && d.conflict){
       err.innerHTML = `⚠️ 這個時段已經被佔用了：<b>${escHtml(d.conflict.start_time)}-${escHtml(d.conflict.end_time)}</b>　${escHtml((d.conflict.type || []).join('+'))}｜${escHtml(d.conflict.case || '')}`;
       err.style.display = 'block';
@@ -2124,11 +2143,17 @@ async function confirmSlotBooking(){
   const originalText = btn.textContent;
   btn.textContent = '儲存中…'; btn.disabled = true;
   try{
-    const res = await fetch(API_BASE + '/api/vendor-slots/bookings', {
+    const post = (allow) => fetch(API_BASE + '/api/vendor-slots/bookings', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, date, start_time, end_time, type, registrant, case: caseNo, alias, note, companions: COMPANIONS.slotBooking}),
+      body: JSON.stringify({vendor, date, start_time, end_time, type, registrant, case: caseNo, alias, note, companions: COMPANIONS.slotBooking, allow_overlap: !!allow}),
     });
-    const data = await res.json().catch(()=>({}));
+    let res = await post(false);
+    let data = await res.json().catch(()=>({}));
+    if(res.status === 409 && data.conflict){
+      if(!confirmOverlap(data, vendor)) return;
+      res = await post(true);
+      data = await res.json().catch(()=>({}));
+    }
     if(res.status === 409){
       const c = data.conflict || {};
       errBox.innerHTML = `⚠️ 這個時段已經被佔用了：<b>${c.start_time}-${c.end_time}</b>　${(c.type||[]).join('+')}｜${c.case||''}${c.alias?('（'+c.alias+'）'):''}　登記人：${c.registrant||''}`;

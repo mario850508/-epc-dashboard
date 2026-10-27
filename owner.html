@@ -307,25 +307,27 @@ function renderPick(){
   const app = document.getElementById('app');
   // 只有一個候選日期：直接選好，標題改成「預計前往日期」，屋主只要選時間
   const single = D.candidate_dates.length === 1;
-  if(single && !selDate && startOptions(D.candidate_dates[0]).some(o => o.ok)) selDate = D.candidate_dates[0];
+  if(single && !selDate) selDate = D.candidate_dates[0];
   // 進場（要 3～5 天）：只選進場日期，不選時間。那天整個時段有別的預約就不能選。
   const dateFree = d => {
     const ws = toMin(D.window_start), we = toMin(D.window_end);
     return !(D.busy_slots || []).some(b => b.date === d && toMin(b.start_time) < we && ws < toMin(b.end_time));
   };
   if(D.date_only){
-    if(D.candidate_dates.length === 1 && !selDate && dateFree(D.candidate_dates[0])) selDate = D.candidate_dates[0];
+    if(D.candidate_dates.length === 1 && !selDate) selDate = D.candidate_dates[0];
     const btns = D.candidate_dates.map(d => {
       const ok = dateFree(d);
-      return `<button class="opt ${selDate === d ? 'active' : ''}" ${ok ? '' : 'disabled'} onclick="pickDate('${d}')">${dateLabel(d)}${ok ? '' : '<small>已額滿</small>'}</button>`;
+      return `<button class="opt ${selDate === d ? 'active' : ''}" onclick="pickDate('${d}')">${dateLabel(d)}${ok ? '' : '<small>已有其他行程・需確認</small>'}</button>`;
     }).join('');
+    const fullSel = selDate && !dateFree(selDate);
     app.innerHTML = headerHtml() + `<div class="card">
       <div class="step" style="margin-top:0;"><span class="n">1</span>${D.candidate_dates.length === 1 ? '預計進場日期' : '請選進場日期'}</div>
       <div class="grid">${btns}</div>
       <div class="muted" style="margin-top:8px;">施工約需 <b>${esc(D.duration_label || '3～5 天')}</b>，這一天是「開始進場」的日期。${selDate ? `<br><span style="color:var(--sun-3);font-weight:700;">📅 選 ${esc(dateLabel(selDate))} 進場 → ${esc(estSpanText(selDate))}</span>${weekendNote(selDate) ? '<br><span style="font-size:12.5px;">' + esc(weekendNote(selDate)) + '</span>' : ''}` : ''}</div>
+      ${fullSel ? busyDayNote() : ''}
       ${estNote()}
       ${contactHtml()}
-      <button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>
+      ${fullSel ? `<button class="btn" id="submitBtn" onclick="submitDateRequest()">送出：請窗口幫我確認這一天</button>` : `<button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>`}
       <div class="err" id="err"></div>
       ${D.no_alt ? `<button class="btn-ghost" onclick="mode='decline';render()">以上日期都不方便</button>` : `<button class="btn-ghost" onclick="mode='alt';render()">以上日期都不方便？告訴我們您方便的日期</button>`}
       <div class="help">${repHelp()}</div>
@@ -335,8 +337,9 @@ function renderPick(){
   }
   const dateBtns = D.candidate_dates.map(d => {
     const any = startOptions(d).some(o => o.ok);
-    return `<button class="opt ${selDate === d ? 'active' : ''}" ${any ? '' : 'disabled'} onclick="pickDate('${d}')">${dateLabel(d)}${any ? '' : '<small>已額滿</small>'}</button>`;
+    return `<button class="opt ${selDate === d ? 'active' : ''}" onclick="pickDate('${d}')">${dateLabel(d)}${any ? '' : '<small>已有其他行程・需確認</small>'}</button>`;
   }).join('');
+  const fullSel = selDate && !startOptions(selDate).some(o => o.ok);
   const times = selDate ? startOptions(selDate) : [];
   // 這天只有一個可選的開始時間：直接幫屋主選好
   const okTimes = times.filter(o => o.ok);
@@ -346,9 +349,9 @@ function renderPick(){
     <div class="step" style="margin-top:0;"><span class="n">1</span>${single ? '預計前往日期' : '請選一天'}</div>
     <div class="grid">${dateBtns}</div>
     <div class="step"><span class="n">2</span>${okTimes.length === 1 ? '預計時間' : '請選開始時間'}</div>
-    ${selDate ? `<div class="grid">${timeBtns}</div>${estNote()}` : '<div class="muted">請先選上面的日期</div>'}
+    ${fullSel ? busyDayNote() : (selDate ? `<div class="grid">${timeBtns}</div>${estNote()}` : '<div class="muted">請先選上面的日期</div>')}
     ${contactHtml()}
-    <button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>
+    ${fullSel ? `<button class="btn" id="submitBtn" onclick="submitDateRequest()">送出：請窗口幫我確認這一天</button>` : `<button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>`}
     <div class="err" id="err"></div>
     ${D.no_alt ? `<button class="btn-ghost" onclick="mode='decline';render()">以上時間都不方便</button>` : `<button class="btn-ghost" onclick="mode='alt';render()">以上時間都不方便？告訴我們您方便的日期</button>`}
     <div class="help">${repHelp()}</div>
@@ -399,6 +402,17 @@ async function submitBook(){
   if(!c){ showErr('請填寫您的姓名和聯絡電話'); return; }
   const data = await post('/book', {date: selDate, start_time: selStart, ...c}, '確認預約');
   if(data){ D.status = 'done'; D.booked = {date: selDate, ...data.booked}; mode = ''; render(); }
+}
+// 2026-10-27：選的那天施工團隊已有其他行程 → 不直接擋死，改成「請窗口確認這一天」（窗口會看到當天已有的行程，自己判斷能不能加排）
+function busyDayNote(){
+  return `<div class="muted" style="margin-top:10px;background:#FFF7E6;border-radius:10px;padding:10px 12px;">這一天施工團隊已經有其他行程，不一定能再加排。您可以先送出，我們會跟施工團隊確認這天能不能安排，再通知您。</div>`;
+}
+async function submitDateRequest(){
+  if(!selDate){ showErr('請先選日期'); return; }
+  const c = readContact();
+  if(!c){ showErr('請填寫您的姓名和聯絡電話'); return; }
+  const data = await post('/propose', {slots: [{date: selDate}], ...c}, '送出：請窗口幫我確認這一天');
+  if(data){ D.status = 'wait_pm'; D.proposed = data.slots; mode = ''; render(); }
 }
 async function submitConfirm(){
   const c = readContact();
