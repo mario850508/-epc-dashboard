@@ -66,8 +66,10 @@ function showSlotsTab(tab){
   // 2026-10-20：側邊選單「廠商時段協調」底下分成「屋主預約」（指派任務／聯合排程／完成安排／歷史紀錄）跟「廠商預約」（廠商申請）
   const vendorSec = tab === 'requests' || tab === 'vcal';
   if(!vendorSec) window.SLOTS_OWNER_TAB = tab;
+  const slotsView = document.getElementById('view-slots'); if(slotsView) slotsView.classList.toggle('vcal-mode', tab === 'vcal');   // 廠商日曆：壓縮頁首，日曆撐滿畫面
   const bar = document.querySelector('#view-slots .tabs');
   if(bar) bar.style.display = vendorSec ? 'none' : '';
+  if(tab === 'vcal' && typeof vcalFit === 'function') vcalFit();   // 頁首高度變了，重新量一次
   document.querySelectorAll('.nav-sub-item').forEach(n => n.classList.remove('active'));
   const sub = document.querySelector('.nav-sub-item[data-sub="' + (tab === 'vcal' ? 'slots-vcal' : vendorSec ? 'slots-vendor' : 'slots-owner') + '"]');
   if(sub) sub.classList.add('active');

@@ -8,30 +8,33 @@ try{ VCAL_VENDOR = localStorage.getItem('vcalVendor') || ''; }catch(e){}
 (function(){
   const css = document.createElement('style');
   css.textContent = `
-  .vc-month{margin-bottom:22px;}
+  .vc-month{display:flex;flex-direction:column;height:100%;min-height:0;}
   .vc-month-title{font-size:15px;font-weight:800;margin:0 0 8px;display:flex;align-items:baseline;gap:8px;}
   .vc-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
   .vc-nav .vc-month-title{justify-content:center;font-size:16px;}
   .vc-nav-btn{height:34px;width:38px;border:1.5px solid var(--border);border-radius:10px;background:#fff;font-size:18px;cursor:pointer;font-weight:700;}
   .vc-nav-btn:hover{background:#FFF7E6;border-color:var(--sun-2,#F59E0B);}
   .vc-month-title small{font-size:11.5px;color:var(--text-muted);font-weight:600;}
-  .vc-scroll{overflow-x:auto;}
-  .vc-grid{display:grid;grid-template-columns:repeat(7,minmax(104px,1fr));gap:4px;min-width:740px;}
+  .vc-scroll{overflow:auto;flex:1;min-height:0;}
+  .vc-grid{display:grid;grid-template-columns:repeat(7,minmax(104px,1fr));gap:4px;min-width:740px;height:100%;}
   .vc-dow{text-align:center;font-size:12px;color:var(--text-muted);font-weight:700;padding:2px 0;}
-  .vc-day{min-height:70px;border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:4px;display:flex;flex-direction:column;gap:3px;}
+  .vc-day{min-height:0;overflow-y:auto;scrollbar-width:thin;border:1.5px solid var(--border);border-radius:10px;background:#fff;padding:4px;display:flex;flex-direction:column;gap:3px;}
   .vc-day.empty{background:transparent;border-color:transparent;}
   .vc-day.today{border-color:var(--sun-2,#F59E0B);box-shadow:0 0 0 2px rgba(242,121,12,.15);}
   .vc-day.past{opacity:.55;}
   .vc-day.weekend{background:#FBF8F2;}
   .vc-n{font-size:12px;font-weight:700;color:var(--text-muted);}
   .vc-day.today .vc-n{color:var(--sun-3,#C2570C);}
-  .vc-item{font-size:11px;line-height:1.35;border-radius:6px;padding:2px 5px;cursor:pointer;font-weight:600;word-break:break-all;border-left:4px solid transparent;}
+  .vc-item{font-size:11px;line-height:1.35;border-radius:6px;padding:2px 5px;cursor:pointer;font-weight:600;word-break:break-all;border-left:4px solid transparent;flex:0 0 auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
   .vc-legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;margin-bottom:12px;align-items:center;}
+  .vc-link-btn{border:1.5px solid var(--border);background:#fff;color:var(--text-muted);border-radius:99px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .vc-link-btn:hover{border-color:var(--sun-2,#F59E0B);color:var(--sun-3,#C2570C);background:#FFF7E6;}
+  #view-slots.vcal-mode .crumb,#view-slots.vcal-mode .page-sub{display:none;}
   .vc-legend span{display:inline-flex;align-items:center;gap:5px;}
   .vc-legend i{width:12px;height:12px;border-radius:4px;display:inline-block;}
   .vc-item:hover{filter:brightness(.96);}
-  .vc-sum{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
-  .vc-sum-card{border:1.5px solid var(--border);background:#fff;border-radius:12px;padding:8px 12px;cursor:pointer;font-size:12px;line-height:1.5;min-width:140px;}
+  .vc-sum{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+  .vc-sum-card{border:1.5px solid var(--border);background:#fff;border-radius:99px;padding:3px 10px 3px 4px;cursor:pointer;font-size:12px;line-height:1.5;display:inline-flex;align-items:center;gap:6px;}
   .vc-sum-card.active{border-color:var(--sun-2,#F59E0B);background:#FFF7E6;}
   .vc-sum-card b{font-size:13px;}
   `;
@@ -110,6 +113,17 @@ function vcalPickVendor(v){
   renderVendorCalendar();
 }
 
+// 讓日曆剛好撐滿畫面剩下的高度，不用往下捲；螢幕太矮時最少給 520px
+function vcalFit(){
+  const box = document.getElementById('vendorCalContainer');
+  if(!box || !box.offsetParent) return;
+  const top = box.getBoundingClientRect().top + window.scrollY;
+  box.style.display = 'flex'; box.style.flexDirection = 'column';
+  box.style.height = Math.max(520, window.innerHeight - (top - window.scrollY) - 18) + 'px';
+  const m = box.querySelector('.vc-month'); if(m) m.style.flex = '1 1 auto';
+}
+window.addEventListener('resize', () => { try{ vcalFit(); }catch(e){} });
+
 function renderVendorCalendar(){
   const box = document.getElementById('vendorCalContainer');
   if(!box) return;
@@ -130,14 +144,14 @@ function renderVendorCalendar(){
   const vendors = Object.keys(sum).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
   if(VCAL_VENDOR && !sum[VCAL_VENDOR]) VCAL_VENDOR = '';
   const fmtLast = d => d.slice(0, 4) + '/' + Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10));
-  const legendHtml = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+  const legendHtml = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
       <div class="vc-legend" style="margin:0;">${Object.keys(VCAL_TYPE_COLORS).map(t => `<span><i style="background:${VCAL_TYPE_COLORS[t][1]};"></i>${t}</span>`).join('')}
         <label style="display:inline-flex;gap:4px;align-items:center;cursor:pointer;margin-left:6px;"><input type="checkbox" ${VCAL_SHOW_SHIP ? 'checked' : ''} onchange="vcalToggleShip(this.checked)"><i style="background:#A16207;"></i>🟧模組到貨 <i style="background:#BE185D;"></i>🔌變流器到貨</label></div>
-      <button class="btn btn-primary" style="padding:8px 14px;font-size:12.5px;white-space:nowrap;" onclick="openVendorCalLinks()">🔗 提供給廠商的行程日曆連結</button></div>`;
+      <button class="vc-link-btn" onclick="openVendorCalLinks()" title="每家廠商一條專屬連結，廠商打開就是自己的行程日曆（可確認收到、回報問題）">🔗 廠商連結</button></div>`;
   const sumHtml = legendHtml + (vendors.length ? `<div class="vc-sum">${vendors.map(v => `
       <div class="vc-sum-card ${VCAL_VENDOR === v ? 'active' : ''}" onclick="vcalPickVendor('${escHtml(v)}')" title="點一下只看這家廠商，再點一次看全部">
-        <span class="vendor-pill ${VENDOR_CLASS[v] || 'vendor-other'}">${escHtml(v)}</span><br>
-        已排 <b>${sum[v].n}</b> 筆｜最後排到 <b>${fmtLast(sum[v].last)}</b>
+        <span class="vendor-pill ${VENDOR_CLASS[v] || 'vendor-other'}">${escHtml(v)}</span>
+        <span><b>${sum[v].n}</b> 筆・最後 ${fmtLast(sum[v].last)}</span>
       </div>`).join('')}</div>` : '');
 
   const shown = (VCAL_VENDOR ? all.filter(b => b.vendor === VCAL_VENDOR) : all);
@@ -160,6 +174,7 @@ function renderVendorCalendar(){
     const first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
     let cells = ['日', '一', '二', '三', '四', '五', '六'].map(t => `<div class="vc-dow">${t}</div>`).join('');
     for(let i = 0; i < first.getDay(); i++) cells += '<div class="vc-day empty"></div>';
+    const weeks = Math.ceil((first.getDay() + days) / 7);
     let count = 0;
     for(let d = 1; d <= days; d++){
       const iso = `${y}-${pad(m)}-${pad(d)}`;
@@ -185,7 +200,8 @@ function renderVendorCalendar(){
     monthHtml = `<div class="vc-month"><div class="vc-nav"><button class="vc-nav-btn" onclick="vcalGo(-1)" title="上個月">‹</button>
       <div class="vc-month-title" style="margin:0;">${y} 年 ${m} 月<small>${count ? count + ' 筆行程' : '沒有行程'}</small>${curMonth !== today.slice(0, 7) ? '<button class="vc-nav-btn" style="width:auto;padding:0 10px;font-size:12px;" onclick="vcalThisMonth()">回本月</button>' : ''}</div>
       <button class="vc-nav-btn" onclick="vcalGo(1)" title="下個月">›</button></div>
-      <div class="vc-scroll"><div class="vc-grid">${cells}</div></div></div>`;
+      <div class="vc-scroll"><div class="vc-grid" style="grid-template-rows:auto repeat(${weeks},minmax(64px,1fr));">${cells}</div></div></div>`;
   }
   box.innerHTML = sumHtml + monthHtml;
+  vcalFit();
 }
