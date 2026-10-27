@@ -1837,6 +1837,14 @@ function copySlotSummaryText(){
 // location.href，避免使用者從 LINE 切回來時這頁的狀態不見。
 function shareSlotSummaryToLine(){
   const text = document.getElementById('slotSummaryTextarea').value;
+  // 2026-10-27：電腦上 LINE 網頁版的分享頁有時「聊天室」「Keep筆記」按鈕是灰的、選不了 → 開 LINE 之前先把訊息複製起來，直接去 LINE 貼上就好
+  if(!/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)){
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text);
+      else { const ta = document.getElementById('slotSummaryTextarea'); ta.select(); document.execCommand('copy'); }
+      showToast('訊息已複製。如果 LINE 網頁的「聊天室」按鈕是灰的、選不了，直接到 LINE 對話貼上（Ctrl+V）就可以');
+    }catch(e){}
+  }
   // noreferrer：避免 LINE 把目前頁面的網址（主控台首頁）也額外附在訊息後面
   window.open('https://line.me/R/msg/text/?' + encodeURIComponent(text), '_blank', 'noopener,noreferrer');
 }
