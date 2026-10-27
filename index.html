@@ -1666,7 +1666,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           </div>
           <div class="modal-body">
             <div class="login-note" style="margin-top:0;margin-bottom:12px;">
-              已整理「案件進場安排」裡所有案件的出貨資訊,複製後可直接貼到 Slack 通知採購。可篩選特定廠商,也可設定模組出貨日期區間,留空/選「全部廠商」代表不篩選（顯示全部）。
+              已整理「案件進場安排」裡所有案件（待進場＋已安排進場、還沒完工的）的出貨資訊,複製後可直接貼到 Slack 通知採購。可篩選特定廠商,也可設定模組出貨日期區間,留空/選「全部廠商」代表不篩選（顯示全部）。
             </div>
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap;">
               <select class="quick-mark-input" id="notifyVendorFilter" style="max-width:150px;" onchange="openNotifyModal()">
@@ -5178,13 +5178,21 @@ function openNotifyModal(){
   const vendorVal = document.getElementById('notifyVendorFilter') ? document.getElementById('notifyVendorFilter').value : 'all';
   const fromVal = document.getElementById('notifyDateFrom').value;
   const toVal = document.getElementById('notifyDateTo').value;
-  let cases = ENTRY_CASES;
+  // 2026-10-27：跟「案件進場安排」表格同一份清單＝待進場＋已安排進場（還沒完工、沒有異常備註）。
+  // 原本只用待進場，排好進場日期的案件（例：潤特宜蘭28號）就從通知訊息裡消失。
+  const notifyOk = r => { const cs = getCaseStatus(r.record_id); return !(cs && cs.issue_note); };
+  const allEntry = [
+    ...ENTRY_CASES.filter(notifyOk),
+    ...COMPLETED_CASES.filter(r => { const cs = getCaseStatus(r.record_id); return !(cs && cs.completed_date) && !(cs && cs.issue_note); }),
+  ];
+  let cases = allEntry;
   if(vendorVal !== 'all') cases = cases.filter(r => r.vendor === vendorVal);
   if(fromVal) cases = cases.filter(r => r.ship_date && r.ship_date >= fromVal);
   if(toVal) cases = cases.filter(r => r.ship_date && r.ship_date <= toVal);
+  cases = [...cases].sort((a, b) => (a.ship_date || '').localeCompare(b.ship_date || '') || (a.case || '').localeCompare(b.case || '', 'zh-Hant', {numeric: true}));
 
   let text;
-  if(ENTRY_CASES.length === 0){
+  if(allEntry.length === 0){
     text = '目前「案件進場安排」還沒有案件。';
   } else if(cases.length === 0){
     text = '這個篩選條件下沒有符合的出貨案件。';
@@ -5199,7 +5207,8 @@ function openNotifyModal(){
       lines.push(`${i+1}. ${r.case}（${r.vendor}）`);
       lines.push(`　模組出貨時間：${fmtDate(r.ship_date)}`);
       lines.push(`　變流器出貨時間：${invDate ? fmtDate(invDate) : '（未填寫）'}`);
-      lines.push(`　地址：${r.address}`);
+      if(r.entry_date) lines.push(`　進場日期：${fmtDate(r.entry_date)}`);
+      lines.push(`　地址：${(r.address || '').trim()}`);
       lines.push(`　模組：${r.module || '（尚未填寫）'}`);
       lines.push(`　逆變器：${r.inverter || '（尚未填寫）'}`);
       lines.push('');
