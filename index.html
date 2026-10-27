@@ -4667,7 +4667,7 @@ function renderPendingTable(){
       ? `<span class="pm-pill" style="background:var(--m-rebar-soft);color:var(--m-rebar);">${cs.waiting_doc_type} ${fmtDate(cs.waiting_doc_date)}</span>`
       : `<span class="pm-pill" style="background:var(--success-soft);color:var(--success);">同意備案 ${r.agree}</span>`;
     return `
-      <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${hasSpec ? r.module : '尚未填寫規格'}" data-inverter="${hasSpec ? (r.inverter||'') : ''}">
+      <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${hasSpec ? r.module : '尚未填寫規格'}" data-inverter="${hasSpec ? (r.inverter||'') : ''}" data-inverter-order-date="${r.inverter_order_date||''}">
         <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${slotBadgeHtml(r.case)}${materialReuseNoteHtml(r.case)}</td>
         <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
         <td>${r.address}
@@ -4721,7 +4721,7 @@ function renderEntryTable(){
       : `<button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="openEntryModal(this,'reschedule')">重新安排進場日期</button>
          <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:6px;" onclick="openCompleteMeterModal('${r.record_id}')">✓ 完工</button>`;
     return `
-    <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}" data-entrydatefull="${r.entry_date||''}">
+    <tr data-record-id="${r.record_id}" data-ship-milestone-id="${r.ship_milestone_record_id || ''}" data-entry-milestone-id="${r.entry_milestone_record_id || ''}" data-case="${r.case}" data-alias="${r.alias||''}" data-vendor="${r.vendor}" data-vendorclass="${r.vendorClass}" data-addr="${r.address}" data-module="${r.module||''}" data-inverter="${r.inverter||''}" data-shipdate="${fmtDate(r.ship_date)}" data-shipdatefull="${r.ship_date||''}" data-entrydatefull="${r.entry_date||''}" data-inverter-order-date="${r.inverter_order_date||''}">
       <td><div class="case-id">${r.case}</div><div class="case-alias">${r.alias||''}</div>${salesLineHtml(r.sales_person)}${slotBadgeHtml(r.case)}${materialReuseNoteHtml(r.case)}</td>
       <td><span class="vendor-pill ${r.vendorClass}">${r.vendor}</span></td>
       <td>${r.address}
@@ -5276,7 +5276,8 @@ function openScheduleModalActual(btn, mode){
   document.getElementById('scheduleCaseTitle').textContent = row.dataset.case;
   document.getElementById('scheduleCaseAddr').textContent = row.dataset.addr + '　' + row.dataset.vendor;
   document.getElementById('scheduleShipDate').value = mode === 'reschedule' ? (row.dataset.shipdatefull || '') : '';
-  document.getElementById('scheduleInverterDate').value = getInverterDate(row.dataset.recordId);
+  // 已手動存過的日期優先;沒有就帶訂單表(碩天)確定的到貨日,模組只有預估就不帶
+  document.getElementById('scheduleInverterDate').value = getInverterDate(row.dataset.recordId) || row.dataset.inverterOrderDate || '';
   document.getElementById('scheduleModalOverlay').classList.add('show');
 }
 function closeScheduleModal(){
