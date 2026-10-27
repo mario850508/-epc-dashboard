@@ -149,7 +149,7 @@ async function init(){
   const app = document.getElementById('app');
   if(!V){ app.innerHTML = '<div class="card">連結不完整，請向陽光伏特家窗口索取您的專屬預約連結。</div>'; return; }
   try{
-    D = await api('/info');
+    D = await api('/info?cache=1');   // 先用上次的結果秒開，再背景拿最新的（冷的時候 /info 要 10 秒以上）
   }catch(e){
     app.innerHTML = `<div class="card">${esc(e.message)}</div>`;
     return;
@@ -163,6 +163,18 @@ async function init(){
   }
   if(new URLSearchParams(location.search).get('tab') === 'booked') tab = 'booked';   // 「行程日曆連結」：直接開到行程日曆
   render();
+  if(D.cached) refreshInfo();
+}
+async function refreshInfo(){
+  try{
+    const nd = await api('/info');
+    const strip = o => JSON.stringify(Object.assign({}, o, {cached: undefined}));
+    if(strip(nd) === strip(D)) return;
+    D = nd;
+    const a = document.activeElement;
+    if(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;   // 正在輸入就不重畫，避免打到一半的字不見
+    render();
+  }catch(e){ /* 背景更新失敗就維持目前畫面 */ }
 }
 
 // 行程依項目上色（跟陽光主控台的廠商日曆同一組顏色）
@@ -509,8 +521,9 @@ function renderBooked(){
     calSel = bks.some(b => b.date === today) ? today : (next || today);
   }
   if(!calMonth) calMonth = calSel.slice(0, 7);
-  const byDay = {};
+  const byDay = {}, shipByDay = {};
   bks.forEach(b => (byDay[b.date] ||= []).push(b));
+  (D.shipments || []).forEach(s => (shipByDay[s.date] ||= []).push(s));
   const [y, m] = calMonth.split('-').map(Number);
   const startDow = new Date(y, m - 1, 1).getDay(), dim = new Date(y, m, 0).getDate();
   let cells = '';
@@ -520,9 +533,12 @@ function renderBooked(){
     const list = byDay[iso] || [];
     // 日期格子直接顯示「哪個案場、什麼項目」的色塊（依項目上色）；外框橘＝等您確認、紅＝已回報問題
     const ring = {ok: 'transparent', wait: '#F2A30C', issue: '#E5484D'};
-    const dots = list.slice(0, 3).map(b => { const c = typeColor(b.types); return `<div class="cal-ev" style="background:${c[0]};color:${c[1]};border-color:${ring[bookingStatus(b)]};">${esc((b.case || '').replace(/號$/, ''))}<br><span style="font-weight:600;">${esc((b.types || []).join('+'))}</span></div>`; }).join('');
+    const ships = shipByDay[iso] || [];
+    const evs = list.map(b => { const c = typeColor(b.types); return `<div class="cal-ev" style="background:${c[0]};color:${c[1]};border-color:${ring[bookingStatus(b)]};">${esc((b.case || '').replace(/號$/, ''))}<br><span style="font-weight:600;">${esc((b.types || []).join('+'))}</span></div>`; })
+      .concat(ships.map(s => { const c = shipColor(s); return `<div class="cal-ev" style="background:${c[0]};color:${c[1]};">${esc((s.case_no || '').replace(/號$/, ''))}<br><span style="font-weight:600;">${s.equipment === '模組' ? '🟧模組到貨' : '🔌變流器到貨'}</span></div>`; }));
+    const dots = evs.slice(0, 3).join('');
     cells += `<div class="cal-day ${iso === today ? 'today' : ''} ${iso === calSel ? 'sel' : ''}" onclick="calPick('${iso}')"><span class="n">${d}</span>
-      <div class="cal-dots">${dots}</div>${list.length > 3 ? `<span class="cal-more">+${list.length - 3}</span>` : ''}</div>`;
+      <div class="cal-dots">${dots}</div>${evs.length > 3 ? `<span class="cal-more">+${evs.length - 3}</span>` : ''}</div>`;
   }
   const dayList = (byDay[calSel] || []).slice().sort((a, b) => a.start.localeCompare(b.start));
   const upcomingList = bks.filter(b => b.date >= today);
@@ -536,7 +552,7 @@ function renderBooked(){
     <div class="card">
       <div class="cal-head"><button class="cal-nav" onclick="calGo(-1)">‹</button><b>${y} 年 ${m} 月</b><button class="cal-nav" onclick="calGo(1)">›</button></div>
       <div class="cal-grid">${['日', '一', '二', '三', '四', '五', '六'].map(t => `<div class="cal-dow">${t}</div>`).join('')}${cells}</div>
-      <div class="legend">${Object.keys(TYPE_COLORS).map(t => `<span><i class="dot" style="background:${TYPE_COLORS[t][1]};"></i>${t}</span>`).join('')}</div>
+      <div class="legend">${Object.keys(TYPE_COLORS).map(t => `<span><i class="dot" style="background:${TYPE_COLORS[t][1]};"></i>${t}</span>`).join('')}<span><i class="dot" style="background:#A16207;"></i>🟧模組到貨</span><span><i class="dot" style="background:#BE185D;"></i>🔌變流器到貨</span></div>
       <div class="legend" style="margin-top:6px;"><span>色塊外框：</span><span><i class="dot" style="background:#fff;border:2px solid #F2A30C;"></i>橘色＝等您確認</span><span><i class="dot" style="background:#fff;border:2px solid #E5484D;"></i>紅色＝已回報問題</span><span>沒有外框＝已確認</span></div>
       ${upcomingCount ? `<div class="muted" style="margin-top:8px;font-size:13px;">📌 目前已排 <b>${upcomingCount}</b> 筆行程，最後排到 <b>${esc(dayLabel(lastUpcoming))}</b></div>` : ''}
       <div class="muted" style="margin-top:8px;font-size:12.5px;">這份日曆跟陽光窗口看到的是同一份資料；行程改日期或時間後，會需要您重新確認。</div>
@@ -545,12 +561,30 @@ function renderBooked(){
       <h2 style="font-size:16px;">📅 ${esc(dayLabel(calSel))}${calSel === today ? '（今天）' : ''}</h2>
       <label style="margin-top:8px;">您的名字（確認、回報時留給陽光窗口看）</label>
       <input id="byName" placeholder="例如：林先生" value="${esc(lsGet('vp_by'))}" onchange="lsSet('vp_by', this.value.trim())">
-      ${dayList.length ? dayList.map(bookingCard).join('') : '<div class="muted" style="margin-top:12px;">這天沒有行程。</div>'}
+      ${dayList.length ? dayList.map(bookingCard).join('') : ''}
+      ${(shipByDay[calSel] || []).map(shipCard).join('')}
+      ${dayList.length || (shipByDay[calSel] || []).length ? '' : '<div class="muted" style="margin-top:12px;">這天沒有行程。</div>'}
     </div>`;
   if(openB){
     const el = document.getElementById('bk_' + openB);
     if(el){ el.classList.add('focus'); setTimeout(() => el.scrollIntoView({behavior: 'smooth', block: 'center'}), 80); }
   }
+}
+// 模組／變流器到貨（出貨日曆）：唯讀，讓廠商知道設備哪天送到哪個案場
+function shipColor(s){ return s.equipment === '模組' ? ['#FEF3C7', '#A16207'] : ['#FCE7F3', '#BE185D']; }
+function shipCard(s){
+  const c = shipColor(s);
+  const items = (s.items || []).map(it => `${esc(it.model)} × ${esc(it.qty)}`).join('、');
+  return `<div class="bk" style="border-left:5px solid ${c[1]};">
+    <div class="row2"><div><b style="font-size:15px;">${s.equipment === '模組' ? '🟧 模組到貨' : '🔌 變流器到貨'}</b>
+      <span class="chip" style="margin-top:0;background:${c[0]};color:${c[1]};">${esc(s.status)}</span></div></div>
+    <div style="margin-top:6px;"><b>${esc(s.case_no)}</b> <span class="muted">${esc(s.alias || '')}</span></div>
+    <div class="kv">
+      ${items ? `<div><span class="k">內容：</span>${items}</div>` : ''}
+      ${s.arrival ? `<div><span class="k">預計到貨：</span>${esc(s.arrival)}</div>` : ''}
+      ${s.ship_to && s.ship_to !== '待確認' ? `<div><span class="k">送貨地址：</span>${esc(s.ship_to)}</div>` : ''}
+      ${s.receiver && s.receiver !== '待確認' ? `<div><span class="k">簽收人：</span>${esc(s.receiver)} ${s.phone ? `<a href="tel:${esc(s.phone)}">📞 ${esc(s.phone)}</a>` : ''}</div>` : ''}
+    </div></div>`;
 }
 function bookingCard(b){
   const st = bookingStatus(b), canAct = b.date >= todayIso();

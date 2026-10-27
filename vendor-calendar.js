@@ -69,6 +69,27 @@ async function openVendorCalLinks(){
   }
 }
 
+// 模組／變流器到貨（採購專區「出貨日曆」同一份資料）：行程日曆上一起顯示
+let VCAL_SHOW_SHIP = true;
+try{ VCAL_SHOW_SHIP = localStorage.getItem('vcalShowShip') !== '0'; }catch(e){}
+let VCAL_SHIP = {ts: 0, events: [], loading: false};
+function vcalShipColor(e){ return e.equipment === '模組' ? ['#FEF3C7', '#A16207'] : ['#FCE7F3', '#BE185D']; }
+async function vcalLoadShips(){
+  if(VCAL_SHIP.loading || Date.now() - VCAL_SHIP.ts < 5 * 60 * 1000) return;
+  VCAL_SHIP.loading = true;
+  try{
+    const res = await fetch(API_BASE + '/api/procurement/order-calendar', {cache: 'no-store'});
+    const d = await res.json();
+    if(res.ok && !d.error){ VCAL_SHIP.events = d.events || []; VCAL_SHIP.ts = Date.now(); renderVendorCalendar(); }
+  }catch(e){ console.error('到貨日曆載入失敗', e); }
+  finally{ VCAL_SHIP.loading = false; }
+}
+function vcalToggleShip(on){
+  VCAL_SHOW_SHIP = !!on;
+  try{ localStorage.setItem('vcalShowShip', on ? '1' : '0'); }catch(e){}
+  renderVendorCalendar();
+}
+
 function vcalPickVendor(v){
   VCAL_VENDOR = (VCAL_VENDOR === v) ? '' : v;
   try{ localStorage.setItem('vcalVendor', VCAL_VENDOR); }catch(e){}
@@ -78,6 +99,7 @@ function vcalPickVendor(v){
 function renderVendorCalendar(){
   const box = document.getElementById('vendorCalContainer');
   if(!box) return;
+  if(VCAL_SHOW_SHIP) vcalLoadShips();
   const pad = n => String(n).padStart(2, '0');
   const now = new Date();
   const today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
@@ -96,7 +118,8 @@ function renderVendorCalendar(){
   if(VCAL_VENDOR && !sum[VCAL_VENDOR]) VCAL_VENDOR = '';
   const fmtLast = d => d.slice(0, 4) + '/' + Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10));
   const legendHtml = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-      <div class="vc-legend" style="margin:0;">${Object.keys(VCAL_TYPE_COLORS).map(t => `<span><i style="background:${VCAL_TYPE_COLORS[t][1]};"></i>${t}</span>`).join('')}</div>
+      <div class="vc-legend" style="margin:0;">${Object.keys(VCAL_TYPE_COLORS).map(t => `<span><i style="background:${VCAL_TYPE_COLORS[t][1]};"></i>${t}</span>`).join('')}
+        <label style="display:inline-flex;gap:4px;align-items:center;cursor:pointer;margin-left:6px;"><input type="checkbox" ${VCAL_SHOW_SHIP ? 'checked' : ''} onchange="vcalToggleShip(this.checked)"><i style="background:#A16207;"></i>🟧模組到貨 <i style="background:#BE185D;"></i>🔌變流器到貨</label></div>
       <button class="btn btn-primary" style="padding:8px 14px;font-size:12.5px;white-space:nowrap;" onclick="openVendorCalLinks()">🔗 提供給廠商的行程日曆連結</button></div>`;
   const sumHtml = legendHtml + (vendors.length ? `<div class="vc-sum">${vendors.map(v => `
       <div class="vc-sum-card ${VCAL_VENDOR === v ? 'active' : ''}" onclick="vcalPickVendor('${escHtml(v)}')" title="點一下只看這家廠商，再點一次看全部">
@@ -105,12 +128,16 @@ function renderVendorCalendar(){
       </div>`).join('')}</div>` : '');
 
   const shown = (VCAL_VENDOR ? all.filter(b => b.vendor === VCAL_VENDOR) : all).filter(b => b.date >= monthStart);
-  if(!shown.length){
+  // 模組／變流器到貨（出貨日曆）：EPC 對得到廠商就跟著廠商篩選；可以用勾選隱藏
+  const ships = VCAL_SHOW_SHIP ? ((VCAL_SHIP.events || []).filter(e => e.date >= monthStart && (!VCAL_VENDOR || e.epc === VCAL_VENDOR))) : [];
+  const shipByDay = {};
+  ships.forEach(e => { (shipByDay[e.date] = shipByDay[e.date] || []).push(e); });
+  if(!shown.length && !ships.length){
     box.innerHTML = sumHtml + '<div class="login-note">目前沒有已排定的行程。</div>';
     return;
   }
-  // 從本月顯示到最後一筆行程所在的月份
-  const lastDate = shown.reduce((m, b) => b.date > m ? b.date : m, today);
+  // 從本月顯示到最後一筆行程（含到貨）所在的月份
+  const lastDate = shown.concat(ships).reduce((m, b) => b.date > m ? b.date : m, today);
   let y = now.getFullYear(), m = now.getMonth() + 1;
   const ly = Number(lastDate.slice(0, 4)), lm = Number(lastDate.slice(5, 7));
   const byDay = {};
@@ -126,8 +153,16 @@ function renderVendorCalendar(){
       const iso = `${y}-${pad(m)}-${pad(d)}`;
       const wd = new Date(y, m - 1, d).getDay();
       const list = (byDay[iso] || []).slice().sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
-      count += list.length;
-      const items = list.map(b => {
+      const sl = shipByDay[iso] || [];
+      count += list.length + sl.length;
+      const shipItems = sl.map(e => {
+        const [bg, fg] = vcalShipColor(e);
+        const abbr = typeof ocalAbbr === 'function' ? ocalAbbr(e.case_no) : e.case_no;
+        const models = e.items.map(it => (typeof ocalModelShort === 'function' ? ocalModelShort(it.model, e.equipment) : it.model) + '×' + it.qty).join('、');
+        const tip = e.equipment + '到貨（' + e.status + '）｜' + e.case_no + ' ' + (e.alias || '') + '｜' + e.vendor + ' ' + e.items.map(it => it.model + '×' + it.qty).join('、') + (e.epc ? '｜EPC：' + e.epc : '') + (e.arrival ? '｜' + e.arrival : '');
+        return `<div class="vc-item" style="background:${bg};color:${fg};border-left-color:${fg};cursor:default;${e.status === '已出貨' ? 'opacity:.7;' : ''}" title="${escHtml(tip)}">${e.equipment === '模組' ? '🟧' : '🔌'} ${escHtml((VCAL_VENDOR ? '' : (e.epc ? e.epc + ' ' : '')) + abbr + ' ' + models)}</div>`;
+      }).join('');
+      const items = shipItems + list.map(b => {
         const ack = b.vendor_can_ack ? (b.vendor_ack_at ? ' ✓' : ' ⏳') : '';
         const label = (b.start_time || '') + ' ' + (VCAL_VENDOR ? '' : b.vendor + ' ') + typeShort(b.type) + ' ' + (b.case || '');
         const [bg, fg] = vcalTypeColor(b.type);
