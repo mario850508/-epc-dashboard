@@ -2795,6 +2795,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <div class="tab" data-slots-tab="requests" style="display:none;" onclick="showSlotsTab('requests')">📥 廠商申請<span id="slotsReqBadge" style="display:none;"></span></div>
         <div class="tab" data-slots-tab="joint" onclick="showSlotsTab('joint')">🧩 聯合排程</div>
         <div class="tab" data-slots-tab="done" onclick="showSlotsTab('done')">✅ 完成安排</div>
+        <div class="tab" data-slots-tab="vcal" onclick="showSlotsTab('vcal')">📅 廠商日曆</div>
         <div class="tab" data-slots-tab="history" onclick="showSlotsTab('history')">🗂 歷史紀錄</div>
       </div>
 
@@ -2821,6 +2822,11 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <div id="slotsContainer">
           <div class="login-note">載入中…</div>
         </div>
+      </div>
+
+      <div class="subview" id="slots-tab-vcal">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">所有廠商已排定的行程，從本月一路顯示到最後一筆已排行程所在的月份。點上面的廠商可以只看那一家，點行程看詳細。✓＝廠商已確認，⏳＝廠商還沒確認。</div>
+        <div id="vendorCalContainer"><div class="login-note">載入中…</div></div>
       </div>
 
       <div class="subview" id="slots-tab-history">
@@ -8976,7 +8982,8 @@ async function generateOpsPdf(id, keepModalOpen){
 // 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
 // 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
 </script>
-<script src="slots.js?v=39"></script>
+<script src="slots.js?v=40"></script>
+<script src="vendor-calendar.js?v=1"></script>
 <script>
 // ===================================================================
 // 採購專區：變流器出廠證明歸檔紀錄（2026-10-07）

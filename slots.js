@@ -60,6 +60,7 @@ function showSlotsTab(tab){
   document.querySelectorAll('#view-slots .tab').forEach(t=>t.classList.remove('active'));
   document.querySelector('#view-slots .tab[data-slots-tab="'+tab+'"]').classList.add('active');
   if(tab === 'joint' && typeof loadJoint === 'function') loadJoint();
+  if(tab === 'vcal' && typeof renderVendorCalendar === 'function') renderVendorCalendar();
   if(tab === 'requests' && typeof loadVendorRequests === 'function') loadVendorRequests();
   // 2026-10-20：側邊選單「廠商時段協調」底下分成「屋主預約」（指派任務／聯合排程／完成安排／歷史紀錄）跟「廠商預約」（廠商申請）
   const vendorSec = tab === 'requests';
@@ -1214,6 +1215,7 @@ function renderVendorSlots(){
   renderBookingGroups(document.getElementById('slotsContainer'), shownUp, upcoming.length, false,
     '目前沒有今天以後的預約，點上面「➕ 預約時段」或「📨 指派給業務」新增一筆。', true);
   renderBookingGroups(document.getElementById('slotsHistoryContainer'), shownPast, past.length, true, '還沒有歷史紀錄。', false, true);
+  if(typeof renderVendorCalendar === 'function') renderVendorCalendar();
 }
 
 // 2026-10-05：查看業務當時送出的填單內容（唯讀，排成跟業務填單頁類似的版面）
