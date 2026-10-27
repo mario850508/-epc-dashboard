@@ -1,6 +1,7 @@
 // 廠商行程日曆（2026-10-27）：「廠商時段協調」底下的「📅 廠商日曆」分頁。
 // 把所有廠商已排定的預約放在月曆上，從本月一路顯示到「最後一筆已排行程」所在的月份（例如已經排到明年三月就顯示到三月），
 // 可以只看某一家廠商。點行程會開啟原本的「查看填單」。資料用 slots.js 載好的 SLOT_BOOKINGS，不另外抓。
+let VCAL_MONTH = '';   // 目前顯示的月份 YYYY-MM(空 = 本月)；用上/下個月按鈕切換，不再一次把所有月份排下來
 let VCAL_VENDOR = '';
 try{ VCAL_VENDOR = localStorage.getItem('vcalVendor') || ''; }catch(e){}
 
@@ -9,6 +10,10 @@ try{ VCAL_VENDOR = localStorage.getItem('vcalVendor') || ''; }catch(e){}
   css.textContent = `
   .vc-month{margin-bottom:22px;}
   .vc-month-title{font-size:15px;font-weight:800;margin:0 0 8px;display:flex;align-items:baseline;gap:8px;}
+  .vc-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
+  .vc-nav .vc-month-title{justify-content:center;font-size:16px;}
+  .vc-nav-btn{height:34px;width:38px;border:1.5px solid var(--border);border-radius:10px;background:#fff;font-size:18px;cursor:pointer;font-weight:700;}
+  .vc-nav-btn:hover{background:#FFF7E6;border-color:var(--sun-2,#F59E0B);}
   .vc-month-title small{font-size:11.5px;color:var(--text-muted);font-weight:600;}
   .vc-scroll{overflow-x:auto;}
   .vc-grid{display:grid;grid-template-columns:repeat(7,minmax(104px,1fr));gap:4px;min-width:740px;}
@@ -90,6 +95,15 @@ function vcalToggleShip(on){
   renderVendorCalendar();
 }
 
+function vcalGo(delta){
+  const now = new Date();
+  const cur = VCAL_MONTH || (now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0'));
+  const d = new Date(Number(cur.slice(0, 4)), Number(cur.slice(5, 7)) - 1 + delta, 1);
+  VCAL_MONTH = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  renderVendorCalendar();
+}
+function vcalThisMonth(){ VCAL_MONTH = ''; renderVendorCalendar(); }
+
 function vcalPickVendor(v){
   VCAL_VENDOR = (VCAL_VENDOR === v) ? '' : v;
   try{ localStorage.setItem('vcalVendor', VCAL_VENDOR); }catch(e){}
@@ -103,7 +117,6 @@ function renderVendorCalendar(){
   const pad = n => String(n).padStart(2, '0');
   const now = new Date();
   const today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
-  const monthStart = today.slice(0, 7) + '-01';
   const all = (SLOT_BOOKINGS || []).filter(b => b.date && !b.cancelled);
   const upcoming = all.filter(b => b.date >= today);
 
@@ -127,24 +140,23 @@ function renderVendorCalendar(){
         已排 <b>${sum[v].n}</b> 筆｜最後排到 <b>${fmtLast(sum[v].last)}</b>
       </div>`).join('')}</div>` : '');
 
-  const shown = (VCAL_VENDOR ? all.filter(b => b.vendor === VCAL_VENDOR) : all).filter(b => b.date >= monthStart);
+  const shown = (VCAL_VENDOR ? all.filter(b => b.vendor === VCAL_VENDOR) : all);
   // 模組／變流器到貨（出貨日曆）：EPC 對得到廠商就跟著廠商篩選；可以用勾選隱藏
-  const ships = VCAL_SHOW_SHIP ? ((VCAL_SHIP.events || []).filter(e => e.date >= monthStart && (!VCAL_VENDOR || e.epc === VCAL_VENDOR))) : [];
+  const ships = VCAL_SHOW_SHIP ? ((VCAL_SHIP.events || []).filter(e => (!VCAL_VENDOR || e.epc === VCAL_VENDOR))) : [];
   const shipByDay = {};
   ships.forEach(e => { (shipByDay[e.date] = shipByDay[e.date] || []).push(e); });
   if(!shown.length && !ships.length){
     box.innerHTML = sumHtml + '<div class="login-note">目前沒有已排定的行程。</div>';
     return;
   }
-  // 從本月顯示到最後一筆行程（含到貨）所在的月份
-  const lastDate = shown.concat(ships).reduce((m, b) => b.date > m ? b.date : m, today);
-  let y = now.getFullYear(), m = now.getMonth() + 1;
-  const ly = Number(lastDate.slice(0, 4)), lm = Number(lastDate.slice(5, 7));
+  // 一次只顯示一個月，用按鈕切換上/下個月
+  const curMonth = VCAL_MONTH || today.slice(0, 7);
+  let y = Number(curMonth.slice(0, 4)), m = Number(curMonth.slice(5, 7));
   const byDay = {};
   mergeCompanionBookings(shown).forEach(b => { (byDay[b.date] = byDay[b.date] || []).push(b); });
   const typeShort = t => (t || []).join('+');
-  const months = [];
-  while(y < ly || (y === ly && m <= lm)){
+  let monthHtml = '';
+  {
     const first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
     let cells = ['日', '一', '二', '三', '四', '五', '六'].map(t => `<div class="vc-dow">${t}</div>`).join('');
     for(let i = 0; i < first.getDay(); i++) cells += '<div class="vc-day empty"></div>';
@@ -170,9 +182,10 @@ function renderVendorCalendar(){
       }).join('');
       cells += `<div class="vc-day ${iso === today ? 'today' : ''} ${iso < today ? 'past' : ''} ${wd === 0 || wd === 6 ? 'weekend' : ''}"><span class="vc-n">${d}</span>${items}</div>`;
     }
-    months.push(`<div class="vc-month"><div class="vc-month-title">${y} 年 ${m} 月<small>${count ? count + ' 筆行程' : '沒有行程'}</small></div>
-      <div class="vc-scroll"><div class="vc-grid">${cells}</div></div></div>`);
-    m += 1; if(m > 12){ m = 1; y += 1; }
+    monthHtml = `<div class="vc-month"><div class="vc-nav"><button class="vc-nav-btn" onclick="vcalGo(-1)" title="上個月">‹</button>
+      <div class="vc-month-title" style="margin:0;">${y} 年 ${m} 月<small>${count ? count + ' 筆行程' : '沒有行程'}</small>${curMonth !== today.slice(0, 7) ? '<button class="vc-nav-btn" style="width:auto;padding:0 10px;font-size:12px;" onclick="vcalThisMonth()">回本月</button>' : ''}</div>
+      <button class="vc-nav-btn" onclick="vcalGo(1)" title="下個月">›</button></div>
+      <div class="vc-scroll"><div class="vc-grid">${cells}</div></div></div>`;
   }
-  box.innerHTML = sumHtml + months.join('');
+  box.innerHTML = sumHtml + monthHtml;
 }
