@@ -31,7 +31,8 @@
   .cal-day{min-height:58px;border:1.5px solid #F0E4CC;border-radius:10px;background:#fff;padding:4px 3px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;transition:background .15s,border-color .15s;}
   .cal-day.out{opacity:.35;} .cal-day.today{border-color:var(--sun-2);} .cal-day.sel{background:#FFF1DC;border-color:var(--sun-2);box-shadow:0 0 0 2px rgba(242,121,12,.18);}
   .cal-day .n{font-size:13.5px;font-weight:700;} .cal-day.today .n{color:var(--sun-3);}
-  .cal-dots{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;}
+  .cal-dots{display:flex;flex-direction:column;gap:3px;width:100%;}
+  .cal-ev{width:100%;border-radius:6px;padding:2px 2px;font-size:10px;line-height:1.25;font-weight:700;text-align:center;word-break:break-all;border:1.5px solid transparent;}
   .dot{width:9px;height:9px;border-radius:50%;} .dot.ok{background:#22A559;} .dot.wait{background:#F2A30C;} .dot.issue{background:#E5484D;}
   .cal-more{font-size:10.5px;color:var(--text-muted);font-weight:700;line-height:1;}
   .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--text-muted);margin-top:10px;}
@@ -517,10 +518,11 @@ function renderBooked(){
   for(let d = 1; d <= dim; d++){
     const iso = `${calMonth}-${String(d).padStart(2, '0')}`;
     const list = byDay[iso] || [];
-    const ring = {ok: '', wait: 'box-shadow:0 0 0 2px #fff,0 0 0 3.5px #F2A30C;', issue: 'box-shadow:0 0 0 2px #fff,0 0 0 3.5px #E5484D;'};
-    const dots = list.slice(0, 4).map(b => `<span class="dot" style="background:${typeColor(b.types)[1]};${ring[bookingStatus(b)]}"></span>`).join('');
+    // 日期格子直接顯示「哪個案場、什麼項目」的色塊（依項目上色）；外框橘＝等您確認、紅＝已回報問題
+    const ring = {ok: 'transparent', wait: '#F2A30C', issue: '#E5484D'};
+    const dots = list.slice(0, 3).map(b => { const c = typeColor(b.types); return `<div class="cal-ev" style="background:${c[0]};color:${c[1]};border-color:${ring[bookingStatus(b)]};">${esc((b.case || '').replace(/號$/, ''))}<br><span style="font-weight:600;">${esc((b.types || []).join('+'))}</span></div>`; }).join('');
     cells += `<div class="cal-day ${iso === today ? 'today' : ''} ${iso === calSel ? 'sel' : ''}" onclick="calPick('${iso}')"><span class="n">${d}</span>
-      <div class="cal-dots">${dots}</div>${list.length > 4 ? `<span class="cal-more">+${list.length - 4}</span>` : ''}</div>`;
+      <div class="cal-dots">${dots}</div>${list.length > 3 ? `<span class="cal-more">+${list.length - 3}</span>` : ''}</div>`;
   }
   const dayList = (byDay[calSel] || []).slice().sort((a, b) => a.start.localeCompare(b.start));
   const upcomingList = bks.filter(b => b.date >= today);
@@ -535,7 +537,7 @@ function renderBooked(){
       <div class="cal-head"><button class="cal-nav" onclick="calGo(-1)">‹</button><b>${y} 年 ${m} 月</b><button class="cal-nav" onclick="calGo(1)">›</button></div>
       <div class="cal-grid">${['日', '一', '二', '三', '四', '五', '六'].map(t => `<div class="cal-dow">${t}</div>`).join('')}${cells}</div>
       <div class="legend">${Object.keys(TYPE_COLORS).map(t => `<span><i class="dot" style="background:${TYPE_COLORS[t][1]};"></i>${t}</span>`).join('')}</div>
-      <div class="legend" style="margin-top:6px;"><span><i class="dot" style="background:#94A3B8;"></i>已確認</span><span><i class="dot" style="background:#94A3B8;box-shadow:0 0 0 2px #fff,0 0 0 3.5px #F2A30C;"></i>圓點外圈橘色＝等您確認</span><span><i class="dot" style="background:#94A3B8;box-shadow:0 0 0 2px #fff,0 0 0 3.5px #E5484D;"></i>紅色＝已回報問題</span></div>
+      <div class="legend" style="margin-top:6px;"><span>色塊外框：</span><span><i class="dot" style="background:#fff;border:2px solid #F2A30C;"></i>橘色＝等您確認</span><span><i class="dot" style="background:#fff;border:2px solid #E5484D;"></i>紅色＝已回報問題</span><span>沒有外框＝已確認</span></div>
       ${upcomingCount ? `<div class="muted" style="margin-top:8px;font-size:13px;">📌 目前已排 <b>${upcomingCount}</b> 筆行程，最後排到 <b>${esc(dayLabel(lastUpcoming))}</b></div>` : ''}
       <div class="muted" style="margin-top:8px;font-size:12.5px;">這份日曆跟陽光窗口看到的是同一份資料；行程改日期或時間後，會需要您重新確認。</div>
     </div>
