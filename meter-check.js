@@ -150,25 +150,72 @@ function showMcTab(tab){
   if(!MC_DATA || MC_DATA.month !== MC_MONTH) loadMeterCheck();
 }
 
-async function loadMeterCheck(){
+// ---- 載入（2026-10-27：一個月份要 10～15 秒 → 先顯示這台電腦上次的資料，背後再更新；前後月份背景先載）----
+const MC_LS = 'mcCache:';
+function mcLsGet(month){ try{ return JSON.parse(localStorage.getItem(MC_LS + month) || 'null'); }catch(e){ return null; } }
+function mcLsSet(month, d){ try{ localStorage.setItem(MC_LS + month, JSON.stringify({at: Date.now(), d})); }catch(e){} }
+function mcStore(){ if(MC_DATA && MC_DATA.month) mcLsSet(MC_DATA.month, MC_DATA); }
+async function mcFetchMonth(month, fresh){
+  const res = await fetch(API_BASE + '/api/meter-check?month=' + encodeURIComponent(month) + (fresh ? '&refresh=1' : ''), {cache: 'no-store'});
+  const d = await res.json();
+  if(!res.ok || d.error) throw new Error(d.error || res.status);
+  mcLsSet(month, d);
+  return d;
+}
+function mcShiftOf(month, delta){
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+// fresh：按「🔄 重新整理」→ 伺服器也不用暫存
+async function loadMeterCheck(fresh){
   const box = document.getElementById('mcBox');
   if(!box) return;
+  const month = MC_MONTH;
   const m = document.getElementById('mcMonth');
-  if(m) m.value = MC_MONTH;
-  box.innerHTML = '<div class="login-note">載入 ' + mcEsc(MC_MONTH) + ' 掛表案件…</div>';
-  document.getElementById('mcWdBox').innerHTML = '<div class="login-note">載入 ' + mcEsc(MC_MONTH) + ' 撤案案件…</div>';
-  try{
-    const res = await fetch(API_BASE + '/api/meter-check?month=' + encodeURIComponent(MC_MONTH), {cache: 'no-store'});
-    const d = await res.json();
-    if(!res.ok || d.error) throw new Error(d.error || res.status);
-    if(d.month !== MC_MONTH) return;   // 載入途中又換了月份
-    MC_DATA = d;
-  }catch(e){
-    box.innerHTML = '<div class="login-note">載入失敗：' + mcEsc(e.message) + '</div>';
-    document.getElementById('mcWdBox').innerHTML = box.innerHTML;
-    return;
+  if(m) m.value = month;
+  const cached = mcLsGet(month);
+  if(cached && cached.d && cached.d.month === month){
+    MC_DATA = cached.d;
+    renderMeterCheck();
+    mcSetLoading(true);
+  }else{
+    box.innerHTML = '<div class="login-note">載入 ' + mcEsc(month) + ' 掛表案件…</div>';
+    document.getElementById('mcWdBox').innerHTML = '<div class="login-note">載入 ' + mcEsc(month) + ' 撤案案件…</div>';
   }
-  renderMeterCheck();
+  try{
+    const d = await mcFetchMonth(month, fresh);
+    if(month !== MC_MONTH) return;   // 載入途中又換了月份
+    const changed = !MC_DATA || JSON.stringify(MC_DATA) !== JSON.stringify(d);
+    MC_DATA = d;
+    if(changed) renderMeterCheck();
+  }catch(e){
+    if(month !== MC_MONTH) return;
+    if(!cached){
+      box.innerHTML = '<div class="login-note">載入失敗：' + mcEsc(e.message) + '</div>';
+      document.getElementById('mcWdBox').innerHTML = box.innerHTML;
+    }else showToast('更新失敗，先顯示上次的資料：' + e.message);
+  }finally{
+    if(month === MC_MONTH) mcSetLoading(false);
+  }
+  // 前後一個月背景先載（10 分鐘內載過的就不重載）
+  setTimeout(() => [-1, 1].forEach(dl => {
+    const mm = mcShiftOf(month, dl), c = mcLsGet(mm);
+    if(!c || Date.now() - c.at > 10 * 60 * 1000) mcFetchMonth(mm).catch(() => {});
+  }), 1500);
+}
+function mcSetLoading(on){
+  let el = document.getElementById('mcLoadingTag');
+  if(on && !el){
+    const host = document.querySelector('#view-metercheck .page-sub');
+    if(!host) return;
+    el = document.createElement('span');
+    el.id = 'mcLoadingTag';
+    el.className = 'cert-src';
+    el.style.marginLeft = '8px';
+    el.textContent = '（先顯示上次的資料，更新中…）';
+    host.appendChild(el);
+  }else if(!on && el) el.remove();
 }
 
 function mcSetMonth(v){
@@ -178,11 +225,7 @@ function mcSetMonth(v){
   MC_DATA = null;
   loadMeterCheck();
 }
-function mcShiftMonth(delta){
-  const [y, m] = MC_MONTH.split('-').map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  mcSetMonth(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
-}
+function mcShiftMonth(delta){ mcSetMonth(mcShiftOf(MC_MONTH, delta)); }
 function mcSetFilter(k){ mcFilter = k; renderMeterCheck(); }
 
 // 容量確認下面的小字：值從哪份文件來（可以點開 PDF）、或為什麼沒有
@@ -367,6 +410,7 @@ async function mcSave(caseNo, kind, value){
     const d = await mcPost({case_no: caseNo, kind: '掛表', [key]: v});
     c.check_id = d.check_id;
     c.by = mcMe();
+    mcStore();
   }catch(e){
     c[key] = old;
     renderMeterCheck();
@@ -406,7 +450,7 @@ function renderMcTariff(){
 function mcTpFiles(c){ const f = (c.doc_cap && c.doc_cap.files) || {}; return ['換文修約', '台電契約', '細部協商'].filter(k => f[k]).map(k => f[k]); }
 function mcDocBtn(c, which){
   // 契約&細協：沒有文件也能點（視窗裡可以上傳換文修約）
-  const has = which === 'tp' ? true : !!(c.eng && c.eng.file_url);
+  const has = true;   // 沒有文件也能點開，視窗裡可以上傳（2026-10-27）
   const label = which === 'tp' ? '📄 契約&細協' : '📑 工程合約';
   return '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;' + (has ? '' : 'opacity:.4;cursor:not-allowed;') + '"'
     + (has ? ' onclick="mcOpenDoc(\'' + mcJs(c.case_no) + '\',\'' + which + '\')"' : ' disabled title="還沒有這份文件（要從 G 槽同步上來）"') + '>' + label + '</button>';
@@ -417,7 +461,7 @@ function mcOpenDoc(caseNo, which, idx){
   const c = ((MC_DATA && MC_DATA.cases) || []).find(x => x.case_no === caseNo);
   if(!c) return;
   const docs = which === 'tp' ? mcTpFiles(c) : (c.eng && c.eng.file_url ? [Object.assign({kind: '工程合約', value: c.eng.cap}, c.eng)] : []);
-  const d = docs[idx || 0] || (which === 'tp' ? {kind: '契約&細協', file_url: '', src: '', filename: ''} : null);   // 沒文件也開，可以上傳換文修約
+  const d = docs[idx || 0] || {kind: which === 'tp' ? '契約&細協' : '工程合約', file_url: '', src: '', filename: ''};   // 沒文件也開，可以上傳
   if(!d) return;
   mcCloseDoc();
   const row = (k, v, hl) => '<tr><td style="color:var(--text-muted);white-space:nowrap;padding:5px 8px 5px 0;">' + k + '</td><td style="padding:5px 0;font-weight:' + (hl ? 700 : 500) + ';">' + v + '</td></tr>';
@@ -427,10 +471,15 @@ function mcOpenDoc(caseNo, which, idx){
     + '<div style="font-weight:700;font-size:15px;margin-bottom:2px;">' + mcEsc(c.case_no) + '</div>'
     + '<div class="cert-src" style="margin-bottom:10px;">' + mcEsc(c.alias || '') + '・掛表 ' + mcEsc(mcDate(c.meter_date)) + '・' + mcEsc(c.vendor || '') + '</div>'
     + (docs.length > 1 ? '<div style="display:flex;gap:4px;margin-bottom:10px;">' + docs.map((x, i) => '<button class="cert-filter-btn ' + (i === (idx || 0) ? 'active' : '') + '" onclick="mcOpenDoc(\'' + mcJs(caseNo) + '\',\'' + which + '\',' + i + ')">' + mcEsc(x.kind) + '</button>').join('') + '</div>' : '')
-    + (which === 'tp' ? '<div style="margin-bottom:12px;padding:8px 10px;border:1px dashed var(--border,#E3E6EA);border-radius:10px;">'
-      + '<div style="font-size:12px;margin-bottom:6px;">跟台電換文修約改過容量？上傳修約文件，比對改用修約後的容量。</div>'
-      + '<button class="btn btn-primary" style="padding:4px 12px;font-size:12px;" onclick="mcPickAmend(\'' + mcJs(caseNo) + '\')">⬆ 上傳換文修約</button></div>' : '')
-    + (!d.file_url ? '<div class="cert-src" style="color:#B54708;">這個案件還沒有台電契約／細部協商／換文修約（要從 G 槽同步上來，或在上面上傳換文修約）。</div>' : '')
+    + '<div style="margin-bottom:12px;padding:8px 10px;border:1px dashed var(--border,#E3E6EA);border-radius:10px;">'
+      + '<div style="font-size:12px;margin-bottom:6px;">' + (which === 'tp' ? '系統抓不到、抓錯，或跟台電換文修約改過容量 → 直接上傳，比對會用你傳的這份（修約優先）。'
+        : '系統抓不到或抓錯工程合約 → 直接上傳，會讀容量、躉購電價、工程單價。') + '</div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      + (which === 'tp' ? ['台電契約', '細部協商', '換文修約'] : ['工程合約']).map(k =>
+        '<button class="btn btn-primary" style="padding:4px 10px;font-size:12px;" onclick="mcPickUpload(\'' + mcJs(caseNo) + '\',\'' + k + '\')">⬆ ' + k + '</button>').join('')
+      + '</div></div>'
+    + (!d.file_url ? '<div class="cert-src" style="color:#B54708;">' + (which === 'tp' ? '這個案件還沒有台電契約／細部協商／換文修約' : '這個案件還沒有工程合約')
+      + '（G 槽同步沒抓到；可以在上面直接上傳）。</div>' : '')
     + (d.file_url ? '<div style="font-weight:700;margin:4px 0;">這份文件系統讀到的</div><table style="width:100%;">'
     + row('文件', mcEsc(d.kind) + (d.date ? ' ' + mcEsc(mcDate(d.date)) : ''))
     + row('容量', f(d.kind === '工程合約' ? c.eng.cap : d.value) + (d.kind !== '工程合約' || c.eng.cap !== null ? ' kW' : ''), true)
@@ -465,38 +514,62 @@ function mcOpenDoc(caseNo, which, idx){
   document.addEventListener('keydown', mcDocEsc);
 }
 
-// ---- 上傳換文修約（2026-10-26）：跟台電換文修改契約（例：14.4 → 12.15 瓩），上傳後背景讀容量，比對優先用它 ----
-function mcPickAmend(caseNo){
+// ---- 頁面上傳文件（2026-10-26 換文修約，10-27 擴充到台電契約／細協／工程合約）：上傳後背景讀數字 ----
+// 頁面手動上傳的那份，G 槽同步不會再蓋掉（後端 index 標 manual）
+function mcPickUpload(caseNo, kind){
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.accept = 'application/pdf,.pdf';
-  inp.onchange = () => { if(inp.files[0]) mcUploadAmend(caseNo, inp.files[0]); };
+  inp.onchange = () => { if(inp.files[0]) mcUploadDoc(caseNo, kind, inp.files[0]); };
   inp.click();
 }
-async function mcUploadAmend(caseNo, file){
+function mcPickAmend(caseNo){ mcPickUpload(caseNo, '換文修約'); }
+// 超過 5MB 的在瀏覽器先切前 6 頁（容量、電價都在前幾頁；主控台記憶體小，不收大檔）
+async function mcFirstPages(buf, n){
+  if(!window.PDFLib){
+    await new Promise((ok, bad) => {
+      const sc = document.createElement('script');
+      sc.src = 'vendor/pdf-lib-1.17.1.min.js';   // 放在主控台自己的檔案裡（不依賴外部 CDN），MIT 授權
+      sc.onload = ok; sc.onerror = () => bad(new Error('載入 PDF 工具失敗'));
+      document.head.appendChild(sc);
+    });
+  }
+  const src = await PDFLib.PDFDocument.load(buf, {ignoreEncryption: true});
+  if(src.getPageCount() <= n) return null;
+  const out = await PDFLib.PDFDocument.create();
+  const pages = await out.copyPages(src, Array.from({length: n}, (_, i) => i));
+  pages.forEach(p => out.addPage(p));
+  return await out.save();
+}
+function mcB64(bytes){
+  let bin = '';
+  for(let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+async function mcUploadDoc(caseNo, kind, file){
   if(!/\.pdf$/i.test(file.name)){ showToast('請選 PDF 檔'); return; }
-  if(file.size > 10 * 1024 * 1024){ showToast('檔案超過 10MB，請先只存有容量的那幾頁再上傳'); return; }
   showToast('上傳中…');
   try{
-    const b64 = await new Promise((ok, bad) => {
-      const fr = new FileReader();
-      fr.onload = () => ok(String(fr.result).split(',')[1]);
-      fr.onerror = () => bad(fr.error);
-      fr.readAsDataURL(file);
-    });
+    let bytes = new Uint8Array(await file.arrayBuffer()), trimmed = false;
+    if(bytes.length > 5 * 1024 * 1024){
+      showToast('檔案比較大，先切前 6 頁…');
+      const cut = await mcFirstPages(bytes, 6);
+      if(cut){ bytes = cut; trimmed = true; }
+    }
+    if(bytes.length > 10 * 1024 * 1024){ showToast('檔案太大（前 6 頁也超過 10MB），請先另存只有容量那幾頁的 PDF 再上傳'); return; }
     const m = /(20\d{2})(\d{2})(\d{2})/.exec(file.name);   // 檔名有日期就用，沒有就用今天
     const docDate = m ? m[1] + '-' + m[2] + '-' + m[3] : new Date().toISOString().slice(0, 10);
     const res = await fetch(API_BASE + '/api/procurement/drawings/sync', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({case_no: caseNo, kind: '換文修約', filename: file.name, doc_date: docDate,
+      body: JSON.stringify({case_no: caseNo, kind, filename: file.name, doc_date: docDate,
         src_path: '主控台上傳（' + (mcMe() || '未選我是誰') + '）', mtime: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        orig_size: file.size, data: b64}),
+        orig_size: file.size, trimmed, data: mcB64(bytes)}),
     });
     const d = await res.json().catch(() => ({}));
     if(!res.ok || d.error) throw new Error(d.error || res.status);
     mcCloseDoc();
-    showToast('已上傳，背景讀容量中（約 10～40 秒），等一下按 🔄 重新整理');
-    setTimeout(loadMeterCheck, 30000);
+    showToast('已上傳' + kind + '，背景讀數字中（約 10～40 秒），等一下按 🔄 重新整理');
+    setTimeout(() => { if(MC_TAB === 'cases') loadMeterCheck(true); }, 30000);
   }catch(e){ showToast('上傳失敗：' + e.message); }
 }
 
