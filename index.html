@@ -2568,7 +2568,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <div>
           <div class="crumb">功能模組 / 採購專區</div>
           <h1 class="page-title">採購專區</h1>
-          <div class="page-sub" id="procureSub">元晶模組/碩天變流器訂單查詢</div>
+          <div class="page-sub" id="procureSub">元晶/丸紅模組、碩天變流器訂單查詢</div>
         </div>
         <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="if(PROCURE_TAB === 'orders'){ loadOrders(); } else if(PROCURE_TAB === 'calendar'){ loadOrderCalendar(); } else if(PROCURE_TAB === 'driver'){ loadDriverRequest(); } else { loadInverterCerts(); if(certEquip === '盤點') loadEquipInventory(); }">🔄 重新整理</button>
       </div>
@@ -2625,7 +2625,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
 
       <div class="panel" id="procureOrdersPanel">
         <div class="panel-title">
-          訂單查詢(元晶模組/碩天變流器)
+          訂單查詢(元晶/丸紅模組、碩天變流器)
           <span class="module-tag tag-cloud" style="margin-left:6px;" id="orderCountTag">共 0 筆訂單</span>
         </div>
         <!-- 訂單查詢（2026-10-13） -->
@@ -2640,7 +2640,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             <thead>
               <tr>
                 <th>案號（點開看詳細）</th>
-                <th>🟦 模組（元晶）</th>
+                <th>🟦 模組（元晶／丸紅）</th>
                 <th>🔌 變流器（碩天）</th>
                 <th>出貨給</th>
                 <th>備註</th>
@@ -2651,7 +2651,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             </tbody>
           </table>
           <div class="login-note">
-            🧾 資料來源:G 槽「02 料件採購」的元晶模組需求表(01 模組採購\*_模組需求_元晶.xlsx)與碩天逆變器需求表(02 變流器採購\*_逆變器需求_碩天.xlsx)。重新下單時檔名的日期會變,系統一律抓日期最新的那一份;這台電腦的小幫手每 15 分鐘檢查一次,檔案有更新就同步。同一案同一次下單的多個型號合併成一列。
+            🧾 資料來源:G 槽「02 料件採購」的元晶模組需求表(01 模組採購\*_模組需求_元晶.xlsx)、丸紅模組需求表(01 模組採購\*_模組需求_丸紅.xlsx)與碩天逆變器需求表(02 變流器採購\*_逆變器需求_碩天.xlsx)。重新下單時檔名的日期會變,系統一律抓日期最新的那一份;這台電腦的小幫手每 15 分鐘檢查一次,檔案有更新就同步。同一案同一次下單的多個型號合併成一列。
           </div>
         </div>
 
@@ -9465,7 +9465,7 @@ async function loadOrders(){
 }
 
 function renderOrders(){
-  document.getElementById('orderEquipBtns').innerHTML = [['all', '全部設備'], ['模組', '🟦 模組(元晶)'], ['變流器', '🔌 變流器(碩天)']]
+  document.getElementById('orderEquipBtns').innerHTML = [['all', '全部設備'], ['模組', '🟦 模組(元晶/丸紅)'], ['變流器', '🔌 變流器(碩天)']]
     .map(([k, label]) => `<button class="cert-filter-btn ${orderEquip === k ? 'active' : ''}" onclick="setOrderEquip('${k}')">${label}</button>`).join('');
   if(!ORDER_DATA){ return; }
   if(ORDER_DATA.error){
@@ -9506,6 +9506,7 @@ function renderOrders(){
   const statusCls = {'已成立': 'ops-status-pending', '已出貨': 'ops-status-done', '取消': 'ops-status-pdf', '可能撤案': 'ops-status-pdf'};
   const vendorCls = v => VENDOR_CLASS[v] || 'vendor-other';
   const orderBlock = g => `<div style="margin-bottom:8px;">
+      ${g.vendor && g.vendor !== '元晶' && g.vendor !== '碩天' ? `<div><span class="vendor-pill vendor-other">${certEsc(g.vendor)}</span></div>` : ''}
       ${g.items.map(it => `<div>${certEsc(it.model)} <b>× ${certEsc(it.qty)}</b></div>`).join('')}
       <div style="margin:3px 0;"><span class="ops-status-pill ${statusCls[g.status] || 'ops-status-pdf'}">${certEsc(g.status)}</span></div>
       <div class="cert-src" style="white-space:nowrap;">下單:${certEsc(g.order_date || '—')}</div>
@@ -9578,7 +9579,7 @@ async function openOrderCase(caseNo){
           <div style="font-weight:800;font-size:14px;margin-bottom:4px;">📋 專案細節登記的規格</div>
           <div style="font-size:13px;background:#F6F8FB;border-radius:10px;padding:10px 12px;line-height:1.8;">模組：${certEsc(sp.module || '（未填）')}<br>變流器：${certEsc(sp.inverter || '（未填）')}</div>
           <div style="font-weight:800;font-size:14px;margin:14px 0 0;">📧 工程部配比信</div>${mailHtml}
-          <div style="font-weight:800;font-size:14px;margin:14px 0 2px;">🟦 模組訂單（元晶）</div>${eq(mods)}
+          <div style="font-weight:800;font-size:14px;margin:14px 0 2px;">🟦 模組訂單（元晶／丸紅）</div>${eq(mods)}
           <div style="font-weight:800;font-size:14px;margin:14px 0 2px;">🔌 變流器訂單（碩天）</div>${eq(invs)}
         </div>
         <div style="flex:1.4;min-width:340px;">
