@@ -58,17 +58,18 @@ function showSlotsTab(tab){
   document.querySelectorAll('#view-slots .subview').forEach(v=>v.classList.remove('active'));
   document.getElementById('slots-tab-'+tab).classList.add('active');
   document.querySelectorAll('#view-slots .tab').forEach(t=>t.classList.remove('active'));
-  document.querySelector('#view-slots .tab[data-slots-tab="'+tab+'"]').classList.add('active');
+  const tabEl = document.querySelector('#view-slots .tab[data-slots-tab="'+tab+'"]');   // 廠商日曆（vcal）沒有上方分頁，是側邊選單的獨立項目
+  if(tabEl) tabEl.classList.add('active');
   if(tab === 'joint' && typeof loadJoint === 'function') loadJoint();
   if(tab === 'vcal' && typeof renderVendorCalendar === 'function') renderVendorCalendar();
   if(tab === 'requests' && typeof loadVendorRequests === 'function') loadVendorRequests();
   // 2026-10-20：側邊選單「廠商時段協調」底下分成「屋主預約」（指派任務／聯合排程／完成安排／歷史紀錄）跟「廠商預約」（廠商申請）
-  const vendorSec = tab === 'requests';
+  const vendorSec = tab === 'requests' || tab === 'vcal';
   if(!vendorSec) window.SLOTS_OWNER_TAB = tab;
   const bar = document.querySelector('#view-slots .tabs');
   if(bar) bar.style.display = vendorSec ? 'none' : '';
   document.querySelectorAll('.nav-sub-item').forEach(n => n.classList.remove('active'));
-  const sub = document.querySelector('.nav-sub-item[data-sub="' + (vendorSec ? 'slots-vendor' : 'slots-owner') + '"]');
+  const sub = document.querySelector('.nav-sub-item[data-sub="' + (tab === 'vcal' ? 'slots-vcal' : vendorSec ? 'slots-vendor' : 'slots-owner') + '"]');
   if(sub) sub.classList.add('active');
   const nav = document.querySelector('.nav-item[data-view="slots"]'); if(nav) nav.classList.add('active');
   try{ saveNavState({view: 'slots', slotsTab: tab}); }catch(e){}

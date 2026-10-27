@@ -20,7 +20,10 @@ try{ VCAL_VENDOR = localStorage.getItem('vcalVendor') || ''; }catch(e){}
   .vc-day.weekend{background:#FBF8F2;}
   .vc-n{font-size:12px;font-weight:700;color:var(--text-muted);}
   .vc-day.today .vc-n{color:var(--sun-3,#C2570C);}
-  .vc-item{font-size:11px;line-height:1.35;border-radius:6px;padding:2px 5px;cursor:pointer;font-weight:600;word-break:break-all;}
+  .vc-item{font-size:11px;line-height:1.35;border-radius:6px;padding:2px 5px;cursor:pointer;font-weight:600;word-break:break-all;border-left:4px solid transparent;}
+  .vc-legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;margin-bottom:12px;align-items:center;}
+  .vc-legend span{display:inline-flex;align-items:center;gap:5px;}
+  .vc-legend i{width:12px;height:12px;border-radius:4px;display:inline-block;}
   .vc-item:hover{filter:brightness(.96);}
   .vc-sum{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
   .vc-sum-card{border:1.5px solid var(--border);background:#fff;border-radius:12px;padding:8px 12px;cursor:pointer;font-size:12px;line-height:1.5;min-width:140px;}
@@ -29,6 +32,42 @@ try{ VCAL_VENDOR = localStorage.getItem('vcalVendor') || ''; }catch(e){}
   `;
   document.head.appendChild(css);
 })();
+
+// 各項目的顏色（行程依項目上色：場勘／放樣／植筋／進場／掛表）。廠商行程頁 vendor.html 用同一組顏色。
+const VCAL_TYPE_COLORS = {
+  '場勘': ['#DBEAFE', '#1D4ED8'], '放樣': ['#CCFBF1', '#0F766E'], '植筋': ['#EDE9FE', '#6D28D9'],
+  '進場': ['#FFEDD5', '#C2410C'], '掛表': ['#DCFCE7', '#15803D'],
+};
+function vcalTypeColor(types){
+  const t = (types || []).find(x => VCAL_TYPE_COLORS[x]);
+  return VCAL_TYPE_COLORS[t] || ['#F1F5F9', '#475569'];
+}
+
+// 提供給廠商的行程日曆連結：每家廠商一條專屬連結，打開直接看到「📅 行程日曆」（自己的預約進度、確認收到）
+async function openVendorCalLinks(){
+  const old = document.getElementById('vcalLinksOverlay'); if(old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'vcalLinksOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.onclick = e => { if(e.target === ov) ov.remove(); };
+  ov.innerHTML = '<div style="background:#fff;border-radius:16px;padding:22px;max-width:520px;width:100%;max-height:90vh;overflow-y:auto;color:#1B2333;">載入中…</div>';
+  document.body.appendChild(ov);
+  try{
+    const res = await fetch(API_BASE + '/api/vendor-portal-links', {cache: 'no-store'});
+    const d = await res.json();
+    if(!res.ok) throw new Error(d.error || res.status);
+    window._vcalLinks = d.links.map(l => Object.assign({}, l, {cal: l.url + (l.url.includes('?') ? '&' : '?') + 'tab=booked'}));
+    ov.firstElementChild.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:17px;font-weight:800;">🔗 廠商行程日曆連結</div>
+        <button type="button" onclick="document.getElementById('vcalLinksOverlay').remove()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button></div>
+      <div style="font-size:12.5px;color:#6B7280;margin:6px 0 10px;line-height:1.7;">每家廠商一條專屬連結，點開就是「📅 行程日曆」：只看得到自己廠商的行程，各項目用不同顏色標示，可以直接按「確認收到」或回報問題。連結等於密碼，請勿轉傳給其他廠商。</div>
+      ${window._vcalLinks.map((l, i) => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid #EEE;">
+        <span class="vendor-pill ${VENDOR_CLASS[l.vendor] || 'vendor-other'}">${escHtml(l.vendor)}</span>
+        <div style="display:flex;gap:6px;"><button class="btn btn-ghost" style="padding:5px 10px;font-size:12px;" onclick="copyVnText(window._vcalLinks[${i}].cal, '已複製${escHtml(l.vendor)}的行程日曆連結')">複製連結</button>
+        <a class="btn btn-ghost" style="padding:5px 10px;font-size:12px;text-decoration:none;" target="_blank" rel="noopener" href="${escHtml(l.cal)}">開啟</a></div></div>`).join('')}`;
+  }catch(e){
+    ov.firstElementChild.innerHTML = '<div>載入失敗：' + escHtml(e.message) + '</div>';
+  }
+}
 
 function vcalPickVendor(v){
   VCAL_VENDOR = (VCAL_VENDOR === v) ? '' : v;
@@ -56,11 +95,14 @@ function renderVendorCalendar(){
   const vendors = Object.keys(sum).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
   if(VCAL_VENDOR && !sum[VCAL_VENDOR]) VCAL_VENDOR = '';
   const fmtLast = d => d.slice(0, 4) + '/' + Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10));
-  const sumHtml = vendors.length ? `<div class="vc-sum">${vendors.map(v => `
+  const legendHtml = `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+      <div class="vc-legend" style="margin:0;">${Object.keys(VCAL_TYPE_COLORS).map(t => `<span><i style="background:${VCAL_TYPE_COLORS[t][1]};"></i>${t}</span>`).join('')}</div>
+      <button class="btn btn-primary" style="padding:8px 14px;font-size:12.5px;white-space:nowrap;" onclick="openVendorCalLinks()">🔗 提供給廠商的行程日曆連結</button></div>`;
+  const sumHtml = legendHtml + (vendors.length ? `<div class="vc-sum">${vendors.map(v => `
       <div class="vc-sum-card ${VCAL_VENDOR === v ? 'active' : ''}" onclick="vcalPickVendor('${escHtml(v)}')" title="點一下只看這家廠商，再點一次看全部">
         <span class="vendor-pill ${VENDOR_CLASS[v] || 'vendor-other'}">${escHtml(v)}</span><br>
         已排 <b>${sum[v].n}</b> 筆｜最後排到 <b>${fmtLast(sum[v].last)}</b>
-      </div>`).join('')}</div>` : '';
+      </div>`).join('')}</div>` : '');
 
   const shown = (VCAL_VENDOR ? all.filter(b => b.vendor === VCAL_VENDOR) : all).filter(b => b.date >= monthStart);
   if(!shown.length){
@@ -88,7 +130,8 @@ function renderVendorCalendar(){
       const items = list.map(b => {
         const ack = b.vendor_can_ack ? (b.vendor_ack_at ? ' ✓' : ' ⏳') : '';
         const label = (b.start_time || '') + ' ' + (VCAL_VENDOR ? '' : b.vendor + ' ') + typeShort(b.type) + ' ' + (b.case || '');
-        return `<div class="vc-item ${VENDOR_CLASS[b.vendor] || 'vendor-other'}" onclick="showSlotBookingDetail('${b.record_id}')" title="${escHtml(label + (b.alias ? '　' + b.alias : '') + (b.vendor_ack_at ? '（廠商已確認）' : b.vendor_can_ack ? '（廠商未確認）' : ''))}">${escHtml(label.trim())}${ack}</div>`;
+        const [bg, fg] = vcalTypeColor(b.type);
+        return `<div class="vc-item" style="background:${bg};color:${fg};border-left-color:${fg};" onclick="showSlotBookingDetail('${b.record_id}')" title="${escHtml(label + (b.alias ? '　' + b.alias : '') + (b.vendor_ack_at ? '（廠商已確認）' : b.vendor_can_ack ? '（廠商未確認）' : ''))}">${escHtml(label.trim())}${ack}</div>`;
       }).join('');
       cells += `<div class="vc-day ${iso === today ? 'today' : ''} ${iso < today ? 'past' : ''} ${wd === 0 || wd === 6 ? 'weekend' : ''}"><span class="vc-n">${d}</span>${items}</div>`;
     }

@@ -160,8 +160,14 @@ async function init(){
     if(b){ tab = 'booked'; calSel = b.date; calMonth = b.date.slice(0, 7); openB = bid; }
     else { tab = 'booked'; deepMissing = true; }
   }
+  if(new URLSearchParams(location.search).get('tab') === 'booked') tab = 'booked';   // 「行程日曆連結」：直接開到行程日曆
   render();
 }
+
+// 行程依項目上色（跟陽光主控台的廠商日曆同一組顏色）
+const TYPE_COLORS = {'場勘': ['#DBEAFE', '#1D4ED8'], '放樣': ['#CCFBF1', '#0F766E'], '植筋': ['#EDE9FE', '#6D28D9'], '進場': ['#FFEDD5', '#C2410C'], '掛表': ['#DCFCE7', '#15803D']};
+function typeColor(types){ const t = (types || []).find(x => TYPE_COLORS[x]); return TYPE_COLORS[t] || ['#F1F5F9', '#475569']; }
+function typeChips(types){ return (types || []).map(t => { const c = TYPE_COLORS[t] || ['#F1F5F9', '#475569']; return `<span class="chip" style="margin-top:0;background:${c[0]};color:${c[1]};">${esc(t)}</span>`; }).join(''); }
 
 function render(){
   const waiting = D.requests.filter(r => r.status === '待處理').length;
@@ -511,21 +517,26 @@ function renderBooked(){
   for(let d = 1; d <= dim; d++){
     const iso = `${calMonth}-${String(d).padStart(2, '0')}`;
     const list = byDay[iso] || [];
-    const dots = list.slice(0, 4).map(b => `<span class="dot ${bookingStatus(b)}"></span>`).join('');
+    const ring = {ok: '', wait: 'box-shadow:0 0 0 2px #fff,0 0 0 3.5px #F2A30C;', issue: 'box-shadow:0 0 0 2px #fff,0 0 0 3.5px #E5484D;'};
+    const dots = list.slice(0, 4).map(b => `<span class="dot" style="background:${typeColor(b.types)[1]};${ring[bookingStatus(b)]}"></span>`).join('');
     cells += `<div class="cal-day ${iso === today ? 'today' : ''} ${iso === calSel ? 'sel' : ''}" onclick="calPick('${iso}')"><span class="n">${d}</span>
       <div class="cal-dots">${dots}</div>${list.length > 4 ? `<span class="cal-more">+${list.length - 4}</span>` : ''}</div>`;
   }
   const dayList = (byDay[calSel] || []).slice().sort((a, b) => a.start.localeCompare(b.start));
+  const upcomingList = bks.filter(b => b.date >= today);
+  const upcomingCount = upcomingList.length, lastUpcoming = upcomingList.map(b => b.date).sort().pop() || '';
   const pending = unackedUpcoming();
   pane.innerHTML = `${deepMissing ? '<div class="card" style="border-color:#F3C5C5;">找不到你點的那筆行程（可能已被取消或改期），請看下面的日曆。</div>' : ''}
     ${pending.length ? `<div class="card" style="border-color:#F2C46B;background:#FFF9EC;"><h2 style="font-size:15.5px;">⏳ 等您確認的行程（${pending.length}）</h2>
       ${pending.slice(0, 8).map(b => `<div class="case" style="margin-top:8px;" onclick="calSel='${b.date}';calMonth='${b.date.slice(0, 7)}';openB='${b.id}';renderBooked()">
-        <b>${esc(dayLabel(b.date))} ${esc(b.start)}</b> ${b.types.map(t => `<span class="chip" style="margin-top:0;">${esc(t)}</span>`).join('')}
+        <b>${esc(dayLabel(b.date))} ${esc(b.start)}</b> ${typeChips(b.types)}
         <div>${esc(b.case)} <span class="muted">${esc(b.alias || '')}</span></div></div>`).join('')}${pending.length > 8 ? `<div class="muted" style="margin-top:6px;">還有 ${pending.length - 8} 筆，請看日曆</div>` : ''}</div>` : ''}
     <div class="card">
       <div class="cal-head"><button class="cal-nav" onclick="calGo(-1)">‹</button><b>${y} 年 ${m} 月</b><button class="cal-nav" onclick="calGo(1)">›</button></div>
       <div class="cal-grid">${['日', '一', '二', '三', '四', '五', '六'].map(t => `<div class="cal-dow">${t}</div>`).join('')}${cells}</div>
-      <div class="legend"><span><i class="dot ok"></i>已確認</span><span><i class="dot wait"></i>等您確認</span><span><i class="dot issue"></i>已回報問題</span></div>
+      <div class="legend">${Object.keys(TYPE_COLORS).map(t => `<span><i class="dot" style="background:${TYPE_COLORS[t][1]};"></i>${t}</span>`).join('')}</div>
+      <div class="legend" style="margin-top:6px;"><span><i class="dot" style="background:#94A3B8;"></i>已確認</span><span><i class="dot" style="background:#94A3B8;box-shadow:0 0 0 2px #fff,0 0 0 3.5px #F2A30C;"></i>圓點外圈橘色＝等您確認</span><span><i class="dot" style="background:#94A3B8;box-shadow:0 0 0 2px #fff,0 0 0 3.5px #E5484D;"></i>紅色＝已回報問題</span></div>
+      ${upcomingCount ? `<div class="muted" style="margin-top:8px;font-size:13px;">📌 目前已排 <b>${upcomingCount}</b> 筆行程，最後排到 <b>${esc(dayLabel(lastUpcoming))}</b></div>` : ''}
       <div class="muted" style="margin-top:8px;font-size:12.5px;">這份日曆跟陽光窗口看到的是同一份資料；行程改日期或時間後，會需要您重新確認。</div>
     </div>
     <div class="card">
@@ -542,7 +553,7 @@ function renderBooked(){
 function bookingCard(b){
   const st = bookingStatus(b), canAct = b.date >= todayIso();
   return `<div class="bk" id="bk_${esc(b.id)}">
-    <div class="row2"><div><b style="font-size:16px;">${esc(b.start)}–${esc(b.end)}</b> ${b.types.map(t => `<span class="chip" style="margin-top:0;">${esc(t)}</span>`).join('')}</div>${statusChip(b)}</div>
+    <div class="row2"><div><b style="font-size:16px;">${esc(b.start)}–${esc(b.end)}</b> ${typeChips(b.types)}</div>${statusChip(b)}</div>
     <div style="margin-top:6px;"><b>${esc(b.case)}</b> <span class="muted">${esc(b.alias || '')}</span></div>
     <div class="kv">
       ${b.time_text && b.time_text !== (b.start + '–' + b.end) ? `<div><span class="k">時間：</span>${esc(b.time_text)}</div>` : ''}
