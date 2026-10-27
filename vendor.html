@@ -195,10 +195,24 @@ function render(){
       <div class="tab ${tab === 'new' ? 'active' : ''}" onclick="setTab('new')">＋ 提出預約</div>
       <div class="tab ${tab === 'mine' ? 'active' : ''}" onclick="setTab('mine')">我的申請${D.requests.length ? '（' + D.requests.length + '）' : ''}</div>
       <div class="tab ${tab === 'booked' ? 'active' : ''}" onclick="setTab('booked')">📅 行程日曆${unackedUpcoming().length ? ' <span style="background:#E5484D;color:#fff;border-radius:99px;padding:1px 7px;font-size:12px;">' + unackedUpcoming().length + '</span>' : ''}</div>
+      <div class="tab ${tab === 'stock' ? 'active' : ''}" onclick="setTab('stock')">📦 料件庫存${(D.stock || []).length ? '（' + D.stock.length + '）' : ''}</div>
     </div>${tab !== 'booked' && unackedUpcoming().length ? `<div class="alertbar" onclick="setTab('booked')">⏳ 有 ${unackedUpcoming().length} 筆行程等您確認 ➜ 點這裡查看</div>` : ''}<div id="pane"></div>`;
   if(tab === 'new') renderNew();
   else if(tab === 'mine') renderMine();
+  else if(tab === 'stock') renderStock();
   else renderBooked();
+}
+// ---------- 料件庫存（2026-10-27）：陽光登記「還擺在現場、沒用到」的料件，請廠商核對 ----------
+function renderStock(){
+  const list = D.stock || [];
+  const pane = document.getElementById('pane');
+  if(!list.length){ pane.innerHTML = '<div class="card muted">目前沒有登記在您這邊的剩餘料件。</div>'; return; }
+  pane.innerHTML = `<div class="card" style="border-color:#F2C46B;background:#FFF9EC;">以下是陽光登記放在您那邊、還沒用到的料件，請核對現場數量是否一致；不一致或已用掉，請告知陽光窗口更新。</div>` +
+    list.map(s => `<div class="card">
+      <div><b>${esc(s.case_text || '（未指定案場）')}</b></div>
+      <div style="white-space:pre-wrap;margin-top:6px;">${esc(s.content)}</div>
+      <div class="muted" style="margin-top:6px;font-size:13px;">${s.ship_date ? '原出貨日：' + esc(dayLabel(s.ship_date)) : '無出貨日期'}${s.date ? '｜登記於 ' + esc(dayLabel(s.date)) : ''}</div>
+    </div>`).join('');
 }
 function setTab(t){ tab = t; if(t === 'new' && !picked) {} render(); }
 
