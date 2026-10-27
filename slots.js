@@ -246,8 +246,7 @@ async function forceVendorAck(id, unack){
   if(unack){
     if(!confirm('確定把這筆改回「廠商未確認」嗎？')) return;
   }else{
-    by = prompt('由窗口代廠商確認這筆行程。
-備註跟誰確認的（選填，例如：電話跟王先生確認）：', '');
+    by = prompt('由窗口代廠商確認這筆行程。\n備註跟誰確認的（選填，例如：電話跟王先生確認）：', '');
     if(by === null) return;
   }
   try{
