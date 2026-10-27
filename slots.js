@@ -1128,7 +1128,7 @@ function mergeCompanionBookings(list){
   });
   return out;
 }
-function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, canCancel){
+function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, canCancel, canEditPast){
   if(!container) return;
   if(poolSize === 0){ container.innerHTML = `<div class="login-note">${emptyMsg}</div>`; return; }
   if(list.length === 0){ container.innerHTML = '<div class="login-note">沒有符合篩選條件的預約。</div>'; return; }
@@ -1161,7 +1161,7 @@ function renderBookingGroups(container, list, poolSize, newestFirst, emptyMsg, c
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;${b.vendor_notified_at ? 'color:#16A34A;border-color:#BFE6CF;' : ''}" onclick="openVendorNotice('${b.record_id}')" title="${b.vendor_notified_at ? '已通知廠商：' + fmtDateTimeTW(b.vendor_notified_at) : '確認屋主資料後，傳卡片到廠商群組'}">${b.vendor_notified_at ? '✓ 已通知廠商' : '📤 通知廠商'}</button>`}
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="notifyRep('${b.record_id}')" title="業務有綁 LINE 就直接用機器人通知；沒綁（或離職）會產生連結，讓你轉傳給代辦同事">📨 通知業務</button>
               <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="openSlackNotice('${b.record_id}')" title="把「通知業務」的卡片用 Slack 私訊傳給同事（不吃 LINE 額度）">💬 Slack</button>`}
-              ${canCancel && !b.cancelled ? `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="openEditBooking('${b.record_id}')" title="改屋主資料、日期時間、備註，或把另一案併進來">✏️ 變更</button>` : ''}
+              ${(canCancel || canEditPast) && !b.cancelled ? `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="openEditBooking('${b.record_id}', ${canCancel ? 'false' : 'true'})" title="改屋主資料、日期時間、備註，或把另一案併進來">✏️ ${canCancel ? '變更' : '編輯'}</button>` : ''}
               ${canCancel && !b.cancelled ? `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;color:#B42318;" onclick="openCancelBooking('${b.record_id}')">❌ 取消預約</button>` : ''}
               ${b.cancelled ? '' : `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;flex-shrink:0;" onclick="deleteSlotBooking('${b.record_id}')">刪除</button>`}
               ${b.cancelled ? `<div style="flex-basis:100%;font-size:11.5px;color:#B42318;padding-left:2px;">取消原因：${escHtml(b.cancel_reason || '（未填）')}${b.cancelled_at ? '　' + fmtDateTimeTW(b.cancelled_at) : ''}</div>` : ''}
@@ -1205,7 +1205,7 @@ function renderVendorSlots(){
   if(histTab) histTab.textContent = '🗂 歷史紀錄' + (past.length ? ' ' + past.length : '');
   renderBookingGroups(document.getElementById('slotsContainer'), shownUp, upcoming.length, false,
     '目前沒有今天以後的預約，點上面「➕ 預約時段」或「📨 指派給業務」新增一筆。', true);
-  renderBookingGroups(document.getElementById('slotsHistoryContainer'), shownPast, past.length, true, '還沒有歷史紀錄。');
+  renderBookingGroups(document.getElementById('slotsHistoryContainer'), shownPast, past.length, true, '還沒有歷史紀錄。', false, true);
 }
 
 // 2026-10-05：查看業務當時送出的填單內容（唯讀，排成跟業務填單頁類似的版面）
@@ -1612,8 +1612,8 @@ function confirmDanger(message, onYes, yesLabel){
 
 // ---- 變更預約：改屋主資料、日期時間、備註，或加入「同時預約」的案件（把另一案併進這筆預約）----
 function closeEditBooking(){ const ov = document.getElementById('editBookingOverlay'); if(ov) ov.remove(); }
-function openEditBooking(recordId){
-  confirmDanger('確定要變更這筆預約的資料嗎？', () => showEditBooking(recordId));
+function openEditBooking(recordId, isPast){
+  confirmDanger(isPast ? '這是已經過去的歷史預約，確定要編輯嗎？<br><span style="font-size:12.5px;font-weight:600;color:#6B7280;">例如當天沒施工要改約；改成今天以後的日期，這筆會移回「完成安排」。</span>' : '確定要變更這筆預約的資料嗎？', () => showEditBooking(recordId), isPast ? '是，編輯' : '');
 }
 function showEditBooking(recordId){
   const b = SLOT_BOOKINGS.find(x => x.record_id === recordId);
