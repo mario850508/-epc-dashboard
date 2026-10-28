@@ -392,10 +392,14 @@ function renderJointDetail(){
       <div id="jtPlanWarn" style="font-size:12px;color:#B42318;margin-top:6px;"></div>
       <button type="button" class="btn btn-primary" id="jtConfirmBtn" style="width:100%;justify-content:center;padding:11px;margin-top:12px;" onclick="confirmJointPlan()">✅ 確認行程，產生給屋主的確認卡</button>`;
   }
+  // 2026-10-28：已成立預約的案件，一次合成「一張」卡片通知廠商（不用每案各傳一張）
+  const doneCnt = g.tasks.filter(t => t.done && t.booking_id).length;
+  const bulkBtn = doneCnt >= 2 ? `<button type="button" class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;margin:4px 0 12px;" onclick="jtNotifyVendorAll()">📤 一起通知廠商（${doneCnt} 筆合成一張卡片）</button>` : '';
   box.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-size:17px;font-weight:800;">🧩 ${escHtml(g.title)} ${jtStatusChip(g.status)}</div>
       <button type="button" onclick="document.getElementById('jointDetailOverlay').remove()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button></div>
     <div style="font-size:12px;color:var(--text-muted);margin:6px 0 10px;line-height:1.7;">${jtPrefsText(g.prefs, true)}｜回覆 ${g.counts.replied}/${g.counts.total}｜確認 ${g.counts.confirmed}/${g.counts.total}</div>
+    ${bulkBtn}
     <table style="width:100%;border-collapse:collapse;"><thead><tr style="font-size:11.5px;color:var(--text-muted);text-align:left;"><th style="padding:4px 6px;">案件</th><th style="padding:4px 6px;">狀態</th><th style="padding:4px 6px;">屋主回覆</th><th style="padding:4px 6px;"></th></tr></thead>
       <tbody>${memberRows}</tbody></table>
     ${editor}
@@ -475,6 +479,34 @@ function jtNotifyVendor(bookingId){
   const ov = document.getElementById('jointDetailOverlay');
   if(ov) ov.remove();   // 通知廠商視窗要疊在最上面，先關掉聯合排程視窗
   openVendorNotice(bookingId);
+}
+// 把這個聯合排程已成立預約的案件全部勾進「一起通知廠商」，合成一張卡片（沿用完成安排那邊的一起通知流程）
+async function jtNotifyVendorAll(){
+  const g = JOINT_CUR;
+  if(!g) return;
+  const ids = g.tasks.filter(t => t.done && t.booking_id).map(t => t.booking_id);
+  if(!ids.length) return;
+  const loaded = () => new Set(SLOT_BOOKINGS.map(b => b.record_id));
+  if(!ids.every(i => loaded().has(i))){   // 剛成立的預約還沒進清單：重新載入一次
+    showToast('載入最新預約…');
+    try{ await loadVendorSlots(); }catch(e){}
+  }
+  const have = loaded();
+  const missing = ids.filter(i => !have.has(i));
+  if(missing.length){ showToast('有預約還沒載入完成，請稍候幾秒再按一次'); return; }
+  BATCH_SEL.clear();
+  ids.forEach(i => {
+    BATCH_SEL.add(i);
+    const b = SLOT_BOOKINGS.find(x => x.record_id === i);
+    if(!b) return;
+    // 「同時預約」的案件（同排 41、42、46 號…）各有自己的預約記錄，一起勾進去，卡片上才會合成「40＋41＋42＋46」一筆
+    const comps = splitNames(b.companions);
+    SLOT_BOOKINGS.filter(o => o.record_id !== i && !o.cancelled && o.vendor === b.vendor && o.date === b.date && o.start_time === b.start_time
+      && o.end_time === b.end_time && comps.includes(o.case)).forEach(o => BATCH_SEL.add(o.record_id));
+  });
+  const ov = document.getElementById('jointDetailOverlay');
+  if(ov) ov.remove();
+  openBatchVendorNotice(g.vendor);
 }
 async function confirmForOwner(taskId){
   const g = JOINT_CUR;
