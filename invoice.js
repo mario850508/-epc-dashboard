@@ -69,6 +69,7 @@ function renderInvBatchBar(scoped){
   if(next && !pays.includes(next.pay)) pays.unshift(next.pay);
   if(INV_BATCH !== 'all' && !pays.includes(INV_BATCH)) pays.unshift(INV_BATCH);
   let html = `<div class="inv-batch-row"><span>🗓 本期：<b>收件截止 ${invMD(next && next.cutoff)}</b> → <b>${invMD(next && next.pay)} 付款</b>（今天標「可付款」的歸這批）</span>
+    <button class="btn btn-ghost" style="padding:4px 10px;font-size:12.5px;" onclick="openInvCalendar()">📅 截止／出款日曆</button>
     <label style="margin-left:auto;">付款批次 <select class="cert-rename-input" style="width:auto;padding:4px 8px;" onchange="setInvBatch(this.value)">
       <option value="all"${INV_BATCH === 'all' ? ' selected' : ''}>全部</option>
       ${pays.map(p => `<option value="${p}"${INV_BATCH === p ? ' selected' : ''}>${p} 付款（截止 ${invMD(invCutoffOf(p))}）・${invBatchItems(p, scoped).length} 張</option>`).join('')}
@@ -214,6 +215,7 @@ function renderInvSelBar(){
     <span class="inv-muted" style="margin-left:6px;">輸出：</span>
     <button class="btn" style="padding:6px 12px;font-size:12.5px;" onclick="openInvDetailSheet()">📋 發票明細（給廠商）</button>
     <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="downloadInvZip()">📦 下載拆分的發票 PDF（ZIP）</button>
+    <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="downloadInvDocsZip()">🗂 打包請款節點文件（前台上傳用）</button>
     <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="INV_SELECTED.clear(); renderInvoices();">取消勾選</button>`;
 }
 
@@ -277,6 +279,76 @@ async function copyInvDetail(){
     showToast('複製失敗：' + e.message);
   }
 }
+// ---- 收件截止／出款日曆（2026-10-28 使用者要求：快速看什麼時候截止、什麼時候出款）----
+let INV_CAL_MONTH = null;   // 'YYYY-MM'
+function openInvCalendar(){
+  if(!INV_CAL_MONTH){ const d = new Date(); INV_CAL_MONTH = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+  renderInvCalendar();
+  INV_OPEN_ID = 'calendar';
+  document.getElementById('invModalOverlay').classList.add('show');
+}
+function invCalShift(n){
+  const [y, m] = INV_CAL_MONTH.split('-').map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  INV_CAL_MONTH = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  renderInvCalendar();
+}
+function renderInvCalendar(){
+  const [y, m] = INV_CAL_MONTH.split('-').map(Number);
+  const items = (INV_SCHED && INV_SCHED.items) || [];
+  const ev = {};
+  items.forEach(x => {
+    (ev[x.cutoff] = ev[x.cutoff] || []).push({k: 'cut', pay: x.pay});
+    (ev[x.pay] = ev[x.pay] || []).push({k: 'pay', cutoff: x.cutoff, auto: x.auto});
+  });
+  const pad = n => String(n).padStart(2, '0');
+  const today = new Date(); const todayStr = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
+  const first = new Date(y, m - 1, 1), days = new Date(y, m, 0).getDate();
+  let cells = '';
+  for(let i = 0; i < first.getDay(); i++) cells += '<div class="inv-cal-cell empty"></div>';
+  for(let d = 1; d <= days; d++){
+    const ds = `${y}-${pad(m)}-${pad(d)}`;
+    const tags = (ev[ds] || []).map(e => {
+      if(e.k === 'cut') return `<div class="inv-cal-tag cut">收件截止<span>→ ${invMD(e.pay)} 出款</span></div>`;
+      const list = invBatchItems(ds);
+      const sum = list.reduce((s, it) => s + (Number(it.total) || 0), 0);
+      return `<div class="inv-cal-tag pay${e.auto ? ' auto' : ''}" ${list.length ? `onclick="closeInvoiceModal(); setInvFilter('all'); setInvBatch('${ds}');" style="cursor:pointer;"` : ''}>出款${list.length ? `<span>${list.length} 張 ${invMoney(sum)}</span>` : ''}</div>`;
+    }).join('');
+    cells += `<div class="inv-cal-cell${ds === todayStr ? ' today' : ''}"><div class="inv-cal-day">${d}</div>${tags}</div>`;
+  }
+  document.getElementById('invModalTitle').textContent = '收件截止／出款日曆';
+  document.getElementById('invModalBody').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <button class="btn btn-ghost" style="padding:4px 12px;" onclick="invCalShift(-1)">◀</button>
+      <b style="font-size:16px;">${y} 年 ${m} 月</b>
+      <button class="btn btn-ghost" style="padding:4px 12px;" onclick="invCalShift(1)">▶</button>
+      <span class="inv-muted" style="margin-left:auto;"><span class="inv-cal-tag cut" style="display:inline-block;">收件截止</span> 發票要在這天前匯入、確認完　<span class="inv-cal-tag pay" style="display:inline-block;">出款</span> 會計匯款，當天那批自動轉「已付款」（點一下看付款清單）</span>
+    </div>
+    <div class="inv-cal-grid">${['日', '一', '二', '三', '四', '五', '六'].map(w => `<div class="inv-cal-head">${w}</div>`).join('')}${cells}</div>
+    <div class="inv-muted" style="margin-top:8px;">虛線框的出款日是照「每兩週」自動往後排的，雲端資料夾開好後如果日期不一樣，跟 Claude 說要改哪天。</div>`;
+}
+
+// ---- 打包請款節點文件（2026-10-28：可付款的發票要把節點文件傳到能創前台）----
+// 後端 /api/invoice/docs-zip：每案一個資料夾＝發票 PDF＋各請款節點的文件子資料夾，缺的列在「缺檔清單.txt」
+async function downloadInvDocsZip(){
+  const sel = invSelected();
+  if(!sel.length) return;
+  showToast(`打包 ${sel.length} 張發票的節點文件中，檔案多的話要 1～2 分鐘…`);
+  try{
+    const res = await fetch(API_BASE + '/api/invoice/docs-zip', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: sel.map(it => it.id)})});
+    if(!res.ok){ const d = await res.json().catch(() => ({})); throw new Error(d.error || res.status); }
+    const blob = await res.blob();
+    const m = /filename\*=UTF-8''([^;]+)/.exec(res.headers.get('Content-Disposition') || '');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = m ? decodeURIComponent(m[1]) : '請款節點文件.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    const miss = Number(res.headers.get('X-Missing-Count') || 0);
+    showToast(`已下載：${res.headers.get('X-Files') || '?'} 個檔案` + (miss ? `；${miss} 項沒檔案，看壓縮檔裡的「缺檔清單.txt」` : '，節點文件都有'));
+  }catch(e){ showToast('打包失敗：' + e.message); }
+}
+
 async function downloadInvZip(){
   const sel = invSelected();
   if(!sel.length) return;

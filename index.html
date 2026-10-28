@@ -639,6 +639,17 @@
   .inv-job.done{border-color:var(--success);}
   .inv-batch-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;margin-bottom:8px;}
   .inv-batch-sum{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;background:#EEF5FF;border:1px solid #C9DCF7;border-radius:10px;padding:8px 12px;margin-bottom:10px;}
+  .inv-cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;}
+  .inv-cal-head{text-align:center;font-size:12px;color:var(--text-muted);padding:4px 0;}
+  .inv-cal-cell{min-height:78px;border:1px solid var(--border);border-radius:8px;padding:4px 5px;background:var(--surface);font-size:12px;}
+  .inv-cal-cell.empty{border:none;background:transparent;}
+  .inv-cal-cell.today{outline:2px solid var(--primary);outline-offset:-2px;}
+  .inv-cal-day{font-weight:700;font-size:12px;margin-bottom:3px;}
+  .inv-cal-tag{border-radius:6px;padding:2px 5px;margin-top:2px;font-size:11.5px;font-weight:700;line-height:1.3;}
+  .inv-cal-tag span{display:block;font-weight:400;font-size:11px;}
+  .inv-cal-tag.cut{background:#FFF0D6;color:#B8720A;}
+  .inv-cal-tag.pay{background:var(--success-soft);color:var(--success);}
+  .inv-cal-tag.pay.auto{border:1px dashed var(--success);}
   .inv-batch-chip{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2px 9px;font-size:12px;}
   .inv-job-2{right:330px;}
   @media (max-width: 700px){ .inv-job-2{right:18px;bottom:150px;} }
@@ -9999,7 +10010,7 @@ async function confirmCertAbbr(id){
 <script src="line-health.js?v=2"></script>
 <script src="shipping.js?v=4"></script>
 <script src="meter-check.js?v=19"></script>
-<script src="invoice.js?v=9"></script>
+<script src="invoice.js?v=10"></script>
 
 </body>
 </html>
