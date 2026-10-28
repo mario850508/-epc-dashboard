@@ -603,6 +603,33 @@
     .cert-pdf-frame{height:55vh;}
   }
 
+  /* ---------- 發票請款（2026-10-28）---------- */
+  .inv-drop{border:2px dashed var(--border);border-radius:12px;padding:22px;text-align:center;cursor:pointer;background:var(--surface-2);}
+  .inv-drop.drag{border-color:var(--primary);background:var(--primary-soft);}
+  .inv-muted{font-size:11.5px;color:var(--text-muted);}
+  .inv-row{cursor:pointer;}
+  .inv-row:hover{background:#F3F7FF;}
+  .inv-badge{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:10px;font-weight:700;}
+  .inv-ok{background:var(--success-soft);color:var(--success);}
+  .inv-bad{background:#FDECEC;color:#C0392B;}
+  .inv-pill-bad{background:#FDECEC;color:#C0392B;}
+  .inv-warn-mini{font-size:11px;color:#B8720A;margin-top:3px;}
+  .inv-warn-box{background:#FFF7E6;border:1px solid #F5D48A;border-radius:8px;padding:8px 10px;font-size:12.5px;}
+  .inv-warn-box ul{margin:4px 0 0;padding-left:18px;}
+  .inv-side{font-size:13px;max-height:72vh;overflow:auto;}
+  .inv-kv{display:grid;grid-template-columns:80px 1fr;gap:4px 8px;font-size:12.5px;}
+  .inv-kv>div:nth-child(odd){color:var(--text-muted);}
+  .inv-src{font-size:11.5px;color:var(--text-muted);margin-top:3px;word-break:break-all;}
+  .inv-src-bad{color:#C0392B;}
+  .inv-node-picks{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;}
+  .inv-doc-node{border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin-bottom:6px;}
+  .inv-doc-node-title{font-weight:700;font-size:12.5px;margin-bottom:3px;}
+  .inv-doc-req{font-size:12.5px;margin:3px 0;}
+  .inv-doc-req.ok{color:var(--success);}
+  .inv-doc-req.bad{color:#C0392B;}
+  .inv-sched{margin-top:6px;}
+  .inv-sched-on td{background:#FFF7E6;font-weight:700;}
+
   .ops-cat{margin-bottom:18px;}
   .ops-cat-title{font-weight:700;font-size:13px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--primary-soft);color:var(--primary-dark);}
   .ops-item{padding:10px 0;border-bottom:1px solid var(--border);}
@@ -1071,6 +1098,9 @@
           <div class="nav-sub-item" data-sub="mc-cases" onclick="showMcTab('cases')">掛表案件</div>
           <div class="nav-sub-item" data-sub="mc-withdrawn" onclick="showMcTab('withdrawn')">撤案案件</div>
           <div class="nav-sub-item" data-sub="mc-tariff" onclick="showMcTab('tariff')">電價表</div>
+        </div>
+        <div class="nav-item" data-view="invoice" onclick="showView('invoice'); initInvoiceDrop(); loadInvoices();">
+          <span class="nav-icon">🧾</span> 發票請款
         </div>
         <div class="nav-item" data-view="ops" onclick="showView('ops'); loadOpsCases();">
           <span class="nav-icon">🔧</span> 維運團隊
@@ -2564,6 +2594,34 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
 
     <!-- ============ 廠商時段協調（2026-10-01 新增）============ -->
     <!-- ============ 採購專區（2026-10-07）============ -->
+    <section class="view" id="view-invoice">
+      <div class="topbar">
+        <div>
+          <div class="crumb">功能模組 / 發票請款</div>
+          <h1 class="page-title">發票請款</h1>
+          <div class="page-sub">上傳廠商請款發票 → 自動比對案場、請款節點、工程合約金額、函文是否已取得</div>
+        </div>
+        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="loadInvoices()">🔄 重新整理</button>
+      </div>
+      <div class="panel">
+        <div id="invDrop" class="inv-drop" onclick="document.getElementById('invFileInput').click()">
+          <div style="font-size:26px;">🧾</div>
+          <div style="font-weight:700;">把發票掃描檔（PDF）拖到這裡，或點一下選檔</div>
+          <div class="inv-muted">一個 PDF 可以多頁（一頁一張發票），一次最多 10 份</div>
+          <input type="file" id="invFileInput" accept=".pdf,application/pdf" multiple style="display:none;" onchange="uploadInvoices(this.files)">
+        </div>
+        <div id="invProgress" class="inv-muted" style="margin-top:8px;min-height:18px;"></div>
+      </div>
+      <div class="panel">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+          <span id="invFilters"></span>
+          <input id="invSearch" class="cert-rename-input" style="max-width:220px;margin-left:auto;padding:5px 10px;" placeholder="搜尋發票號碼／案號／廠商" oninput="renderInvoices()">
+        </div>
+        <div id="invBox"><div class="login-note">載入中…</div></div>
+      </div>
+      <datalist id="invCaseList"></datalist>
+    </section>
+
     <section class="view" id="view-procure">
       <div class="topbar">
         <div>
@@ -2720,6 +2778,17 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         </div>
       </div>
     </section>
+
+    <!-- 發票請款：檢視／修正 modal -->
+    <div class="modal-overlay" id="invModalOverlay" onclick="if(event.target===this) closeInvoiceModal()">
+      <div class="modal-box" style="max-width:1200px;width:96vw;">
+        <div class="modal-header">
+          <div class="modal-title" id="invModalTitle">發票</div>
+          <button class="modal-close" onclick="closeInvoiceModal()">✕</button>
+        </div>
+        <div class="modal-body" id="invModalBody" style="max-height:none;"></div>
+      </div>
+    </div>
 
     <!-- 採購專區：出廠證明檢視／改名 modal -->
     <div class="modal-overlay" id="certModalOverlay" onclick="if(event.target===this) closeCertModal()">
@@ -9870,6 +9939,8 @@ async function confirmCertAbbr(id){
     loadVendorSlots();
   } else if(state && state.view === 'procure'){
     showProcureTab(state.procureTab || 'orders');
+  } else if(state && state.view === 'invoice'){
+    showView('invoice');
   } else if(state && state.view === 'metercheck'){
     window.MC_RESTORE_TAB = state.mcTab;   // showView 會覆寫導覽狀態，先記下分頁給 meter-check.js
     showView('metercheck');
@@ -9886,6 +9957,7 @@ async function confirmCertAbbr(id){
 <script src="line-health.js?v=2"></script>
 <script src="shipping.js?v=4"></script>
 <script src="meter-check.js?v=19"></script>
+<script src="invoice.js?v=1"></script>
 
 </body>
 </html>
