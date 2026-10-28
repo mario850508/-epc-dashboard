@@ -46,10 +46,35 @@ async function loadInvoices(){
 
 function setInvFilter(f){ INV_FILTER = f; renderInvoices(); }
 
+// ---- 廠商分類（2026-10-28 使用者：全部混在一起很亂，要能只看尚展／三創／曙光…，「全部」也保留）----
+const INV_VENDOR_NAMES = ['三創', '尚展', '曙光', '光鼎', '宇陽達', '聚曜', '澄品', '大昇', '展亦', '凰太竹', '國欽', '振庭'];
+let INV_VENDOR = (function(){ try{ return localStorage.getItem('invVendor') || 'all'; }catch(e){ return 'all'; } })();
+// 廠商＝比對到的案場的施作廠商；比對不到案場的看發票賣方名稱
+function invVendorOf(it){
+  if(it.vendor) return it.vendor;
+  const s = it.seller || '';
+  return INV_VENDOR_NAMES.find(v => s.includes(v)) || '其他';
+}
+function setInvVendor(v){
+  INV_VENDOR = v;
+  try{ localStorage.setItem('invVendor', v); }catch(e){}
+  renderInvoices();
+}
+function renderInvVendorTabs(){
+  const counts = {};
+  INV_ITEMS.forEach(it => { const v = invVendorOf(it); counts[v] = (counts[v] || 0) + 1; });
+  const vendors = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  if(INV_VENDOR !== 'all' && !counts[INV_VENDOR]) vendors.push(INV_VENDOR);
+  document.getElementById('invVendorTabs').innerHTML = [['all', '全部', INV_ITEMS.length]].concat(vendors.map(v => [v, v, counts[v] || 0]))
+    .map(([k, label, n]) => `<div class="tab ${INV_VENDOR === k ? 'active' : ''}" onclick="setInvVendor('${invEsc(k)}')">${invEsc(label)} <span class="inv-muted">${n}</span></div>`).join('');
+}
+
 function renderInvoices(){
+  renderInvVendorTabs();
   const q = (document.getElementById('invSearch') || {}).value || '';
-  const counts = {todo: 0, problem: 0, ok: 0, '可付款': 0, '退回': 0, '已付款': 0, all: INV_ITEMS.length};
-  INV_ITEMS.forEach(it => {
+  const scoped = INV_ITEMS.filter(it => INV_VENDOR === 'all' || invVendorOf(it) === INV_VENDOR);
+  const counts = {todo: 0, problem: 0, ok: 0, '可付款': 0, '退回': 0, '已付款': 0, all: scoped.length};
+  scoped.forEach(it => {
     const s = it.status || '待確認';
     if(s === '待確認'){ counts.todo++; if(invProblem(it)) counts.problem++; else counts.ok++; }
     else counts[s] = (counts[s] || 0) + 1;
@@ -58,7 +83,7 @@ function renderInvoices(){
   document.getElementById('invFilters').innerHTML = filters.map(([k, label]) =>
     `<button class="cert-filter-btn ${INV_FILTER === k ? 'active' : ''}" onclick="setInvFilter('${k}')">${label} ${counts[k] || 0}</button>`).join(' ');
 
-  let list = INV_ITEMS.filter(it => {
+  let list = scoped.filter(it => {
     const s = it.status || '待確認';
     if(INV_FILTER === 'todo') return s === '待確認';
     if(INV_FILTER === 'problem') return s === '待確認' && invProblem(it);
@@ -132,9 +157,9 @@ async function pollInvoiceJob(jobId){
     }
     const r = job.results || [];
     const ok = r.filter(x => x.record_id && !x.duplicate).length;
-    const dup = r.filter(x => x.duplicate).map(x => x.invoice_no);
+    const dup = r.filter(x => x.replaced).map(x => x.invoice_no);
     const err = r.filter(x => x.error).map(x => `${x.invoice_no || x.file}：${x.error}`);
-    prog.textContent = `✓ 新增 ${ok} 張發票` + (dup.length ? `；已存在略過：${dup.join('、')}` : '') + (err.length ? `；✗ ${err.join('；')}` : '') + (job.error ? `；✗ ${job.error}` : '');
+    prog.textContent = `✓ 新增 ${ok - dup.length} 張發票` + (dup.length ? `；已存在、覆蓋舊資料 ${dup.length} 張：${dup.join('、')}` : '') + (err.length ? `；✗ ${err.join('；')}` : '') + (job.error ? `；✗ ${job.error}` : '');
     INV_FILTER = 'todo';
     loadInvoices();
   }catch(e){
