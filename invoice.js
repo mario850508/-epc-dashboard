@@ -125,7 +125,7 @@ async function pollInvoiceJob(jobId){
     const job = await res.json();
     if(!res.ok) throw new Error(job.error || '查詢失敗');
     if(job.status === 'running'){
-      prog.textContent = `AI 辨識中… ${job.done} / ${job.total}（一頁約 10～20 秒）`;
+      prog.textContent = `辨識中… ${job.done} / ${job.total}（一頁約 15～30 秒）`;
       setTimeout(() => pollInvoiceJob(jobId), 4000);
       if(job.done) loadInvoices();
       return;
@@ -200,7 +200,8 @@ function openInvoiceModal(id){
       <div class="cert-side-label">金額 ${invOkBadge(amt.ok, amt.label)}</div>
       <div class="inv-src">發票總計 ${invMoney(amt.invoice_total)}　／　合約 ${invMoney(amt.expected)}（含稅）</div>
       ${schedRows ? `<table class="mc-table inv-sched"><thead><tr><th>工程合約付款期程</th><th style="text-align:right;">比例</th><th style="text-align:right;">含稅金額</th></tr></thead><tbody>${schedRows}</tbody></table>` : ''}
-      <div class="inv-src">${c.contract ? (c.contract.found ? `來源：${invEsc(c.contract.origin)} ${c.contract.file_url ? `<a href="${invEsc(c.contract.file_url)}" target="_blank">${invEsc(c.contract.filename)}</a>` : invEsc(c.contract.filename)}（${invEsc(c.contract.how)}）` : invEsc(c.contract.note)) : ''}</div>
+      <div class="inv-src">${c.contract ? (c.contract.found ? `來源：${invEsc(c.contract.origin)} ${c.contract.file_url ? `<a href="${invEsc(c.contract.file_url)}" target="_blank">${invEsc(c.contract.filename)}</a>` : invEsc(c.contract.filename)}（${invEsc(c.contract.how)}）` : '') : ''}${c.contract && c.contract.note ? `<div class="inv-src-bad">${invEsc(c.contract.note)}</div>` : ''}</div>
+      ${it.case_no && c.contract && (!c.contract.found || !Object.keys(sched).length) && !c.contract.reading ? `<button class="btn btn-ghost" style="margin-top:6px;padding:6px 12px;font-size:12.5px;" onclick="invPickContract('${it.id}')">⬆ 上傳工程合約（掃描檔）</button><div class="inv-src">剛簽約還沒掃描的：掃描後在這裡上傳（跟 EPC 簽的那份，不是「(潤特)」上包合約），系統讀出付款期程後自動重新判讀這案的發票</div>` : ''}
 
       <div class="cert-side-label">函文 ${invOkBadge(c.docs_ok, it.doc_check)}</div>
       ${docs || '<div class="inv-src">先選請款節點</div>'}
@@ -240,6 +241,60 @@ async function recheckInvoice(id, applyEdits){
     openInvoiceModal(id);
     showToast('已重新檢查');
   }catch(e){ showToast('✗ ' + e.message); }
+}
+
+// ---- 上傳工程合約（剛簽約、03 契約還沒有掃描檔的案件）----
+// 沿用掛表資訊確認的上傳（POST /api/procurement/drawings/sync，類型 工程合約，存案場圖面表；頁面上傳的 G 槽同步不會蓋掉），
+// 後端背景 OCR 約 30～60 秒，讀完後這案的發票自動重新檢查。mcFirstPages／mcB64 在 meter-check.js。
+function invPickContract(id){
+  const it = INV_ITEMS.find(x => x.id === id);
+  if(!it || !it.case_no) return;
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'application/pdf,.pdf';
+  inp.onchange = () => { if(inp.files[0]) invUploadContract(it.case_no, inp.files[0]); };
+  inp.click();
+}
+
+async function invUploadContract(caseNo, file){
+  if(!/\.pdf$/i.test(file.name)){ showToast('請選 PDF 檔'); return; }
+  if(/[(（_]\s*潤特/.test(file.name) && !confirm('檔名有「(潤特)」，這是上包合約，系統不會拿來比對。確定要上傳嗎？')) return;
+  showToast('上傳中…');
+  try{
+    let bytes = new Uint8Array(await file.arrayBuffer()), trimmed = false;
+    if(bytes.length > 5 * 1024 * 1024){
+      showToast('檔案比較大，先切前 6 頁（付款期程在第 3～4 頁）…');
+      const cut = await mcFirstPages(bytes, 6);
+      if(cut){ bytes = cut; trimmed = true; }
+    }
+    if(bytes.length > 10 * 1024 * 1024){ showToast('檔案太大（前 6 頁也超過 10MB），請降低掃描解析度再上傳'); return; }
+    const m = /(20\d{2})(\d{2})(\d{2})/.exec(file.name);
+    const docDate = m ? m[1] + '-' + m[2] + '-' + m[3] : new Date().toISOString().slice(0, 10);
+    const res = await fetch(API_BASE + '/api/procurement/drawings/sync', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({case_no: caseNo, kind: '工程合約', filename: file.name, doc_date: docDate,
+        src_path: '發票請款上傳（' + (invUser() || '未選我是誰') + '）', mtime: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        orig_size: file.size, trimmed, data: mcB64(bytes)}),
+    });
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    showToast('已上傳 ' + caseNo + ' 工程合約，背景讀取中，約 1 分鐘後自動重新判讀');
+    invRecheckCase(caseNo);
+    setTimeout(() => invRecheckCase(caseNo), 60000);
+    setTimeout(() => invRecheckCase(caseNo), 120000);
+  }catch(e){ showToast('上傳失敗：' + e.message); }
+}
+
+async function invRecheckCase(caseNo){
+  for(const it of INV_ITEMS.filter(x => x.case_no === caseNo)){
+    try{
+      const res = await fetch(API_BASE + '/api/invoice/' + it.id + '/recheck', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+      const data = await res.json();
+      if(res.ok){ const i = INV_ITEMS.findIndex(x => x.id === it.id); if(i >= 0) INV_ITEMS[i] = data.item; }
+    }catch(e){}
+  }
+  renderInvoices();
+  if(INV_OPEN_ID && INV_ITEMS.some(x => x.id === INV_OPEN_ID && x.case_no === caseNo)) openInvoiceModal(INV_OPEN_ID);
 }
 
 async function setInvoiceStatus(id, status){
