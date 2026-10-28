@@ -134,6 +134,11 @@ function renderInvSelBar(){
   const total = sel.reduce((s, it) => s + (Number(it.total) || 0), 0);
   bar.style.display = 'flex';
   bar.innerHTML = `<b>已勾選 ${sel.length} 張</b><span class="inv-muted">合計 ${invMoney(total)}</span>
+    <span class="inv-muted">改狀態：</span>
+    <button class="btn" style="padding:6px 12px;font-size:12.5px;background:var(--success);border-color:var(--success);" onclick="invBulkStatus('可付款')">✓ 可付款</button>
+    <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="invBulkStatus('已付款')">💰 已付款</button>
+    <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="invBulkStatus('待確認')">待確認</button>
+    <span class="inv-muted" style="margin-left:6px;">輸出：</span>
     <button class="btn" style="padding:6px 12px;font-size:12.5px;" onclick="openInvDetailSheet()">📋 發票明細（給廠商）</button>
     <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="downloadInvZip()">📦 下載拆分的發票 PDF（ZIP）</button>
     <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="INV_SELECTED.clear(); renderInvoices();">取消勾選</button>`;
@@ -600,6 +605,34 @@ async function invRecheckCase(caseNo){
   }
   renderInvoices();
   if(INV_OPEN_ID && INV_ITEMS.some(x => x.id === INV_OPEN_ID && x.case_no === caseNo)) openInvoiceModal(INV_OPEN_ID);
+}
+
+// 勾選的發票一次改狀態（2026-10-28 使用者：逐張點進去確認完，再一次勾起來按「可付款」）。
+// 退回要寫原因，所以不提供批次退回。有問題的（金額不符／缺函文／提醒）會先在確認框列出來。
+async function invBulkStatus(status){
+  const sel = invSelected().filter(it => (it.status || '待確認') !== status);
+  if(!sel.length){ showToast(`勾選的發票已經都是「${status}」`); return; }
+  const bad = status === '可付款' ? sel.filter(invProblem) : [];
+  const msg = `把 ${sel.length} 張發票改成「${status}」？`
+    + (bad.length ? `\n\n⚠ 其中 ${bad.length} 張還有問題（金額不符、缺函文或有提醒）：\n` + bad.slice(0, 10).map(it => `・${it.invoice_no} ${it.case_no || ''}`).join('\n') + (bad.length > 10 ? '\n…' : '') : '');
+  if(!confirm(msg)) return;
+  showToast(`更新中（${sel.length} 張）…`);
+  const failed = [];
+  const queue = sel.slice();
+  const worker = async () => {
+    while(queue.length){
+      const it = queue.shift();
+      try{
+        const res = await fetch(API_BASE + '/api/invoice/' + it.id + '/status', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({status})});
+        if(!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+        it.status = status;
+      }catch(e){ failed.push(`${it.invoice_no}（${e.message}）`); }
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  sel.forEach(it => { if(it.status === status) INV_SELECTED.delete(it.id); });
+  renderInvoices();
+  showToast(failed.length ? `已改 ${sel.length - failed.length} 張；失敗：${failed.join('、')}` : `✓ 已把 ${sel.length} 張改成「${status}」`);
 }
 
 async function setInvoiceStatus(id, status){
