@@ -637,6 +637,9 @@
   .inv-copy-btn:hover{background:var(--primary-soft);border-color:var(--primary);}
   .inv-job{position:fixed;right:18px;bottom:18px;z-index:9000;width:300px;max-width:calc(100vw - 36px);background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 30px rgba(30,40,70,.18);padding:12px 14px;font-size:13px;}
   .inv-job.done{border-color:var(--success);}
+  .inv-batch-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;margin-bottom:8px;}
+  .inv-batch-sum{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;background:#EEF5FF;border:1px solid #C9DCF7;border-radius:10px;padding:8px 12px;margin-bottom:10px;}
+  .inv-batch-chip{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2px 9px;font-size:12px;}
   .inv-job-2{right:330px;}
   @media (max-width: 700px){ .inv-job-2{right:18px;bottom:150px;} }
   .inv-job-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
@@ -2636,6 +2639,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           <span id="invFilters"></span>
           <input id="invSearch" class="cert-rename-input" style="max-width:220px;margin-left:auto;padding:5px 10px;" placeholder="搜尋發票號碼／案號／廠商" oninput="renderInvoices()">
         </div>
+        <div id="invBatchBar"></div>
         <div id="invBox"><div class="login-note">載入中…</div></div>
       </div>
       <datalist id="invCaseList"></datalist>
@@ -9995,7 +9999,7 @@ async function confirmCertAbbr(id){
 <script src="line-health.js?v=2"></script>
 <script src="shipping.js?v=4"></script>
 <script src="meter-check.js?v=19"></script>
-<script src="invoice.js?v=8"></script>
+<script src="invoice.js?v=9"></script>
 
 </body>
 </html>

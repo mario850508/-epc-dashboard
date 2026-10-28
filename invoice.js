@@ -37,6 +37,7 @@ async function loadInvoices(){
     if(!res.ok) throw new Error(data.error || '載入失敗');
     INV_ITEMS = data.items || [];
     if(data.nodes) INV_NODES = data.nodes;
+    if(!INV_SCHED) await invLoadSchedule();
     renderInvoices();
     if(INV_OPEN_ID && document.getElementById('invModalOverlay').classList.contains('show')) openInvoiceModal(INV_OPEN_ID);
   }catch(e){
@@ -45,6 +46,76 @@ async function loadInvoices(){
 }
 
 function setInvFilter(f){ INV_FILTER = f; renderInvoices(); }
+
+// ---- 付款批次（2026-10-28）：每兩週，週五收件截止 → 下週五付款；標可付款時後端自動歸批次，付款日當天自動轉已付款。
+// 選一個批次＝付款清單（給同仁跟會計核對金額）。付款日期表由後端 /api/invoice/schedule 提供。
+let INV_SCHED = null;
+let INV_BATCH = 'all';
+async function invLoadSchedule(){
+  try{
+    const res = await fetch(API_BASE + '/api/invoice/schedule', {cache: 'no-store'});
+    INV_SCHED = await res.json();
+  }catch(e){ INV_SCHED = {items: [], next: null}; }
+}
+function invMD(d){ const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(d || ''); return m ? `${+m[1]}/${+m[2]}` : (d || ''); }
+function invCutoffOf(pay){ const x = ((INV_SCHED && INV_SCHED.items) || []).find(x => x.pay === pay); return x ? x.cutoff : ''; }
+function setInvBatch(v){ INV_BATCH = v; renderInvoices(); }
+function invBatchItems(pay, scoped){ return (scoped || INV_ITEMS).filter(it => it.pay_date === pay && ['可付款', '已付款'].includes(it.status)); }
+function renderInvBatchBar(scoped){
+  const box = document.getElementById('invBatchBar');
+  if(!box) return;
+  const next = INV_SCHED && INV_SCHED.next;
+  const pays = [...new Set(scoped.filter(it => it.pay_date && ['可付款', '已付款'].includes(it.status)).map(it => it.pay_date))].sort().reverse();
+  if(next && !pays.includes(next.pay)) pays.unshift(next.pay);
+  if(INV_BATCH !== 'all' && !pays.includes(INV_BATCH)) pays.unshift(INV_BATCH);
+  let html = `<div class="inv-batch-row"><span>🗓 本期：<b>收件截止 ${invMD(next && next.cutoff)}</b> → <b>${invMD(next && next.pay)} 付款</b>（今天標「可付款」的歸這批）</span>
+    <label style="margin-left:auto;">付款批次 <select class="cert-rename-input" style="width:auto;padding:4px 8px;" onchange="setInvBatch(this.value)">
+      <option value="all"${INV_BATCH === 'all' ? ' selected' : ''}>全部</option>
+      ${pays.map(p => `<option value="${p}"${INV_BATCH === p ? ' selected' : ''}>${p} 付款（截止 ${invMD(invCutoffOf(p))}）・${invBatchItems(p, scoped).length} 張</option>`).join('')}
+    </select></label></div>`;
+  if(INV_BATCH !== 'all'){
+    const list = invBatchItems(INV_BATCH, scoped);
+    const sum = list.reduce((s, it) => s + (Number(it.total) || 0), 0);
+    const byV = {};
+    list.forEach(it => { const v = invVendorOf(it); byV[v] = byV[v] || {n: 0, t: 0}; byV[v].n++; byV[v].t += Number(it.total) || 0; });
+    const paid = list.filter(it => it.status === '已付款').length;
+    html += `<div class="inv-batch-sum"><b>${INV_BATCH} 付款清單</b>：${list.length} 張，合計 <b>${invMoney(sum)}</b>（含稅）
+      ${Object.entries(byV).map(([v, x]) => `<span class="inv-batch-chip">${invEsc(v)} ${x.n} 張 ${invMoney(x.t)}</span>`).join('')}
+      <span class="inv-muted">已付款 ${paid}／可付款 ${list.length - paid}</span>
+      <button class="btn" style="padding:5px 12px;font-size:12.5px;" onclick="copyInvPayList()">📋 複製付款清單（對帳用）</button>
+      <button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;" onclick="invSelectBatch()">☑ 勾選這批（發票明細／ZIP）</button></div>`;
+  }
+  box.innerHTML = html;
+}
+function invSelectBatch(){ invBatchItems(INV_BATCH).forEach(it => INV_SELECTED.add(it.id)); renderInvoices(); }
+// 付款清單：依廠商分組，每組小計＋總計，複製成 TSV 貼到 Google Sheets 跟會計對
+async function copyInvPayList(){
+  const list = invBatchItems(INV_BATCH).slice().sort((a, b) => invVendorOf(a).localeCompare(invVendorOf(b), 'zh-Hant') || (a.case_no || '').localeCompare(b.case_no || '', 'zh-Hant'));
+  const lines = [[`${INV_BATCH} 付款（收件截止 ${invCutoffOf(INV_BATCH)}）`], ['廠商', '案號', '發票號碼', '發票日期', '摘要', '未稅', '稅額', '總計', '狀態']];
+  let cur = null, sub = 0, total = 0;
+  const flush = () => { if(cur !== null) lines.push([cur + ' 小計', '', '', '', '', '', '', sub, '']); };
+  list.forEach(it => {
+    const v = invVendorOf(it);
+    if(v !== cur){ flush(); cur = v; sub = 0; }
+    const nodes = (it.nodes || '').split('、').filter(Boolean).map(n => INV_NODE_SHORT[n] || n).join('+');
+    lines.push([v, it.case_no || '', it.invoice_no || '', invSlashDate(it.date), invCaseShort(it.case_no) + (nodes ? '-' + nodes : ''), it.sales == null ? '' : it.sales, it.tax == null ? '' : it.tax, it.total == null ? '' : it.total, it.status || '']);
+    sub += Number(it.total) || 0; total += Number(it.total) || 0;
+  });
+  flush();
+  lines.push(['總計', '', '', '', '', '', '', total, `${list.length} 張`]);
+  try{ await navigator.clipboard.writeText(lines.map(r => r.join('\t')).join('\n')); showToast(`已複製 ${INV_BATCH} 付款清單（${list.length} 張，合計 ${invMoney(total)}）`); }
+  catch(e){ showToast('複製失敗：' + e.message); }
+}
+async function invSetPayDate(id, pay){
+  try{
+    const res = await fetch(API_BASE + '/api/invoice/' + id + '/status', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pay_date: pay})});
+    if(!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+    const it = INV_ITEMS.find(x => x.id === id);
+    if(it) it.pay_date = pay;
+    renderInvoices();
+    showToast('付款批次改為 ' + pay);
+  }catch(e){ showToast('改付款批次失敗：' + e.message); }
+}
 
 // ---- 廠商分類（2026-10-28 使用者：全部混在一起很亂，要能只看尚展／三創／曙光…，「全部」也保留）----
 const INV_VENDOR_NAMES = ['三創', '尚展', '曙光', '光鼎', '宇陽達', '聚曜', '澄品', '大昇', '展亦', '凰太竹', '國欽', '振庭'];
@@ -91,6 +162,8 @@ function renderInvoices(){
     if(INV_FILTER === 'all') return true;
     return s === INV_FILTER;
   });
+  renderInvBatchBar(scoped);
+  if(INV_BATCH !== 'all') list = list.filter(it => it.pay_date === INV_BATCH);
   if(q.trim()){
     const k = q.trim().toLowerCase();
     list = list.filter(it => [it.invoice_no, it.case_no, it.alias, it.vendor, it.seller, it.items, it.src_name].join(' ').toLowerCase().includes(k));
@@ -115,7 +188,7 @@ function renderInvoices(){
         <td style="text-align:right;">${invMoney(it.expected)}</td>
         <td>${invOkBadge(c.amount && c.amount.ok, it.amount_check)}</td>
         <td>${invOkBadge(c.docs_ok, it.doc_check)}${warn ? `<div class="inv-warn-mini">⚠ ${warn} 個提醒</div>` : ''}</td>
-        <td>${invStatusPill(it.status)}</td></tr>`;
+        <td>${invStatusPill(it.status)}${it.pay_date && ['可付款', '已付款'].includes(it.status) ? `<div class="inv-muted">${invMD(it.pay_date)} 付款</div>` : ''}</td></tr>`;
     }).join('') + '</tbody></table></div>';
 }
 
@@ -166,6 +239,8 @@ function openInvDetailSheet(){
   const sum = rows.reduce((s, r) => s + (Number(r[6]) || 0), 0);
   let pay = '';
   try{ pay = localStorage.getItem('invPayDate') || ''; }catch(e){}
+  const pays = [...new Set(invSelected().map(it => it.pay_date).filter(Boolean))];
+  if(pays.length === 1) pay = pays[0];   // 勾的都是同一批付款 → 直接帶那批的付款日
   document.getElementById('invModalTitle').textContent = `發票明細（${rows.length} 張）`;
   document.getElementById('invModalBody').innerHTML = `
     <div class="inv-muted">複製後直接貼到廠商同步的 Google Sheets（從「付款日期」那一列的 A 欄貼上）。案場、摘要照你們的寫法自動帶，貼上後可再改。</div>
@@ -483,6 +558,9 @@ function openInvoiceModal(id){
       <div class="inv-src">檢查時間：${invEsc(c.checked_at || '')}</div>
 
       <div class="cert-side-label">處理 ${invStatusPill(it.status)}</div>
+      ${['可付款', '已付款'].includes(it.status) ? `<div class="inv-src" style="margin-bottom:6px;">付款批次：<select class="cert-rename-input" style="width:auto;padding:3px 6px;" onchange="invSetPayDate('${it.id}', this.value)">
+        ${[...new Set([it.pay_date].concat(((INV_SCHED && INV_SCHED.items) || []).filter(x => x.cutoff >= ((INV_SCHED && INV_SCHED.today) || '')).slice(0, 6).map(x => x.pay)))].filter(Boolean).map(p => `<option value="${p}"${p === it.pay_date ? ' selected' : ''}>${p} 付款（截止 ${invMD(invCutoffOf(p))}）</option>`).join('')}
+      </select></div>` : ''}
       <textarea id="invNote" class="cert-rename-input" rows="2" placeholder="備註（退回原因等）">${invEsc(it.note || '')}</textarea>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
         <button class="btn" style="padding:6px 12px;font-size:12.5px;" onclick="setInvoiceStatus('${it.id}','可付款')">✓ 可付款</button>
@@ -624,8 +702,10 @@ async function invBulkStatus(status){
       const it = queue.shift();
       try{
         const res = await fetch(API_BASE + '/api/invoice/' + it.id + '/status', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({status})});
-        if(!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+        const d = await res.json().catch(() => ({}));
+        if(!res.ok) throw new Error(d.error || res.status);
         it.status = status;
+        if('pay_date' in d) it.pay_date = d.pay_date || null;
       }catch(e){ failed.push(`${it.invoice_no}（${e.message}）`); }
     }
   };
