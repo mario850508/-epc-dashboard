@@ -404,8 +404,14 @@ function openInvoiceModal(id){
       <input id="invCaseNo" class="cert-rename-input" list="invCaseList" value="${invEsc(it.case_no || '')}" placeholder="輸入或選案號">
       <div class="inv-src">比對依據：${invEsc(c.case_how || '—')}</div>${cand}
 
-      <div class="cert-side-label">請款節點</div>
-      <div class="inv-node-picks">${INV_NODES.map(n => `<label><input type="checkbox" class="inv-node-cb" value="${n}" ${nodes.includes(n) ? 'checked' : ''}> ${n}</label>`).join('')}</div>
+      <div class="cert-side-label">請款節點 <span class="inv-muted" style="font-weight:400;">（漏了或錯了直接勾選／取消，再按「💾 套用修正並重新檢查」）</span></div>
+      <div class="inv-node-picks">${INV_NODES.map(n => {
+        const inferred = (c.nodes_inferred || []).includes(n);
+        const amt = sched[n] && sched[n].amount ? `<span class="inv-muted">${invMoney(sched[n].amount)}</span>` : '';
+        return `<label class="${inferred ? 'inv-node-inferred' : ''}" title="${inferred ? '依金額推得，發票上沒讀到' : ''}"><input type="checkbox" class="inv-node-cb" value="${n}" ${nodes.includes(n) ? 'checked' : ''} onchange="invNodePreview('${it.id}')"> ${n}${inferred ? '（推得）' : ''} ${amt}</label>`;
+      }).join('')}</div>
+      <div id="invNodePreview" class="inv-src"></div>
+      ${invNodeSuggestions(it)}
       <button class="btn btn-ghost" style="margin-top:8px;padding:6px 12px;font-size:12.5px;" onclick="recheckInvoice('${it.id}', true)">💾 套用修正並重新檢查</button>
       <button class="btn btn-ghost" style="margin-top:8px;padding:6px 12px;font-size:12.5px;" onclick="recheckInvoice('${it.id}', false)">🔄 重新檢查函文</button>
 
@@ -432,6 +438,41 @@ function openInvoiceModal(id){
     </div></div>`;
   document.getElementById('invModalOverlay').classList.add('show');
 }
+// 勾選節點時即時算合約金額加總，跟發票總計比（還沒按套用前先看對不對）
+function invNodePreview(id){
+  const it = INV_ITEMS.find(x => x.id === id);
+  const sched = (it && it.check && it.check.contract && it.check.contract.sched) || {};
+  const picked = Array.from(document.querySelectorAll('.inv-node-cb:checked')).map(x => x.value);
+  const box = document.getElementById('invNodePreview');
+  if(!box || !picked.length){ if(box) box.textContent = ''; return; }
+  if(picked.some(n => !(sched[n] && sched[n].amount))){ box.textContent = '勾選的期別有些合約讀不到金額'; return; }
+  const sum = picked.reduce((s, n) => s + sched[n].amount, 0);
+  const diff = Math.round((Number(it.total) || 0) - sum);
+  box.innerHTML = `勾選合計 ${invMoney(sum)}（含稅）　` + (Math.abs(diff) <= 1 ? '<span class="inv-badge inv-ok">✓ 跟發票總計相符</span>' : `<span class="inv-badge inv-bad">差 ${diff > 0 ? '+' : ''}${invMoney(diff)}</span>`) + '　記得按「💾 套用修正並重新檢查」';
+}
+// 金額對不上時：合約裡加總剛好等於發票總計的連續期別組合，點一下就勾好
+function invNodeSuggestions(it){
+  const c = it.check || {};
+  const sched = (c.contract && c.contract.sched) || {};
+  const total = Number(it.total) || 0;
+  if(!total || (c.amount && c.amount.ok)) return '';
+  const runs = [];
+  for(let i = 0; i < INV_NODES.length; i++){
+    for(let j = i; j < INV_NODES.length; j++){
+      const run = INV_NODES.slice(i, j + 1);
+      if(!run.every(n => sched[n] && sched[n].amount)) continue;
+      if(Math.abs(run.reduce((s, n) => s + sched[n].amount, 0) - total) <= 1) runs.push(run);
+    }
+  }
+  if(!runs.length) return '';
+  return '<div class="inv-src" style="margin-top:4px;">依合約金額，這張可能是：' + runs.map(r =>
+    `<button class="inv-copy-btn" style="margin:2px 4px 0 0;" onclick='invApplyNodes(${JSON.stringify(r)})'>${r.map(n => INV_NODE_SHORT[n] || n).join('+')}</button>`).join('') + '</div>';
+}
+function invApplyNodes(run){
+  document.querySelectorAll('.inv-node-cb').forEach(cb => { cb.checked = run.includes(cb.value); });
+  if(INV_OPEN_ID) invNodePreview(INV_OPEN_ID);
+}
+
 function closeInvoiceModal(){ document.getElementById('invModalOverlay').classList.remove('show'); INV_OPEN_ID = null; }
 
 async function recheckInvoice(id, applyEdits){
