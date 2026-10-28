@@ -411,6 +411,16 @@ function jtEditTime(sel){
   }
   jtCheckPlan();
 }
+function jtOverlapMsgs(){
+  if(!JOINT_CUR) return [];
+  const items = JOINT_CUR.tasks.filter(t => !t.done && JOINT_EDIT[t.task_id] && JOINT_EDIT[t.task_id].start && JOINT_EDIT[t.task_id].end)
+    .map(t => ({case: t.case, st: JOINT_EDIT[t.task_id].start, en: JOINT_EDIT[t.task_id].end, s: jtMin(JOINT_EDIT[t.task_id].start), e: jtMin(JOINT_EDIT[t.task_id].end)})).sort((a, b) => a.s - b.s);
+  const msgs = [];
+  items.forEach((it, i) => {
+    if(i < items.length - 1 && it.e > items[i + 1].s) msgs.push(`・${it.case} ${it.st}–${it.en} 和 ${items[i + 1].case} ${items[i + 1].st}–${items[i + 1].en}`);
+  });
+  return msgs;
+}
 function jtCheckPlan(){
   const w = document.getElementById('jtPlanWarn');
   if(!w || !JOINT_CUR) return;
@@ -419,7 +429,7 @@ function jtCheckPlan(){
   const msgs = [];
   items.forEach((it, i) => {
     if(it.e <= it.s) msgs.push(`${it.case} 的結束時間要晚於開始時間`);
-    if(i < items.length - 1 && it.e > items[i + 1].s) msgs.push(`${it.case} 和 ${items[i + 1].case} 的時間重疊`);
+    if(i < items.length - 1 && it.e > items[i + 1].s) msgs.push(`${it.case} 和 ${items[i + 1].case} 的時間重疊（按確認時會再請你確認）`);
   });
   w.textContent = msgs.length ? '⚠ ' + msgs.join('；') : '';
 }
@@ -429,11 +439,25 @@ async function confirmJointPlan(){
   if(!items.length){ showToast('請至少排好一個案件的時間'); return; }
   const missing = g.tasks.filter(t => !t.done && !(JOINT_EDIT[t.task_id] || {}).start).map(t => t.case);
   if(missing.length && !confirm('這些案件還沒排時間：' + missing.join('、') + '\n要先確認其他案件嗎？（沒排的之後要另外處理）')) return;
+  // 同一天的案件時間有重疊：先說明，窗口確認沒問題才直接安排（例如同一批人力同一時段一起處理多戶）
+  const overlaps = jtOverlapMsgs();
+  let allowOverlap = false;
+  if(overlaps.length){
+    if(!confirm('⚠️ 這幾個案件的時間有重疊：\n' + overlaps.join('\n') + '\n\n聯合排程常常是同一批人同時處理，重疊不一定有問題。\n請你判斷：重疊的時間確定沒有問題嗎？\n\n確定＝就照這個時間安排　取消＝回去再調整')) return;
+    allowOverlap = true;
+  }
   const btn = document.getElementById('jtConfirmBtn');
   btn.disabled = true; btn.textContent = '處理中…';
   try{
-    const res = await fetch(API_BASE + '/api/joint-schedules/' + encodeURIComponent(g.id) + '/confirm', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({date: JOINT_DATE, items})});
-    const d = await res.json().catch(() => ({}));
+    const post = ao => fetch(API_BASE + '/api/joint-schedules/' + encodeURIComponent(g.id) + '/confirm', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({date: JOINT_DATE, items, allow_overlap: ao})});
+    let res = await post(allowOverlap);
+    let d = await res.json().catch(() => ({}));
+    if(!res.ok && d.overlap && !allowOverlap){   // 跟廠商當天其他既有預約重疊
+      if(!confirm('⚠️ ' + d.error + '\n\n要在重疊的時段仍然安排嗎？請自己判斷兩邊會不會互相阻擋。\n\n確定＝仍然安排　取消＝不安排')){
+        btn.disabled = false; btn.textContent = '✅ 確認行程，產生給屋主的確認卡'; return;
+      }
+      res = await post(true); d = await res.json().catch(() => ({}));
+    }
     if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
     showToast('已確認行程，確認卡已用機器人傳給安排人員');
     loadJoint();
