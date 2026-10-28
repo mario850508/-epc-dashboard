@@ -7788,16 +7788,31 @@ async function uploadPdfFiles(fileList){
     const fd = new FormData();
     fd.append('files', f, f.name);
     fd.append('uploader', pdfUser());
-    try{
-      const res = await fetch(API_BASE + '/api/pdf-rename/upload', {method: 'POST', body: fd});
-      const data = await res.json();
-      const r = (data.results || [])[0];
-      if(r && r.ok){ ok++; if(r.id) PDF_STATE.autoOpen.add(r.id); }
-      else failed.push(`${f.name}（${(r && r.error) || data.error || '上傳失敗'}）`);
-    }catch(e){
-      failed.push(`${f.name}（${e.message}）`);
+    fd.append('defer_run', '1');   // 整批傳完才啟動辨識（邊傳邊辨識兩邊同時吃主機記憶體，大掃描檔會把主機撐爆）
+    // 2026-10-28：主機正好在部署／重啟（或縮大檔時記憶體爆掉重開）會回「Failed to fetch」。
+    // 不要直接判失敗：等主機回來再重傳（後端用檔案內容比對，重傳不會變成兩份；上次傳一半的空記錄會補附件）。
+    let done = false, lastErr = '';
+    for(let attempt = 0; attempt < 4 && !done; attempt++){
+      try{
+        if(attempt) prog.textContent = `主機重新啟動中，等它回來再重傳 ${i + 1} / ${files.length}：${f.name}（第 ${attempt + 1} 次）`;
+        const res = await fetch(API_BASE + '/api/pdf-rename/upload', {method: 'POST', body: fd});
+        if(res.status >= 502 && res.status <= 504) throw new Error('主機忙碌（HTTP ' + res.status + '）');
+        const data = await res.json();
+        const r = (data.results || [])[0];
+        if(r && r.ok){ ok++; if(r.id) PDF_STATE.autoOpen.add(r.id); }
+        else failed.push(`${f.name}（${(r && r.error) || data.error || '上傳失敗'}）`);
+        done = true;
+      }catch(e){
+        lastErr = e.message;
+        for(let k = 0; k < 24; k++){   // 最多等 2 分鐘，主機回應了才重傳
+          await new Promise(r => setTimeout(r, 5000));
+          try{ const h = await fetch(API_BASE + '/', {cache: 'no-store'}); if(h.ok) break; }catch(e2){}
+        }
+      }
     }
+    if(!done) failed.push(`${f.name}（${lastErr}，主機一直連不上，請稍後再傳一次）`);
   }
+  if(ok){ try{ await fetch(API_BASE + '/api/pdf-rename/run?if_enabled=1', {method: 'POST'}); }catch(e){} }
   prog.textContent = failed.length ? `✓ ${ok} 份已上傳；✗ 失敗：${failed.join('、')}` : `✓ ${ok} 份已上傳，背景辨識中`;
   if(!failed.length) setTimeout(() => { if(prog.textContent.startsWith('✓')) prog.textContent = ''; }, 6000);
   if(ok) showToast(`已上傳 ${ok} 份，背景辨識中`);
