@@ -231,47 +231,120 @@ function initInvoiceDrop(){
   zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag'); uploadInvoices(e.dataTransfer.files); });
 }
 
-async function uploadInvoices(fileList){
-  const files = Array.from(fileList || []).filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
-  if(!files.length){ showToast('請選擇 PDF 檔'); return; }
-  const prog = document.getElementById('invProgress');
-  const fd = new FormData();
-  files.slice(0, 10).forEach(f => fd.append('files', f, f.name));
-  fd.append('uploader', invUser());
-  prog.textContent = `上傳中（${files.length} 份）…`;
-  try{
-    const res = await fetch(API_BASE + '/api/invoice/upload', {method: 'POST', body: fd});
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.error || '上傳失敗');
-    pollInvoiceJob(data.job_id);
-  }catch(e){
-    prog.textContent = '✗ ' + e.message;
-  }
-  document.getElementById('invFileInput').value = '';
+// 2026-10-28：一次把整份掃描檔送後端，主機（512MB）記憶體爆掉重開、工作全消失（使用者傳 3 份就 Failed to fetch）。
+// 改成瀏覽器用 pdf-lib 把 PDF 切成單頁、一次送一頁（POST /api/invoice/page，後端同步辨識＋存檔），
+// 進度用頁數算；跑在這個頁面的 JS 裡，切到主控台其他分頁照樣繼續，右下角浮動進度條所有分頁都看得到，
+// 跑完跳通知。伺服器暫時連不到（重開中）會等 20 秒重送那一頁，最多 3 次。關掉或重新整理網頁才會中斷。
+const INV_JOB = {running: false, preparing: false, queue: [], done: 0, total: 0, added: 0, replaced: [], failed: [], notInvoice: 0};
+
+async function invLoadPdfLib(){
+  if(window.PDFLib) return;
+  await new Promise((ok, bad) => {
+    const sc = document.createElement('script');
+    sc.src = 'vendor/pdf-lib-1.17.1.min.js';
+    sc.onload = ok; sc.onerror = () => bad(new Error('載入 PDF 工具失敗'));
+    document.head.appendChild(sc);
+  });
 }
 
-async function pollInvoiceJob(jobId){
-  const prog = document.getElementById('invProgress');
+async function uploadInvoices(fileList){
+  const files = Array.from(fileList || []).filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+  document.getElementById('invFileInput').value = '';
+  if(!files.length){ showToast('請選擇 PDF 檔'); return; }
+  if(!INV_JOB.running) Object.assign(INV_JOB, {done: 0, total: 0, added: 0, replaced: [], failed: [], notInvoice: 0});
+  INV_JOB.preparing = true;
+  renderInvJobWidget('準備中：切分 PDF…');
   try{
-    const res = await fetch(API_BASE + '/api/invoice/jobs/' + jobId, {cache: 'no-store'});
-    const job = await res.json();
-    if(!res.ok) throw new Error(job.error || '查詢失敗');
-    if(job.status === 'running'){
-      prog.textContent = `辨識中… ${job.done} / ${job.total}（一頁約 15～30 秒）`;
-      setTimeout(() => pollInvoiceJob(jobId), 4000);
-      if(job.done) loadInvoices();
-      return;
+    await invLoadPdfLib();
+    for(const f of files){
+      try{
+        const src = await PDFLib.PDFDocument.load(new Uint8Array(await f.arrayBuffer()), {ignoreEncryption: true});
+        const n = src.getPageCount();
+        for(let i = 0; i < n; i++) INV_JOB.queue.push({src, name: f.name, page: i + 1, tries: 0});
+        INV_JOB.total += n;
+      }catch(e){
+        INV_JOB.failed.push(`${f.name}：打不開（${e.message}）`);
+      }
     }
-    const r = job.results || [];
-    const ok = r.filter(x => x.record_id && !x.duplicate).length;
-    const dup = r.filter(x => x.replaced).map(x => x.invoice_no);
-    const err = r.filter(x => x.error).map(x => `${x.invoice_no || x.file}：${x.error}`);
-    prog.textContent = `✓ 新增 ${ok - dup.length} 張發票` + (dup.length ? `；已存在、覆蓋舊資料 ${dup.length} 張：${dup.join('、')}` : '') + (err.length ? `；✗ ${err.join('；')}` : '') + (job.error ? `；✗ ${job.error}` : '');
-    INV_FILTER = 'todo';
-    loadInvoices();
   }catch(e){
-    prog.textContent = '✗ ' + e.message;
+    INV_JOB.failed.push(e.message);
   }
+  INV_JOB.preparing = false;
+  renderInvJobWidget('');
+  if(!INV_JOB.running) invRunQueue();
+}
+
+async function invRunQueue(){
+  INV_JOB.running = true;
+  window.addEventListener('beforeunload', invBeforeUnload);
+  while(INV_JOB.queue.length){
+    const t = INV_JOB.queue[0];
+    renderInvJobWidget(`辨識中：${t.name} 第 ${t.page} 頁`);
+    try{
+      const one = await PDFLib.PDFDocument.create();
+      const [pg] = await one.copyPages(t.src, [t.page - 1]);
+      one.addPage(pg);
+      const bytes = await one.save();
+      const fd = new FormData();
+      fd.append('file', new Blob([bytes], {type: 'application/pdf'}), `${t.name.replace(/\.pdf$/i, '')}_p${t.page}.pdf`);
+      fd.append('src_name', t.name);
+      fd.append('page', t.page);
+      fd.append('uploader', invUser());
+      const res = await fetch(API_BASE + '/api/invoice/page', {method: 'POST', body: fd});
+      const data = await res.json().catch(() => ({}));
+      // 502／503／504＝伺服器重開或忙碌 → 重送；其他錯誤（檔案太大、沒設定 OCR）重送也沒用
+      if([502, 503, 504].includes(res.status)) throw new Error('伺服器忙碌（' + res.status + '）');
+      if(!res.ok) throw Object.assign(new Error(data.error || ('HTTP ' + res.status)), {final: true});
+      for(const r of data.results || []){
+        if(r.error){ if(/沒有讀到發票/.test(r.error)) INV_JOB.notInvoice++; else INV_JOB.failed.push(`${t.name} 第 ${t.page} 頁：${r.error}`); }
+        else if(r.replaced) INV_JOB.replaced.push(r.invoice_no);
+        else INV_JOB.added++;
+      }
+      INV_JOB.queue.shift();
+      INV_JOB.done++;
+      if(document.getElementById('view-invoice').classList.contains('active')) loadInvoices();
+    }catch(e){
+      t.tries++;
+      if(e.final || t.tries >= 3){
+        INV_JOB.failed.push(`${t.name} 第 ${t.page} 頁：${e.message}`);
+        INV_JOB.queue.shift();
+        INV_JOB.done++;
+      }else{
+        renderInvJobWidget(`連不到伺服器（可能在重開），20 秒後重送 ${t.name} 第 ${t.page} 頁（第 ${t.tries} 次重試）`);
+        await new Promise(r => setTimeout(r, 20000));
+      }
+    }
+  }
+  INV_JOB.running = false;
+  window.removeEventListener('beforeunload', invBeforeUnload);
+  const msg = `發票已匯入完成：新增 ${INV_JOB.added} 張` + (INV_JOB.replaced.length ? `、覆蓋 ${INV_JOB.replaced.length} 張` : '')
+    + (INV_JOB.notInvoice ? `、${INV_JOB.notInvoice} 頁不是發票` : '') + (INV_JOB.failed.length ? `、失敗 ${INV_JOB.failed.length} 頁` : '');
+  renderInvJobWidget(msg, true);
+  showToast('🧾 ' + msg);
+  INV_FILTER = 'todo';
+  loadInvoices();
+}
+function invBeforeUnload(e){ e.preventDefault(); e.returnValue = '發票還在匯入中，離開會中斷'; return e.returnValue; }
+
+// 右下角浮動進度（index.html 的 #invJobWidget，所有分頁都看得到）
+function invCloseJobWidget(){ document.getElementById('invJobWidget').style.display = 'none'; }
+function renderInvJobWidget(text, finished){
+  const w = document.getElementById('invJobWidget');
+  if(!w) return;
+  const pct = finished ? 100 : (INV_JOB.total ? Math.round(INV_JOB.done / INV_JOB.total * 100) : 0);
+  w.style.display = 'block';
+  w.classList.toggle('done', !!finished);
+  const fails = INV_JOB.failed.length ? `<details class="inv-job-fail"><summary>失敗 ${INV_JOB.failed.length} 頁</summary>${INV_JOB.failed.map(x => `<div>${invEsc(x)}</div>`).join('')}</details>` : '';
+  w.innerHTML = `<div class="inv-job-head"><b>🧾 ${finished ? '發票匯入完成' : '發票匯入中'}</b>`
+    + (finished ? '<button class="inv-job-x" onclick="invCloseJobWidget()">✕</button>' : '') + '</div>'
+    + `<div class="inv-job-bar"><div style="width:${pct}%;"></div></div>`
+    + `<div class="inv-job-text">${INV_JOB.done} / ${INV_JOB.total} 頁（${pct}%）</div>`
+    + (text ? `<div class="inv-job-text">${invEsc(text)}</div>` : '') + fails
+    + (finished
+      ? '<button class="btn" style="margin-top:6px;padding:4px 12px;font-size:12px;" onclick="showView(\'invoice\'); initInvoiceDrop(); loadInvoices(); invCloseJobWidget();">查看發票</button>'
+      : '<div class="inv-job-text" style="opacity:.75;">可以切到其他頁面；不要關掉或重新整理網頁</div>');
+  const prog = document.getElementById('invProgress');
+  if(prog) prog.textContent = finished ? '✓ ' + text : `辨識中 ${INV_JOB.done} / ${INV_JOB.total} 頁（右下角看進度）`;
 }
 
 // ---- 詳細／修正 ----
