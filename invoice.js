@@ -585,15 +585,15 @@ function openInvoiceModal(id){
     <div>${it.file_url ? `<iframe class="cert-pdf-frame" src="${invEsc(it.file_url)}#view=FitH"></iframe>` : '<div class="login-note">沒有附件</div>'}</div>
     <div class="inv-side">
       ${warnings ? `<div class="inv-warn-box"><b>⚠ 提醒</b><ul>${warnings}</ul></div>` : ''}
-      <div class="cert-side-label">發票內容（AI 辨識）</div>
+      <div class="cert-side-label">發票內容（辨識結果，讀錯或沒讀到可以直接改，改完按下面「💾 套用修正並重新檢查」）</div>
       <div class="inv-kv">
-        <div>發票號碼</div><div>${invEsc(it.invoice_no)}</div>
-        <div>日期</div><div>${invEsc(it.date || '')}</div>
+        <div>發票號碼</div><div><input id="invNoEdit" class="cert-rename-input" style="width:160px;padding:4px 8px;" value="${invEsc(/^\(未讀到號碼\)/.test(it.invoice_no || '') ? '' : it.invoice_no)}" placeholder="例：EC57089141"></div>
+        <div>日期</div><div><input id="invDateEdit" type="date" class="cert-rename-input" style="width:160px;padding:4px 8px;${it.date ? '' : 'border-color:#C0392B;'}" value="${invEsc(it.date || '')}"></div>
         <div>賣方</div><div>${invEsc(it.seller || '')}</div>
         <div>品名</div><div>${invEsc(it.items || '')}</div>
         <div>備註</div><div>${invEsc(ext.remarks || '')}</div>
-        <div>銷售額／稅</div><div>${invMoney(it.sales)} ／ ${invMoney(it.tax)}</div>
-        <div>總計</div><div><input id="invTotal" class="cert-rename-input" style="width:130px;padding:4px 8px;" value="${it.total == null ? '' : it.total}"></div>
+        <div>銷售額／稅</div><div><input id="invSalesEdit" class="cert-rename-input" style="width:100px;padding:4px 8px;" value="${it.sales == null ? '' : it.sales}" placeholder="未稅"> ／ <input id="invTaxEdit" class="cert-rename-input" style="width:80px;padding:4px 8px;" value="${it.tax == null ? '' : it.tax}" placeholder="稅額"></div>
+        <div>總計</div><div><input id="invTotal" class="cert-rename-input" style="width:130px;padding:4px 8px;" value="${it.total == null ? '' : it.total}"> <span class="inv-muted">只填總計的話，未稅／稅額會自動算（÷1.05）</span></div>
       </div>
       ${ext.notes ? `<div class="inv-src">AI 備註：${invEsc(ext.notes)}</div>` : ''}
 
@@ -687,8 +687,24 @@ async function recheckInvoice(id, applyEdits){
   if(applyEdits){
     body.case_no = document.getElementById('invCaseNo').value.trim();
     body.nodes = Array.from(document.querySelectorAll('.inv-node-cb:checked')).map(x => x.value);
-    const t = document.getElementById('invTotal').value.replace(/,/g, '').trim();
-    if(t) body.total = Number(t);
+    const num = id2 => (document.getElementById(id2).value || '').replace(/[,\s]/g, '');
+    const it0 = INV_ITEMS.find(x => x.id === id) || {};
+    const t = num('invTotal'), sa = num('invSalesEdit'), tx = num('invTaxEdit');
+    if(t && Number(t) !== Number(it0.total)) body.total = Number(t);
+    if(sa && Number(sa) !== Number(it0.sales)) body.sales_amount = Number(sa);
+    if(tx && Number(tx) !== Number(it0.tax)) body.tax = Number(tx);
+    // 只改了總計、沒動未稅／稅額 → 依總計自動算（5% 營業稅）
+    if(body.total && !('sales_amount' in body) && !('tax' in body)){
+      body.sales_amount = Math.round(body.total / 1.05);
+      body.tax = body.total - body.sales_amount;
+    }
+    const d = document.getElementById('invDateEdit').value;
+    if(d && d !== it0.date) body.date = d;
+    const no = document.getElementById('invNoEdit').value.trim().toUpperCase().replace(/\s/g, '');
+    if(no && no !== it0.invoice_no){
+      if(!/^[A-Z]{2}\d{8}$/.test(no)){ showToast('發票號碼格式應該是 2 個英文字母＋8 位數字'); return; }
+      body.invoice_no = no;
+    }
   }
   showToast('檢查中…');
   try{
