@@ -637,6 +637,8 @@
   .inv-copy-btn:hover{background:var(--primary-soft);border-color:var(--primary);}
   .inv-job{position:fixed;right:18px;bottom:18px;z-index:9000;width:300px;max-width:calc(100vw - 36px);background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 30px rgba(30,40,70,.18);padding:12px 14px;font-size:13px;}
   .inv-job.done{border-color:var(--success);}
+  .inv-job-2{right:330px;}
+  @media (max-width: 700px){ .inv-job-2{right:18px;bottom:150px;} }
   .inv-job-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
   .inv-job-x{border:none;background:none;cursor:pointer;font-size:14px;color:var(--text-muted);}
   .inv-job-bar{height:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
@@ -2616,7 +2618,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           <h1 class="page-title">發票請款</h1>
           <div class="page-sub">上傳廠商請款發票 → 自動比對案場、請款節點、工程合約金額、函文是否已取得</div>
         </div>
-        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="loadInvoices()">🔄 重新整理</button>
+        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="invRefreshAll()" title="重新載入，並把目前分頁「待確認」的發票全部重新比對案場、合約金額、函文">🔄 重新整理＋重新檢查</button>
       </div>
       <div class="panel">
         <div id="invDrop" class="inv-drop" onclick="document.getElementById('invFileInput').click()">
@@ -2798,6 +2800,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
 
     <!-- 發票請款：右下角匯入進度（所有分頁都看得到） -->
     <div id="invJobWidget" class="inv-job" style="display:none;"></div>
+    <div id="invCheckWidget" class="inv-job inv-job-2" style="display:none;"></div>
 
     <!-- 發票請款：檢視／修正 modal -->
     <div class="modal-overlay" id="invModalOverlay" onclick="if(event.target===this) closeInvoiceModal()">
@@ -9992,7 +9995,7 @@ async function confirmCertAbbr(id){
 <script src="line-health.js?v=2"></script>
 <script src="shipping.js?v=4"></script>
 <script src="meter-check.js?v=19"></script>
-<script src="invoice.js?v=6"></script>
+<script src="invoice.js?v=7"></script>
 
 </body>
 </html>

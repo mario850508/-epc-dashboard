@@ -328,6 +328,58 @@ function invBeforeUnload(e){ e.preventDefault(); e.returnValue = '發票還在�
 
 // 右下角浮動進度（index.html 的 #invJobWidget，所有分頁都看得到）
 function invCloseJobWidget(){ document.getElementById('invJobWidget').style.display = 'none'; }
+
+// ---- 🔄 重新整理＝重新載入＋把「待確認」的發票全部重新檢查（2026-10-28 使用者：一次匯入很多工程合約後，
+// 不想一張一張點；要有進度條）。範圍＝目前選的廠商分頁裡狀態「待確認」的；一次 3 張並行（後端 4 個執行緒）。
+// 進度框在右下角（#invCheckWidget，跟上傳進度框分開），切到其他分頁照跑，跑完摘要：金額相符、函文齊全前後各幾張。
+const INV_CHECK = {running: false, done: 0, total: 0, failed: 0, before: null};
+async function invRefreshAll(){
+  if(INV_CHECK.running){ showToast('正在重新檢查中，看右下角進度'); return; }
+  await loadInvoices();
+  const targets = INV_ITEMS.filter(it => (it.status || '待確認') === '待確認' && (INV_VENDOR === 'all' || invVendorOf(it) === INV_VENDOR));
+  if(!targets.length){ showToast('沒有待確認的發票要檢查'); return; }
+  const stat = list => ({amt: list.filter(it => it.amount_check === '相符').length, docs: list.filter(it => it.doc_check === '齊全').length,
+    cases: list.filter(it => it.case_no).length});
+  Object.assign(INV_CHECK, {running: true, done: 0, total: targets.length, failed: 0, before: stat(targets)});
+  const ids = targets.map(it => it.id);
+  renderInvCheckWidget();
+  const queue = ids.slice();
+  const worker = async () => {
+    while(queue.length){
+      const id = queue.shift();
+      try{
+        const res = await fetch(API_BASE + '/api/invoice/' + id + '/recheck', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+        const data = await res.json().catch(() => ({}));
+        if(res.ok && data.item){ const i = INV_ITEMS.findIndex(x => x.id === id); if(i >= 0) INV_ITEMS[i] = data.item; }
+        else INV_CHECK.failed++;
+      }catch(e){ INV_CHECK.failed++; }
+      INV_CHECK.done++;
+      renderInvCheckWidget();
+      if(INV_CHECK.done % 3 === 0 && document.getElementById('view-invoice').classList.contains('active')) renderInvoices();
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  INV_CHECK.running = false;
+  const after = stat(INV_ITEMS.filter(it => ids.includes(it.id)));
+  const b = INV_CHECK.before;
+  const msg = `重新檢查完成 ${INV_CHECK.total} 張：金額相符 ${b.amt}→${after.amt}、函文齊全 ${b.docs}→${after.docs}、比對到案場 ${b.cases}→${after.cases}`
+    + (INV_CHECK.failed ? `（${INV_CHECK.failed} 張失敗，可再按一次）` : '');
+  renderInvCheckWidget(msg, true);
+  showToast('🔄 ' + msg);
+  renderInvoices();
+}
+function renderInvCheckWidget(text, finished){
+  const w = document.getElementById('invCheckWidget');
+  if(!w) return;
+  const pct = finished ? 100 : (INV_CHECK.total ? Math.round(INV_CHECK.done / INV_CHECK.total * 100) : 0);
+  w.style.display = 'block';
+  w.classList.toggle('done', !!finished);
+  w.innerHTML = `<div class="inv-job-head"><b>🔄 ${finished ? '重新檢查完成' : '重新檢查發票中'}</b>`
+    + (finished ? `<button class="inv-job-x" onclick="document.getElementById('invCheckWidget').style.display='none'">✕</button>` : '') + '</div>'
+    + `<div class="inv-job-bar"><div style="width:${pct}%;"></div></div>`
+    + `<div class="inv-job-text">${INV_CHECK.done} / ${INV_CHECK.total} 張（${pct}%）</div>`
+    + (text ? `<div class="inv-job-text">${invEsc(text)}</div>` : '<div class="inv-job-text" style="opacity:.75;">重新比對案場、合約金額、函文；可以切到其他頁面</div>');
+}
 function renderInvJobWidget(text, finished){
   const w = document.getElementById('invJobWidget');
   if(!w) return;
