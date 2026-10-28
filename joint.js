@@ -358,6 +358,8 @@ function renderJointDetail(){
         ${!t.done && t.chosen_slot && t.confirm_share_url ? `<a href="${t.confirm_share_url}" target="_blank" rel="noopener" style="color:#16A34A;font-weight:700;">📤 傳確認卡給屋主</a><br>` : ''}
         ${!t.done && !t.chosen_slot ? `<a style="cursor:pointer;color:#4A154B;font-weight:700;" onclick="openSlackCard('joint-invite', '${t.task_id}')">💬 傳邀請到 Slack</a><br>` : ''}
         ${!t.done && t.chosen_slot ? `<a style="cursor:pointer;color:#4A154B;font-weight:700;" onclick="openSlackCard('joint-confirm', '${t.task_id}')">💬 傳確認訊息到 Slack</a><br>` : ''}
+        ${!t.done && t.chosen_slot ? `<a style="cursor:pointer;color:#B45309;font-weight:800;" onclick="confirmForOwner('${t.task_id}')">✅ 代屋主確認（屋主已同意）</a><br>` : ''}
+        ${t.done && t.booking_id ? `<a style="cursor:pointer;color:#2563EB;font-weight:800;" onclick="jtNotifyVendor('${t.booking_id}')">📤 通知廠商（傳卡片）</a><br>` : ''}
         <a style="cursor:pointer;color:#6B7280;" onclick="copyVnText(${JSON.stringify(t.invite_text).replace(/"/g, '&quot;')}, '已複製邀請訊息')">📋 複製邀請訊息</a><br>
         <a style="cursor:pointer;color:#6B7280;" onclick="copyVnText('${t.owner_link}', '已複製屋主頁連結')">🔗 複製屋主頁連結</a>
       </td>
@@ -467,6 +469,36 @@ async function confirmJointPlan(){
     showToast('確認失敗：' + err.message);
     btn.disabled = false; btn.textContent = '✅ 確認行程，產生給屋主的確認卡';
   }
+}
+// 2026-10-28 屋主已經同意（口頭／LINE），窗口直接代屋主按確認：預約成立，接著可以用既有的「通知廠商」手動傳卡片
+function jtNotifyVendor(bookingId){
+  const ov = document.getElementById('jointDetailOverlay');
+  if(ov) ov.remove();   // 通知廠商視窗要疊在最上面，先關掉聯合排程視窗
+  openVendorNotice(bookingId);
+}
+async function confirmForOwner(taskId){
+  const g = JOINT_CUR;
+  const t = g && g.tasks.find(x => x.task_id === taskId);
+  if(!t) return;
+  const sl = t.chosen_slot;
+  const names = [t.case].concat(t.companions || []).join('＋');
+  if(!confirm('代屋主確認？\n\n' + names + (t.alias ? '（' + t.alias + '）' : '') + '\n' + (sl ? fmtDate(sl.date) + ' ' + sl.start_time + '–' + sl.end_time : '') +
+              '\n\n確定屋主已經同意這個時間，就會直接成立預約（不用等屋主自己按確認）。\n之後可以按「通知廠商」手動傳卡片給廠商。\n\n確定＝代屋主確認　取消＝先不要')) return;
+  const post = ao => fetch(API_BASE + '/api/joint-schedules/' + encodeURIComponent(g.id) + '/tasks/' + encodeURIComponent(taskId) + '/confirm-for-owner', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({allow_overlap: ao})});
+  try{
+    let res = await post(false);
+    let d = await res.json().catch(() => ({}));
+    if(!res.ok && d.overlap){   // 廠商當天已有其他行程（例如同批的另一案）
+      if(!confirm('⚠️ 這個時段廠商已經有其他行程：\n' + (d.conflict ? (d.conflict.case || '') + ' ' + (d.conflict.start_time || '') + '–' + (d.conflict.end_time || '') : (d.error || '')) +
+                  '\n\n聯合排程常常是同一批人同時處理，重疊不一定有問題。\n確定沒有問題，要照這個時間成立預約嗎？\n\n確定＝成立預約　取消＝先不要')) return;
+      res = await post(true); d = await res.json().catch(() => ({}));
+    }
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    showToast('✅ 已代屋主確認，預約成立');
+    loadJoint();
+    await openJointDetail(g.id);
+    if(d.booking_id && confirm('預約已成立。現在要通知廠商嗎？\n（會開「通知廠商」視窗，確認屋主資料後，用手機 LINE 傳卡片給廠商）')) jtNotifyVendor(d.booking_id);
+  }catch(err){ showToast('代確認失敗：' + err.message); }
 }
 function cancelJoint(id){
   confirmDanger('確定取消這個聯合排程？<br><span style="font-size:12.5px;font-weight:500;color:#6B7280;">會直接移除，不留紀錄；還沒確認的案件任務一起刪除，屋主連結失效。已經成立的預約不受影響。</span>', () => cancelJointNow(id), '是，取消並移除');
