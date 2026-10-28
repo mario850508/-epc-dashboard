@@ -96,13 +96,18 @@ function renderInvoices(){
     list = list.filter(it => [it.invoice_no, it.case_no, it.alias, it.vendor, it.seller, it.items, it.src_name].join(' ').toLowerCase().includes(k));
   }
   const box = document.getElementById('invBox');
+  INV_LIST = list;
+  renderInvSelBar();
   if(!list.length){ box.innerHTML = '<div class="login-note">沒有符合的發票</div>'; return; }
+  const allOn = list.every(it => INV_SELECTED.has(it.id));
   box.innerHTML = '<div style="overflow-x:auto;"><table class="mc-table"><thead><tr>'
+    + `<th style="width:28px;"><input type="checkbox" title="全選目前列表" ${allOn ? 'checked' : ''} onclick="invSelectAll(this.checked)"></th>`
     + '<th>發票</th><th>案場</th><th>請款節點</th><th style="text-align:right;">發票總計</th><th style="text-align:right;">合約金額</th><th>金額</th><th>函文</th><th>狀態</th></tr></thead><tbody>'
     + list.map(it => {
       const c = it.check || {};
       const warn = (c.warnings || []).length;
       return `<tr class="inv-row" onclick="openInvoiceModal('${it.id}')">
+        <td onclick="event.stopPropagation()"><input type="checkbox" ${INV_SELECTED.has(it.id) ? 'checked' : ''} onclick="invToggleSel('${it.id}', this.checked)"></td>
         <td><div style="font-weight:700;">${invEsc(it.invoice_no)}</div><div class="inv-muted">${invEsc(it.date || '')}　${invEsc(it.seller || '')}</div></td>
         <td>${it.case_no ? `<div style="font-weight:700;">${invEsc(it.case_no)}</div><div class="inv-muted">${invEsc(it.alias || '')}　${invEsc(it.vendor || '')}</div>` : '<span class="inv-badge inv-bad">比對不到案場</span>'}</td>
         <td>${invEsc(it.nodes || '') || '<span class="inv-badge inv-bad">未判斷</span>'}<div class="inv-muted">${invEsc(it.items || '')}</div></td>
@@ -112,6 +117,108 @@ function renderInvoices(){
         <td>${invOkBadge(c.docs_ok, it.doc_check)}${warn ? `<div class="inv-warn-mini">⚠ ${warn} 個提醒</div>` : ''}</td>
         <td>${invStatusPill(it.status)}</td></tr>`;
     }).join('') + '</tbody></table></div>';
+}
+
+// ---- 勾選 → 發票明細（給廠商）／拆分 PDF 打包下載（2026-10-28）----
+let INV_SELECTED = new Set();
+let INV_LIST = [];
+function invToggleSel(id, on){ if(on) INV_SELECTED.add(id); else INV_SELECTED.delete(id); renderInvSelBar(); }
+function invSelectAll(on){ INV_LIST.forEach(it => on ? INV_SELECTED.add(it.id) : INV_SELECTED.delete(it.id)); renderInvoices(); }
+function invSelected(){ return INV_ITEMS.filter(it => INV_SELECTED.has(it.id)); }
+function renderInvSelBar(){
+  const bar = document.getElementById('invSelBar');
+  if(!bar) return;
+  [...INV_SELECTED].forEach(id => { if(!INV_ITEMS.some(it => it.id === id)) INV_SELECTED.delete(id); });
+  const sel = invSelected();
+  if(!sel.length){ bar.style.display = 'none'; return; }
+  const total = sel.reduce((s, it) => s + (Number(it.total) || 0), 0);
+  bar.style.display = 'flex';
+  bar.innerHTML = `<b>已勾選 ${sel.length} 張</b><span class="inv-muted">合計 ${invMoney(total)}</span>
+    <button class="btn" style="padding:6px 12px;font-size:12.5px;" onclick="openInvDetailSheet()">📋 發票明細（給廠商）</button>
+    <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="downloadInvZip()">📦 下載拆分的發票 PDF（ZIP）</button>
+    <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="INV_SELECTED.clear(); renderInvoices();">取消勾選</button>`;
+}
+
+// 案場簡稱：潤特宜蘭33號→宜33、工程宜蘭5號→工宜5、潤特新竹47號→竹47（照使用者給廠商的發票明細寫法）
+const INV_COUNTY_SHORT = {'桃園': '桃', '新竹': '竹', '苗栗': '苗', '宜蘭': '宜', '臺中': '中', '台中': '中', '彰化': '彰', '雲林': '雲', '南投': '投',
+  '嘉義': '嘉', '臺南': '南', '台南': '南', '高雄': '高', '屏東': '屏', '臺北': '北', '台北': '北', '新北': '新北', '基隆': '基', '花蓮': '花', '臺東': '東', '台東': '東'};
+const INV_NODE_SHORT = {'簽約款': '簽約', '同意備案款': '同備', '材料訂購款': '材料', '工班進場款': '進場', '掛錶驗收款': '掛表', '設備登記款': '設登', '正式售電款': '售電'};
+function invCaseShort(caseNo){
+  const m = /^(潤特|工程)(\D+?)(\d+)號?$/.exec(caseNo || '');
+  if(!m) return caseNo || '';
+  return (m[1] === '工程' ? '工' : '') + (INV_COUNTY_SHORT[m[2]] || m[2]) + m[3];
+}
+function invSlashDate(d){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || ''); return m ? `${m[1]}/${+m[2]}/${+m[3]}` : (d || ''); }
+function invDetailRows(){
+  return invSelected().sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.invoice_no || '').localeCompare(b.invoice_no || '')).map(it => {
+    const short = invCaseShort(it.case_no);
+    const nodes = (it.nodes || '').split('、').filter(Boolean).map(n => INV_NODE_SHORT[n] || n).join('+');
+    return [invSlashDate(it.date), it.invoice_no || '', short, short + (nodes ? '-' + nodes : ''), it.sales == null ? '' : it.sales, it.tax == null ? '' : it.tax, it.total == null ? '' : it.total];
+  });
+}
+function openInvDetailSheet(){
+  const rows = invDetailRows();
+  const sum = rows.reduce((s, r) => s + (Number(r[6]) || 0), 0);
+  let pay = '';
+  try{ pay = localStorage.getItem('invPayDate') || ''; }catch(e){}
+  document.getElementById('invModalTitle').textContent = `發票明細（${rows.length} 張）`;
+  document.getElementById('invModalBody').innerHTML = `
+    <div class="inv-muted">複製後直接貼到廠商同步的 Google Sheets（從「付款日期」那一列的 A 欄貼上）。案場、摘要照你們的寫法自動帶，貼上後可再改。</div>
+    <div style="display:flex;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap;">
+      <label style="font-size:13px;">付款日期 <input id="invPayDate" type="date" class="cert-rename-input" style="width:160px;padding:4px 8px;" value="${invEsc(pay)}"></label>
+      <label style="font-size:13px;"><input type="checkbox" id="invPayRow" checked> 含「付款日期」列</label>
+      <label style="font-size:13px;"><input type="checkbox" id="invHeadRow" checked> 含標題列</label>
+      <label style="font-size:13px;"><input type="checkbox" id="invSumRow" checked> 含「總計」列</label>
+      <button class="btn" style="padding:6px 14px;font-size:12.5px;" onclick="copyInvDetail()">📋 複製（貼到 Google Sheets）</button>
+    </div>
+    <div style="overflow-x:auto;"><table class="mc-table"><thead><tr><th>發票日期</th><th>字軌</th><th>案場</th><th>摘要</th><th style="text-align:right;">稅前</th><th style="text-align:right;">稅</th><th style="text-align:right;">金額</th></tr></thead><tbody>
+      ${rows.map(r => `<tr>${r.map((v, i) => `<td style="${i >= 4 ? 'text-align:right;' : ''}">${i >= 4 ? invMoney(v) : invEsc(v)}</td>`).join('')}</tr>`).join('')}
+      <tr><td colspan="6" style="text-align:center;font-weight:700;">總計</td><td style="text-align:right;font-weight:700;">${invMoney(sum)}</td></tr>
+    </tbody></table></div>`;
+  INV_OPEN_ID = 'detail';
+  document.getElementById('invModalOverlay').classList.add('show');
+}
+async function copyInvDetail(){
+  const rows = invDetailRows();
+  const pay = document.getElementById('invPayDate').value;
+  try{ localStorage.setItem('invPayDate', pay); }catch(e){}
+  const sum = rows.reduce((s, r) => s + (Number(r[6]) || 0), 0);
+  const lines = [];
+  // 對齊廠商 Sheets：A 發票日期 B 字軌 C 案場 D 摘要 E 稅前 F 稅 G 金額；「付款日期」「總計」字放 D 欄、數字放 G 欄
+  if(document.getElementById('invPayRow').checked) lines.push(['', '', '', '付款日期', '', '', invSlashDate(pay)]);
+  if(document.getElementById('invHeadRow').checked) lines.push(['發票日期', '字軌', '案場', '摘要', '稅前', '稅', '金額']);
+  rows.forEach(r => lines.push(r));
+  if(document.getElementById('invSumRow').checked) lines.push(['', '', '', '總計', '', '', sum]);
+  const tsv = lines.map(r => r.join('\t')).join('\n');
+  try{
+    await navigator.clipboard.writeText(tsv);
+    showToast(`已複製 ${rows.length} 張，到 Google Sheets 貼上`);
+  }catch(e){
+    showToast('複製失敗：' + e.message);
+  }
+}
+async function downloadInvZip(){
+  const sel = invSelected();
+  if(!sel.length) return;
+  showToast(`打包 ${sel.length} 張發票中…`);
+  try{
+    const res = await fetch(API_BASE + '/api/invoice/zip', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: sel.map(it => it.id)})});
+    if(!res.ok){ const d = await res.json().catch(() => ({})); throw new Error(d.error || res.status); }
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const m = /filename\*=UTF-8''([^;]+)/.exec(cd);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = m ? decodeURIComponent(m[1]) : '發票掃描檔.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    const missing = decodeURIComponent(res.headers.get('X-Missing') || '');
+    showToast(missing ? `已下載；這幾張沒有檔案：${missing}` : `已下載 ${sel.length} 個發票 PDF`);
+  }catch(e){ showToast('下載失敗：' + e.message); }
+}
+async function invCopy(text, label){
+  try{ await navigator.clipboard.writeText(String(text == null ? '' : text)); showToast('已複製' + label + '：' + text); }
+  catch(e){ showToast('複製失敗：' + e.message); }
 }
 
 // ---- 上傳 ----
@@ -212,6 +319,13 @@ function openInvoiceModal(id){
         <div>總計</div><div><input id="invTotal" class="cert-rename-input" style="width:130px;padding:4px 8px;" value="${it.total == null ? '' : it.total}"></div>
       </div>
       ${ext.notes ? `<div class="inv-src">AI 備註：${invEsc(ext.notes)}</div>` : ''}
+
+      <div class="cert-side-label">前台填寫（點一下複製）</div>
+      <div class="inv-copy-grid">
+        <div>發票號碼</div><button class="inv-copy-btn" onclick="invCopy('${invEsc(it.invoice_no)}','發票號碼')">${invEsc(it.invoice_no)} 📋</button>
+        <div>發票開立日期</div><div>${it.date ? `<button class="inv-copy-btn" onclick="invCopy('${invEsc(it.date)}','開立日期')">${invEsc(it.date)} 📋</button> <button class="inv-copy-btn" onclick="invCopy('${invEsc(it.date.replace(/-/g, '/'))}','開立日期')">${invEsc(it.date.replace(/-/g, '/'))} 📋</button>` : '<span class="inv-src-bad">沒讀到日期</span>'}</div>
+        <div>核對</div><div class="inv-src">未稅 ${invMoney(it.sales)}｜稅額 ${invMoney(it.tax)}｜總金額 ${invMoney(it.total)}（前台系統已帶的金額，對一下有沒有一樣）</div>
+      </div>
 
       <div class="cert-side-label">案場</div>
       <input id="invCaseNo" class="cert-rename-input" list="invCaseList" value="${invEsc(it.case_no || '')}" placeholder="輸入或選案號">
