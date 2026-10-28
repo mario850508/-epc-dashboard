@@ -566,6 +566,7 @@ function renderBooked(){
   const pending = unackedUpcoming();
   pane.innerHTML = `${deepMissing ? '<div class="card" style="border-color:#F3C5C5;">找不到你點的那筆行程（可能已被取消或改期），請看下面的日曆。</div>' : ''}
     ${pending.length ? `<div class="card" style="border-color:#F2C46B;background:#FFF9EC;"><h2 style="font-size:15.5px;">⏳ 等您確認的行程（${pending.length}）</h2>
+      ${pending.filter(b => !b.issue).length > 1 ? `<button class="btn-sm" id="ackAllBtn" style="width:100%;margin-top:8px;" onclick="ackAll()">✅ 全部確認收到（${pending.filter(b => !b.issue).length} 筆）</button>` : ''}
       ${pending.slice(0, 8).map(b => `<div class="case" style="margin-top:8px;" onclick="calSel='${b.date}';calMonth='${b.date.slice(0, 7)}';openB='${b.id}';renderBooked()">
         <b>${esc(dayLabel(b.date))} ${esc(b.start)}</b> ${typeChips(b.types)}
         <div>${esc(b.case)} <span class="muted">${esc(b.alias || '')}</span></div></div>`).join('')}${pending.length > 8 ? `<div class="muted" style="margin-top:6px;">還有 ${pending.length - 8} 筆，請看日曆</div>` : ''}</div>` : ''}
@@ -639,6 +640,21 @@ async function ackBooking(id){
     await api('/bookings/' + encodeURIComponent(id) + '/ack', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({by})});
     D = await api('/info'); openB = id; render();
   }catch(e){ alert(e.message); if(btn){ btn.disabled = false; btn.textContent = '✅ 確認收到這筆行程'; } }
+}
+// 2026-10-28：一次確認所有「等您確認」的行程（已回報問題的不算，要等陽光窗口處理）
+async function ackAll(){
+  const ids = unackedUpcoming().filter(b => !b.issue).map(b => b.id);
+  if(!ids.length) return;
+  const by = byName();
+  if(!by && !confirm('沒有填名字，陽光窗口會看不出是誰確認的，仍要送出嗎？')) return;
+  if(!confirm('要一次確認這 ' + ids.length + ' 筆行程都收到了嗎？')) return;
+  const btn = document.getElementById('ackAllBtn'); if(btn){ btn.disabled = true; btn.textContent = '送出中…'; }
+  try{
+    lsSet('vp_by', by);
+    await api('/bookings/ack-all', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids, by})});
+    D = await api('/info'); render();
+    alert('已確認 ' + ids.length + ' 筆行程，陽光窗口會收到通知。');
+  }catch(e){ alert(e.message); if(btn){ btn.disabled = false; btn.textContent = '✅ 全部確認收到（' + ids.length + ' 筆）'; } }
 }
 async function sendIssue(id){
   const msg = (document.getElementById('issueTxt_' + id).value || '').trim();
