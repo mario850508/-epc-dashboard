@@ -589,7 +589,8 @@ function openInvoiceModal(id){
       <div class="inv-kv">
         <div>發票號碼</div><div><input id="invNoEdit" class="cert-rename-input" style="width:160px;padding:4px 8px;" value="${invEsc(/^\(未讀到號碼\)/.test(it.invoice_no || '') ? '' : it.invoice_no)}" placeholder="例：EC57089141"></div>
         <div>日期</div><div><input id="invDateEdit" type="date" class="cert-rename-input" style="width:160px;padding:4px 8px;${it.date ? '' : 'border-color:#C0392B;'}" value="${invEsc(it.date || '')}"></div>
-        <div>賣方</div><div>${invEsc(it.seller || '')}</div>
+        <div>賣方</div><div><input id="invSellerEdit" class="cert-rename-input" style="width:220px;padding:4px 8px;" list="invSellerList" value="${invEsc(it.seller || '')}" placeholder="例：曙光能創有限公司">
+          <datalist id="invSellerList">${[...new Set(INV_ITEMS.map(x => x.seller).filter(v => v && /有限公司$/.test(v)))].sort().map(v => `<option value="${invEsc(v)}">`).join('')}</datalist></div>
         <div>品名</div><div>${invEsc(it.items || '')}</div>
         <div>備註</div><div>${invEsc(ext.remarks || '')}</div>
         <div>銷售額／稅</div><div><input id="invSalesEdit" class="cert-rename-input" style="width:100px;padding:4px 8px;" value="${it.sales == null ? '' : it.sales}" placeholder="未稅"> ／ <input id="invTaxEdit" class="cert-rename-input" style="width:80px;padding:4px 8px;" value="${it.tax == null ? '' : it.tax}" placeholder="稅額"></div>
@@ -700,6 +701,8 @@ async function recheckInvoice(id, applyEdits){
     }
     const d = document.getElementById('invDateEdit').value;
     if(d && d !== it0.date) body.date = d;
+    const seller = document.getElementById('invSellerEdit').value.trim();
+    if(seller && seller !== it0.seller) body.seller = seller;
     const no = document.getElementById('invNoEdit').value.trim().toUpperCase().replace(/\s/g, '');
     if(no && no !== it0.invoice_no){
       if(!/^[A-Z]{2}\d{8}$/.test(no)){ showToast('發票號碼格式應該是 2 個英文字母＋8 位數字'); return; }
