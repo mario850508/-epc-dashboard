@@ -98,7 +98,7 @@ async function copyInvPayList(){
   list.forEach(it => {
     const v = invVendorOf(it);
     if(v !== cur){ flush(); cur = v; sub = 0; }
-    const nodes = (it.nodes || '').split('、').filter(Boolean).map(n => INV_NODE_SHORT[n] || n).join('+');
+    const nodes = (it.nodes || '').split('、').filter(Boolean).map(n => n === '其他' ? (it.items || '其他') : (INV_NODE_SHORT[n] || n)).join('+');
     lines.push([v, it.case_no || '', it.invoice_no || '', invSlashDate(it.date), invCaseShort(it.case_no) + (nodes ? '-' + nodes : ''), it.sales == null ? '' : it.sales, it.tax == null ? '' : it.tax, it.total == null ? '' : it.total, it.status || '']);
     sub += Number(it.total) || 0; total += Number(it.total) || 0;
   });
@@ -232,7 +232,7 @@ function invSlashDate(d){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || ''); r
 function invDetailRows(){
   return invSelected().sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.invoice_no || '').localeCompare(b.invoice_no || '')).map(it => {
     const short = invCaseShort(it.case_no);
-    const nodes = (it.nodes || '').split('、').filter(Boolean).map(n => INV_NODE_SHORT[n] || n).join('+');
+    const nodes = (it.nodes || '').split('、').filter(Boolean).map(n => n === '其他' ? (it.items || '其他') : (INV_NODE_SHORT[n] || n)).join('+');
     return [invSlashDate(it.date), it.invoice_no || '', short, short + (nodes ? '-' + nodes : ''), it.sales == null ? '' : it.sales, it.tax == null ? '' : it.tax, it.total == null ? '' : it.total];
   });
 }
@@ -591,7 +591,7 @@ function openInvoiceModal(id){
         <div>日期</div><div><input id="invDateEdit" type="date" class="cert-rename-input" style="width:160px;padding:4px 8px;${it.date ? '' : 'border-color:#C0392B;'}" value="${invEsc(it.date || '')}"></div>
         <div>賣方</div><div><input id="invSellerEdit" class="cert-rename-input" style="width:220px;padding:4px 8px;" list="invSellerList" value="${invEsc(it.seller || '')}" placeholder="例：曙光能創有限公司">
           <datalist id="invSellerList">${[...new Set(INV_ITEMS.map(x => x.seller).filter(v => v && /有限公司$/.test(v)))].sort().map(v => `<option value="${invEsc(v)}">`).join('')}</datalist></div>
-        <div>品名</div><div>${invEsc(it.items || '')}</div>
+        <div>品名</div><div><input id="invItemsEdit" class="cert-rename-input" style="width:100%;padding:4px 8px;" value="${invEsc(it.items || '')}" placeholder="沒讀到或讀錯就直接輸入，例：加購配電盤"></div>
         <div>備註</div><div>${invEsc(ext.remarks || '')}</div>
         <div>銷售額／稅</div><div><input id="invSalesEdit" class="cert-rename-input" style="width:100px;padding:4px 8px;" value="${it.sales == null ? '' : it.sales}" placeholder="未稅"> ／ <input id="invTaxEdit" class="cert-rename-input" style="width:80px;padding:4px 8px;" value="${it.tax == null ? '' : it.tax}" placeholder="稅額"></div>
         <div>總計</div><div><input id="invTotal" class="cert-rename-input" style="width:130px;padding:4px 8px;" value="${it.total == null ? '' : it.total}"> <span class="inv-muted">只填總計的話，未稅／稅額會自動算（÷1.05）</span></div>
@@ -613,8 +613,9 @@ function openInvoiceModal(id){
       <div class="inv-node-picks">${INV_NODES.map(n => {
         const inferred = (c.nodes_inferred || []).includes(n);
         const amt = sched[n] && sched[n].amount ? `<span class="inv-muted">${invMoney(sched[n].amount)}</span>` : '';
-        return `<label class="${inferred ? 'inv-node-inferred' : ''}" title="${inferred ? '依金額推得，發票上沒讀到' : ''}"><input type="checkbox" class="inv-node-cb" value="${n}" ${nodes.includes(n) ? 'checked' : ''} onchange="invNodePreview('${it.id}')"> ${n}${inferred ? '（推得）' : ''} ${amt}</label>`;
-      }).join('')}</div>
+        return `<label class="${inferred ? 'inv-node-inferred' : ''}" title="${inferred ? '依金額推得，發票上沒讀到' : ''}"><input type="checkbox" class="inv-node-cb" value="${n}" ${nodes.includes(n) ? 'checked' : ''} onchange="invNodeChange('${it.id}', this)"> ${n}${inferred ? '（推得）' : ''} ${amt}</label>`;
+      }).join('')}
+        <label class="inv-node-other" title="工程合約七期以外的款項（例：加購）"><input type="checkbox" class="inv-node-cb" value="其他" ${nodes.includes('其他') ? 'checked' : ''} onchange="invNodeChange('${it.id}', this)"> 其他（合約以外的款項，不比對、不檢查文件）</label></div>
       <div id="invNodePreview" class="inv-src"></div>
       ${invNodeSuggestions(it)}
       <button class="btn btn-ghost" style="margin-top:8px;padding:6px 12px;font-size:12.5px;" onclick="recheckInvoice('${it.id}', true)">💾 套用修正並重新檢查</button>
@@ -627,7 +628,7 @@ function openInvoiceModal(id){
       ${it.case_no && c.contract && (!c.contract.found || !Object.keys(sched).length) && !c.contract.reading ? `<button class="btn btn-ghost" style="margin-top:6px;padding:6px 12px;font-size:12.5px;" onclick="invPickContract('${it.id}')">⬆ 上傳工程合約（掃描檔）</button><div class="inv-src">剛簽約還沒掃描的：掃描後在這裡上傳（跟 EPC 簽的那份，不是「(潤特)」上包合約），系統讀出付款期程後自動重新判讀這案的發票</div>` : ''}
 
       <div class="cert-side-label">函文 ${invOkBadge(c.docs_ok, it.doc_check)}</div>
-      ${docs || '<div class="inv-src">先選請款節點</div>'}
+      ${nodes.includes('其他') ? '<div class="inv-src">其他款項，不需要檢查節點文件</div>' : (docs || '<div class="inv-src">先選請款節點</div>')}
       <div class="inv-src">檢查時間：${invEsc(c.checked_at || '')}</div>
 
       <div class="cert-side-label">處理 ${invStatusPill(it.status)}</div>
@@ -647,12 +648,22 @@ function openInvoiceModal(id){
   document.getElementById('invModalOverlay').classList.add('show');
 }
 // 勾選節點時即時算合約金額加總，跟發票總計比（還沒按套用前先看對不對）
+function invNodeChange(id, el){
+  // 「其他」跟七期互斥：勾其他 → 取消七期；勾七期 → 取消其他
+  if(el && el.checked){
+    document.querySelectorAll('.inv-node-cb').forEach(cb => {
+      if(cb !== el && ((el.value === '其他') || cb.value === '其他')) cb.checked = false;
+    });
+  }
+  invNodePreview(id);
+}
 function invNodePreview(id){
   const it = INV_ITEMS.find(x => x.id === id);
   const sched = (it && it.check && it.check.contract && it.check.contract.sched) || {};
   const picked = Array.from(document.querySelectorAll('.inv-node-cb:checked')).map(x => x.value);
   const box = document.getElementById('invNodePreview');
   if(!box || !picked.length){ if(box) box.textContent = ''; return; }
+  if(picked.includes('其他')){ box.textContent = '其他款項：不比對合約金額，也不檢查節點文件（記得按「💾 套用修正並重新檢查」）'; return; }
   if(picked.some(n => !(sched[n] && sched[n].amount))){ box.textContent = '勾選的期別有些合約讀不到金額'; return; }
   const sum = picked.reduce((s, n) => s + sched[n].amount, 0);
   const diff = Math.round((Number(it.total) || 0) - sum);
@@ -701,6 +712,8 @@ async function recheckInvoice(id, applyEdits){
     }
     const d = document.getElementById('invDateEdit').value;
     if(d && d !== it0.date) body.date = d;
+    const itemsTxt = document.getElementById('invItemsEdit').value.trim();
+    if(itemsTxt && itemsTxt !== (it0.items || '')) body.items = itemsTxt;
     const seller = document.getElementById('invSellerEdit').value.trim();
     if(seller && seller !== it0.seller) body.seller = seller;
     const no = document.getElementById('invNoEdit').value.trim().toUpperCase().replace(/\s/g, '');
