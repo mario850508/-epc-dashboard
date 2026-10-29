@@ -91,7 +91,7 @@ function renderInvBatchBar(scoped){
 function invSelectBatch(){ invBatchItems(INV_BATCH).forEach(it => INV_SELECTED.add(it.id)); renderInvoices(); }
 // 付款清單：依廠商分組，每組小計＋總計，複製成 TSV 貼到 Google Sheets 跟會計對
 async function copyInvPayList(){
-  const list = invBatchItems(INV_BATCH).slice().sort((a, b) => invVendorOf(a).localeCompare(invVendorOf(b), 'zh-Hant') || (a.case_no || '').localeCompare(b.case_no || '', 'zh-Hant'));
+  const list = invBatchItems(INV_BATCH).slice().sort((a, b) => invVendorOf(a).localeCompare(invVendorOf(b), 'zh-Hant') || invCompareCases(a, b));
   const lines = [[`${INV_BATCH} 付款（收件截止 ${invCutoffOf(INV_BATCH)}）`], ['廠商', '案號', '發票號碼', '發票日期', '摘要', '未稅', '稅額', '總計', '狀態']];
   let cur = null, sub = 0, total = 0;
   const flush = () => { if(cur !== null) lines.push([cur + ' 小計', '', '', '', '', '', '', sub, '']); };
@@ -229,8 +229,22 @@ function invCaseShort(caseNo){
   return (m[1] === '工程' ? '工' : '') + (INV_COUNTY_SHORT[m[2]] || m[2]) + m[3];
 }
 function invSlashDate(d){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || ''); return m ? `${m[1]}/${+m[2]}/${+m[3]}` : (d || ''); }
+// 發稿排序（2026-10-29 使用者）：潤特在前、工程在後；各自依地區由北到南（新北→桃園→新竹→苗栗→宜蘭，其他縣市接在後面），
+// 同地區案號小的在前（桃77、桃86、桃87、竹79、竹80…）；同案多張照發票日期、號碼；沒比對到案場的排最後。
+const INV_REGION_ORDER = ['臺北', '台北', '新北', '基隆', '桃園', '新竹', '苗栗', '宜蘭', '臺中', '台中', '彰化', '南投', '雲林', '嘉義', '臺南', '台南', '高雄', '屏東', '花蓮', '臺東', '台東'];
+function invCaseSortKey(caseNo){
+  const m = /^(潤特|工程)(\D+?)(\d+)號?$/.exec(caseNo || '');
+  if(!m) return [9, 99, 0];
+  const r = INV_REGION_ORDER.indexOf(m[2]);
+  return [m[1] === '潤特' ? 0 : 1, r < 0 ? 98 : r, Number(m[3])];
+}
+function invCompareCases(a, b){
+  const ka = invCaseSortKey(a.case_no), kb = invCaseSortKey(b.case_no);
+  for(let i = 0; i < 3; i++){ if(ka[i] !== kb[i]) return ka[i] - kb[i]; }
+  return (a.date || '').localeCompare(b.date || '') || (a.invoice_no || '').localeCompare(b.invoice_no || '');
+}
 function invDetailRows(){
-  return invSelected().sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.invoice_no || '').localeCompare(b.invoice_no || '')).map(it => {
+  return invSelected().sort(invCompareCases).map(it => {
     const short = invCaseShort(it.case_no);
     const nodes = (it.nodes || '').split('、').filter(Boolean).map(n => n === '其他' ? (it.items || '其他') : (INV_NODE_SHORT[n] || n)).join('+');
     return [invSlashDate(it.date), it.invoice_no || '', short, short + (nodes ? '-' + nodes : ''), it.sales == null ? '' : it.sales, it.tax == null ? '' : it.tax, it.total == null ? '' : it.total];
