@@ -15,9 +15,29 @@ let INV_OPEN_ID = null;
 function invEsc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function invMoney(v){ return (v === null || v === undefined || v === '') ? '—' : Number(v).toLocaleString('zh-TW', {maximumFractionDigits: 0}); }
 function invUser(){ try{ return localStorage.getItem('pdfPm') || ''; }catch(e){ return ''; } }
+// ---- 補件承諾（2026-10-29 使用者）：文件是我們內部還沒給（例：驗收單明天才有），今天要先遞資料 → 標「我會在 ○/○ 前補」。
+// 期限內顯示「補件中」；期限到了還沒補齊顯示「補件逾期」＋頁面上方警示；重新檢查時後端確認文件真的補齊就清掉承諾。
+function invToday(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function invManual(it){ try{ return JSON.parse(it.manual || '{}') || {}; }catch(e){ return {}; } }
+function invPromises(it){ return ((it.check || {}).docs_pending || []); }
+function invDocState(it){
+  const c = it.check || {};
+  if(c.docs_ok) return 'ok';
+  const pend = invPromises(it);
+  if(pend.length && !(c.docs_lacking || []).length) return pend.some(p => p.due && p.due < invToday()) ? 'overdue' : 'pending';
+  return 'missing';
+}
+function invDocBadge(it){
+  const st = invDocState(it), c = it.check || {};
+  const md = d => invMD(d);
+  if(st === 'pending') return `<span class="inv-badge inv-wait">⏳ 補件中 ${invPromises(it).map(p => md(p.due)).join('、')}</span>`;
+  if(st === 'overdue') return `<span class="inv-badge inv-bad">⚠ 補件逾期 ${invPromises(it).filter(p => p.due < invToday()).map(p => md(p.due)).join('、')}</span>`;
+  return invOkBadge(st === 'ok', it.doc_check);
+}
 function invProblem(it){
   const c = it.check || {};
-  return !(c.amount && c.amount.ok) || !c.docs_ok || (c.warnings || []).length > 0;
+  const st = invDocState(it);
+  return !(c.amount && c.amount.ok) || !(st === 'ok' || st === 'pending') || (c.warnings || []).length > 0;
 }
 function invStatusPill(s){
   const cls = {'待確認': 'ops-status-pending', '可付款': 'ops-status-done', '已付款': 'ops-status-pdf', '退回': 'inv-pill-bad'}[s] || 'ops-status-pending';
@@ -46,6 +66,25 @@ async function loadInvoices(){
 }
 
 function setInvFilter(f){ INV_FILTER = f; renderInvoices(); }
+
+// 補件警示列（不分廠商分頁，全部發票都算）：逾期紅色、今天／明天到期橘色
+function renderInvAlertBar(){
+  const box = document.getElementById('invAlertBar');
+  if(!box) return;
+  const today = invToday();
+  const t = new Date(); t.setDate(t.getDate() + 1);
+  const tomorrow = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+  const over = [], soon = [];
+  INV_ITEMS.filter(it => it.status !== '退回').forEach(it => invPromises(it).forEach(p => {
+    const row = {it, p, txt: `${invCaseShort(it.case_no) || it.invoice_no} ${p.label} ${invMD(p.due)}`};
+    if(p.due < today) over.push(row); else if(p.due <= tomorrow) soon.push(row);
+  }));
+  let html = '';
+  const line = (cls, icon, title, rows) => `<div class="inv-alert ${cls}" onclick="setInvFilter('pending')">${icon} <b>${title}</b>：${rows.slice(0, 6).map(r => invEsc(r.txt)).join('、')}${rows.length > 6 ? ` 等 ${rows.length} 項` : ''} <span class="inv-muted">（點一下看清單）</span></div>`;
+  if(over.length) html += line('bad', '⚠', `補件逾期 ${over.length} 項，還沒補齊`, over);
+  if(soon.length) html += line('wait', '⏳', `補件今天／明天到期 ${soon.length} 項`, soon);
+  box.innerHTML = html;
+}
 
 // ---- 付款批次（2026-10-28）：每兩週，週五收件截止 → 下週五付款；標可付款時後端自動歸批次，付款日當天自動轉已付款。
 // 選一個批次＝付款清單（給同仁跟會計核對金額）。付款日期表由後端 /api/invoice/schedule 提供。
@@ -145,13 +184,15 @@ function renderInvoices(){
   renderInvVendorTabs();
   const q = (document.getElementById('invSearch') || {}).value || '';
   const scoped = INV_ITEMS.filter(it => INV_VENDOR === 'all' || invVendorOf(it) === INV_VENDOR);
-  const counts = {todo: 0, problem: 0, ok: 0, '可付款': 0, '退回': 0, '已付款': 0, all: scoped.length};
+  const counts = {todo: 0, problem: 0, ok: 0, '可付款': 0, '退回': 0, '已付款': 0, all: scoped.length, pending: 0};
   scoped.forEach(it => {
+    if(it.status !== '退回' && invPromises(it).length) counts.pending++;
     const s = it.status || '待確認';
     if(s === '待確認'){ counts.todo++; if(invProblem(it)) counts.problem++; else counts.ok++; }
     else counts[s] = (counts[s] || 0) + 1;
   });
-  const filters = [['todo', '待確認'], ['problem', '待確認・有問題'], ['ok', '待確認・全部符合'], ['可付款', '可付款'], ['退回', '退回'], ['已付款', '已付款'], ['all', '全部']];
+  const filters = [['todo', '待確認'], ['problem', '待確認・有問題'], ['ok', '待確認・全部符合'], ['可付款', '可付款'], ['pending', '⏳ 補件中'], ['退回', '退回'], ['已付款', '已付款'], ['all', '全部']];
+  renderInvAlertBar();
   document.getElementById('invFilters').innerHTML = filters.map(([k, label]) =>
     `<button class="cert-filter-btn ${INV_FILTER === k ? 'active' : ''}" onclick="setInvFilter('${k}')">${label} ${counts[k] || 0}</button>`).join(' ');
 
@@ -161,6 +202,7 @@ function renderInvoices(){
     if(INV_FILTER === 'problem') return s === '待確認' && invProblem(it);
     if(INV_FILTER === 'ok') return s === '待確認' && !invProblem(it);
     if(INV_FILTER === 'all') return true;
+    if(INV_FILTER === 'pending') return s !== '退回' && invPromises(it).length > 0;
     return s === INV_FILTER;
   });
   renderInvBatchBar(scoped);
@@ -188,7 +230,7 @@ function renderInvoices(){
         <td style="text-align:right;">${invMoney(it.total)}</td>
         <td style="text-align:right;">${invMoney(it.expected)}</td>
         <td>${invOkBadge(c.amount && c.amount.ok, it.amount_check)}</td>
-        <td>${invOkBadge(c.docs_ok, it.doc_check)}${warn ? `<div class="inv-warn-mini">⚠ ${warn} 個提醒</div>` : ''}</td>
+        <td>${invDocBadge(it)}${warn ? `<div class="inv-warn-mini">⚠ ${warn} 個提醒</div>` : ''}</td>
         <td>${invStatusPill(it.status)}${it.pay_date && ['可付款', '已付款'].includes(it.status) ? `<div class="inv-muted">${invMD(it.pay_date)} 付款</div>` : ''}</td></tr>`;
     }).join('') + '</tbody></table></div>';
 }
@@ -498,7 +540,7 @@ function invCloseJobWidget(){ document.getElementById('invJobWidget').style.disp
 // ---- 🔄 重新整理＝重新載入＋把「待確認」的發票全部重新檢查（2026-10-28 使用者：一次匯入很多工程合約後，
 // 不想一張一張點；要有進度條）。範圍＝目前選的廠商分頁裡狀態「待確認」的；一次 3 張並行（後端 4 個執行緒）。
 // 進度框在右下角（#invCheckWidget，跟上傳進度框分開），切到其他分頁照跑，跑完摘要：金額相符、函文齊全前後各幾張。
-const INV_CHECK = {running: false, done: 0, total: 0, failed: 0, before: null};
+const INV_CHECK = {running: false, done: 0, total: 0, failed: 0, before: null, supplemented: []};
 async function invRefreshAll(){
   if(INV_CHECK.running){ showToast('正在重新檢查中，看右下角進度'); return; }
   await loadInvoices();
@@ -506,7 +548,7 @@ async function invRefreshAll(){
   if(!targets.length){ showToast('沒有待確認的發票要檢查'); return; }
   const stat = list => ({amt: list.filter(it => it.amount_check === '相符').length, docs: list.filter(it => it.doc_check === '齊全').length,
     cases: list.filter(it => it.case_no).length});
-  Object.assign(INV_CHECK, {running: true, done: 0, total: targets.length, failed: 0, before: stat(targets)});
+  Object.assign(INV_CHECK, {running: true, done: 0, total: targets.length, failed: 0, before: stat(targets), supplemented: []});
   const ids = targets.map(it => it.id);
   renderInvCheckWidget();
   const queue = ids.slice();
@@ -516,7 +558,10 @@ async function invRefreshAll(){
       try{
         const res = await fetch(API_BASE + '/api/invoice/' + id + '/recheck', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
         const data = await res.json().catch(() => ({}));
-        if(res.ok && data.item){ const i = INV_ITEMS.findIndex(x => x.id === id); if(i >= 0) INV_ITEMS[i] = data.item; }
+        if(res.ok && data.item){
+          const i = INV_ITEMS.findIndex(x => x.id === id); if(i >= 0) INV_ITEMS[i] = data.item;
+          ((data.item.check && data.item.check.supplement_done) || []).forEach(x => INV_CHECK.supplemented.push(`${data.item.case_no || data.item.invoice_no} ${x.label}`));
+        }
         else INV_CHECK.failed++;
       }catch(e){ INV_CHECK.failed++; }
       INV_CHECK.done++;
@@ -529,6 +574,7 @@ async function invRefreshAll(){
   const after = stat(INV_ITEMS.filter(it => ids.includes(it.id)));
   const b = INV_CHECK.before;
   const msg = `重新檢查完成 ${INV_CHECK.total} 張：金額相符 ${b.amt}→${after.amt}、函文齊全 ${b.docs}→${after.docs}、比對到案場 ${b.cases}→${after.cases}`
+    + (INV_CHECK.supplemented.length ? `；✓ 補件完成 ${INV_CHECK.supplemented.length} 項：${INV_CHECK.supplemented.join('、')}` : '')
     + (INV_CHECK.failed ? `（${INV_CHECK.failed} 張失敗，可再按一次）` : '');
   renderInvCheckWidget(msg, true);
   showToast('🔄 ' + msg);
@@ -588,11 +634,23 @@ function openInvoiceModal(id){
   document.getElementById('invModalTitle').textContent = `發票 ${it.invoice_no}` + (it.case_no ? `｜${it.case_no}` : '');
   const warnings = (c.warnings || []).map(w => `<li>${invEsc(w)}</li>`).join('');
   const docs = (c.docs || []).map(d => `<div class="inv-doc-node"><div class="inv-doc-node-title">${invEsc(d.node)}</div>`
-    + d.reqs.map(r => `<div class="inv-doc-req ${r.ok ? 'ok' : 'bad'}">${r.ok ? '✓' : '✗'} ${invEsc(r.label)}`
-      + (r.found.length ? `<div class="inv-src">${r.found.map(invEsc).join('<br>')}</div>` : '')
-      + (r.pending.length ? `<div class="inv-src inv-src-bad">${r.pending.map(invEsc).join('<br>')}</div>` : '')
-      + (!r.found.length && !r.pending.length ? '<div class="inv-src inv-src-bad">Airtable／案件資料都找不到</div>' : '')
-      + '</div>').join('') + '</div>').join('');
+    + d.reqs.map(r => {
+      const pr = r.promise, over = pr && pr.due && pr.due < invToday();
+      const mark = r.ok ? '✓' : (pr ? (over ? '⚠' : '⏳') : '✗');
+      const cls = r.ok ? 'ok' : (pr && !over ? 'wait' : 'bad');
+      const k = `'${it.id}', '${invEsc(d.node)}', '${invEsc(r.label)}'`;
+      return `<div class="inv-doc-req ${cls}">${mark} ${invEsc(r.label)}`
+        + (r.found.length ? `<div class="inv-src">${r.found.map(invEsc).join('<br>')}</div>` : '')
+        + (r.pending.length ? `<div class="inv-src inv-src-bad">${r.pending.map(invEsc).join('<br>')}</div>` : '')
+        + (!r.found.length && !r.pending.length && !pr ? '<div class="inv-src inv-src-bad">Airtable／案件資料都找不到</div>' : '')
+        + (pr ? `<div class="inv-src ${over ? 'inv-src-bad' : ''}">${over ? '⚠ 補件逾期：' : '⏳ 補件中：'}承諾 ${invEsc(pr.due)} 前補齊${pr.note ? '（' + invEsc(pr.note) + '）' : ''}
+            <button class="inv-copy-btn" onclick="invOpenPendForm(${k}, '${invEsc(pr.due)}', '${invEsc(pr.note || '')}')">改期限</button>
+            <button class="inv-copy-btn" onclick="invRemovePending(${k})">取消補件</button></div>` : '')
+        + (!r.ok && !pr ? `<div style="margin-top:4px;"><button class="inv-copy-btn" onclick="invOpenPendForm(${k})">🕒 標記補件（先遞資料，之後補）</button></div>` : '')
+        + '</div>';
+    }).join('') + '</div>').join('')
+    + `<div id="invPendBox"></div>`
+    + (c.done_docs && c.done_docs.length ? `<div class="inv-src" style="color:var(--success);margin-top:6px;">${c.done_docs.map(x => `✓ 已補齊：${invEsc(x.label)}（承諾 ${invMD(x.due)}，${invMD(x.done_at)} 確認補齊）`).join('<br>')}</div>` : '');
   const schedRows = INV_NODES.filter(n => sched[n]).map(n => `<tr class="${nodes.includes(n) ? 'inv-sched-on' : ''}"><td>${n}</td><td style="text-align:right;">${sched[n].pct}%</td><td style="text-align:right;">${invMoney(sched[n].amount)}${sched[n].calc ? '<span class="inv-muted">（總價×比例）</span>' : ''}</td></tr>`).join('');
   const cand = (c.candidates || []).slice(0, 3).map(x => `<div class="inv-src">${invEsc(x.case_no)} ${invEsc(x.alias)}（${invEsc(x.why)}）</div>`).join('');
   document.getElementById('invModalBody').innerHTML = `<div class="cert-modal-grid">
@@ -641,7 +699,7 @@ function openInvoiceModal(id){
       <div class="inv-src">${c.contract ? (c.contract.found ? `來源：${invEsc(c.contract.origin)} ${c.contract.file_url ? `<a href="${invEsc(c.contract.file_url)}" target="_blank">${invEsc(c.contract.filename)}</a>` : invEsc(c.contract.filename)}（${invEsc(c.contract.how)}）` : '') : ''}${c.contract && c.contract.note ? `<div class="inv-src-bad">${invEsc(c.contract.note)}</div>` : ''}</div>
       ${it.case_no && c.contract && (!c.contract.found || !Object.keys(sched).length) && !c.contract.reading ? `<button class="btn btn-ghost" style="margin-top:6px;padding:6px 12px;font-size:12.5px;" onclick="invPickContract('${it.id}')">⬆ 上傳工程合約（掃描檔）</button><div class="inv-src">剛簽約還沒掃描的：掃描後在這裡上傳（跟 EPC 簽的那份，不是「(潤特)」上包合約），系統讀出付款期程後自動重新判讀這案的發票</div>` : ''}
 
-      <div class="cert-side-label">函文 ${invOkBadge(c.docs_ok, it.doc_check)}</div>
+      <div class="cert-side-label">函文 ${invDocBadge(it)}</div>
       ${nodes.includes('其他') ? '<div class="inv-src">其他款項，不需要檢查節點文件</div>' : (docs || '<div class="inv-src">先選請款節點</div>')}
       <div class="inv-src">檢查時間：${invEsc(c.checked_at || '')}</div>
 
@@ -661,6 +719,49 @@ function openInvoiceModal(id){
     </div></div>`;
   document.getElementById('invModalOverlay').classList.add('show');
 }
+function invOpenPendForm(id, node, label, due, note){
+  const box = document.getElementById('invPendBox');
+  if(!box) return;
+  const t = new Date(); t.setDate(t.getDate() + 1);
+  const def = due || (t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'));
+  box.innerHTML = `<div class="inv-pend-form"><b>標記補件：${invEsc(node)}｜${invEsc(label)}</b>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px;">
+      <label style="font-size:12.5px;">補件期限 <input id="invPendDue" type="date" class="cert-rename-input" style="width:150px;padding:4px 8px;" value="${invEsc(def)}"></label>
+      <input id="invPendNote" class="cert-rename-input" style="flex:1;min-width:140px;padding:4px 8px;" placeholder="備註（例：同仁明天提供）" value="${invEsc(note || '')}">
+      <button class="btn" style="padding:5px 12px;font-size:12.5px;" onclick="invSavePending('${id}', '${invEsc(node)}', '${invEsc(label)}')">儲存</button>
+      <button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;" onclick="document.getElementById('invPendBox').innerHTML=''">取消</button>
+    </div>
+    <div class="inv-src">期限內這張可以先標可付款送出；補件後按「🔄 重新檢查函文」，系統確認文件真的補齊才會清掉。期限到了還沒補齊會跳警示。</div></div>`;
+  box.scrollIntoView({block: 'nearest'});
+}
+async function invPendingSave(id, list){
+  const res = await fetch(API_BASE + '/api/invoice/' + id + '/recheck', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pending_docs: list})});
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok) throw new Error(data.error || res.status);
+  const i = INV_ITEMS.findIndex(x => x.id === id);
+  if(i >= 0) INV_ITEMS[i] = data.item;
+  renderInvoices();
+  openInvoiceModal(id);
+  return data.item;
+}
+async function invSavePending(id, node, label){
+  const due = document.getElementById('invPendDue').value;
+  const note = document.getElementById('invPendNote').value.trim();
+  if(!due){ showToast('請選補件期限'); return; }
+  const it = INV_ITEMS.find(x => x.id === id);
+  const list = (invManual(it).pending_docs || []).filter(e => !(e.node === node && e.label === label));
+  list.push({node, label, due, note});
+  showToast('儲存中…');
+  try{ await invPendingSave(id, list); showToast(`已標記補件：${label}，${due} 前補齊`); }
+  catch(e){ showToast('儲存失敗：' + e.message); }
+}
+async function invRemovePending(id, node, label){
+  const it = INV_ITEMS.find(x => x.id === id);
+  const list = (invManual(it).pending_docs || []).filter(e => !(e.node === node && e.label === label));
+  try{ await invPendingSave(id, list); showToast('已取消補件標記'); }
+  catch(e){ showToast('失敗：' + e.message); }
+}
+
 // 勾選節點時即時算合約金額加總，跟發票總計比（還沒按套用前先看對不對）
 function invNodeChange(id, el){
   // 「其他」跟七期互斥：勾其他 → 取消七期；勾七期 → 取消其他
@@ -745,7 +846,8 @@ async function recheckInvoice(id, applyEdits){
     if(i >= 0) INV_ITEMS[i] = data.item;
     renderInvoices();
     openInvoiceModal(id);
-    showToast('已重新檢查');
+    const sd = (data.item.check && data.item.check.supplement_done) || [];
+    showToast(sd.length ? '✓ 補件完成：' + sd.map(x => x.label).join('、') + '（已確認文件取得）' : '已重新檢查');
   }catch(e){ showToast('✗ ' + e.message); }
 }
 
@@ -809,7 +911,9 @@ async function invBulkStatus(status){
   const sel = invSelected().filter(it => (it.status || '待確認') !== status);
   if(!sel.length){ showToast(`勾選的發票已經都是「${status}」`); return; }
   const bad = status === '可付款' ? sel.filter(invProblem) : [];
+  const waiting = status === '可付款' ? sel.filter(it => invDocState(it) === 'pending') : [];
   const msg = `把 ${sel.length} 張發票改成「${status}」？`
+    + (waiting.length ? `\n\n⏳ 其中 ${waiting.length} 張有文件補件中（期限內）：\n` + waiting.slice(0, 10).map(it => `・${it.invoice_no} ${it.case_no || ''}｜${invPromises(it).map(p => p.label + ' ' + invMD(p.due)).join('、')}`).join('\n') : '')
     + (bad.length ? `\n\n⚠ 其中 ${bad.length} 張還有問題（金額不符、缺函文或有提醒）：\n` + bad.slice(0, 10).map(it => `・${it.invoice_no} ${it.case_no || ''}`).join('\n') + (bad.length > 10 ? '\n…' : '') : '');
   if(!confirm(msg)) return;
   showToast(`更新中（${sel.length} 張）…`);
