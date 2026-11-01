@@ -238,10 +238,11 @@ function renderInvoices(){
 // ---- 2026-11-02：能創前台「工程節點管理」上傳頁連結（網址規律：款項名稱＋案場名稱兩個查詢參數）----
 // 簽約款＝款項名稱留空，列出該案場全部節點（要自己找「工程合約」節點）。前台的「掛表驗收款」是「表」不是「錶」。
 const SF_NODES_URL = 'https://www.sf-project.sunnyfounder.com/admin/project_management/engineering_construction/progress_nodes';
-function invSfUrl(caseNo, node){
+function invSfUrl(caseNo, node, extra){
   const item = (!node || node === '簽約款') ? '' : String(node).replace('掛錶', '掛表');
-  return SF_NODES_URL + '?q%5Bpayment_item_eq%5D=' + encodeURIComponent(item) + '&q%5Bproject_name_cont%5D=' + encodeURIComponent(caseNo) + '&hide_menu=1';
+  return SF_NODES_URL + '?q%5Bpayment_item_eq%5D=' + encodeURIComponent(item) + '&q%5Bproject_name_cont%5D=' + encodeURIComponent(caseNo) + '&hide_menu=1' + (extra || '');
 }
+// 工程合約上傳：開全部節點頁並帶 sf_go=contract（有裝 Tampermonkey 腳本會自動跳；沒有就用書籤，見 sf-tools.html）
 function invNodeLinks(it){
   const nodes = (it.nodes || '').split('、').filter(Boolean);
   if(!it.case_no) return invEsc(it.nodes || '');
@@ -736,6 +737,8 @@ function openInvoiceModal(id){
         <div>發票開立日期</div><div>${it.date ? `<button class="inv-copy-btn" onclick="invCopy('${invEsc(it.date)}','開立日期')">${invEsc(it.date)} 📋</button> <button class="inv-copy-btn" onclick="invCopy('${invEsc(it.date.replace(/-/g, '/'))}','開立日期')">${invEsc(it.date.replace(/-/g, '/'))} 📋</button>` : '<span class="inv-src-bad">沒讀到日期</span>'}</div>
         ${it.case_no ? `<div>前台上傳頁</div><div>${nodes.filter(n => n !== '其他' && n !== '簽約款').concat(['簽約款']).map(n =>
           `<a class="inv-copy-btn" style="text-decoration:none;" href="${invEsc(invSfUrl(it.case_no, n))}" target="_blank" rel="noopener">🔗 ${invEsc(n === '簽約款' ? (nodes.includes('其他') ? '其他／簽約款（全部節點）' : '簽約款（全部節點）') : n)}</a>`).join(' ')}
+          <div style="margin-top:4px;"><a class="inv-copy-btn" style="text-decoration:none;" href="${invEsc(invSfUrl(it.case_no, '簽約款', '&sf_go=contract'))}" target="_blank" rel="noopener">📄 上傳工程合約</a>
+            <a href="sf-tools.html" target="_blank" class="inv-muted" style="font-size:12px;">（要先裝小工具，說明）</a></div>
           <div class="inv-src">直接開能創前台的工程節點管理，已帶好案場${invEsc(it.case_no)}</div></div>` : ''}
         <div>核對</div><div class="inv-src">未稅 ${invMoney(it.sales)}｜稅額 ${invMoney(it.tax)}｜總金額 ${invMoney(it.total)}（前台系統已帶的金額，對一下有沒有一樣）</div>
       </div>

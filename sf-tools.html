@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>前台上傳工程合約小工具</title>
+<style>
+  body{font-family:-apple-system,"Microsoft JhengHei",sans-serif;max-width:780px;margin:24px auto;padding:0 16px;color:#1B2333;line-height:1.7;}
+  h1{font-size:22px;} h2{font-size:17px;margin-top:28px;border-left:4px solid #2563EB;padding-left:8px;}
+  .bm{display:inline-block;background:#2563EB;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700;cursor:grab;}
+  .box{background:#F3F6FB;border-radius:10px;padding:12px 16px;}
+  textarea{width:100%;height:260px;font-family:Consolas,monospace;font-size:12px;box-sizing:border-box;}
+  button{padding:6px 14px;border-radius:6px;border:1px solid #9CA3AF;background:#fff;cursor:pointer;}
+  .warn{color:#B45309;}
+</style>
+</head>
+<body>
+<h1>前台「上傳工程合約」小工具</h1>
+<p>從發票請款頁開「簽約款」連結，會到能創前台該案場的全部節點。這個小工具幫你在那一頁自動找到「工程合約」那一列，直接跳到上傳檔案的畫面。<b>它只讀目前這一頁、再跳轉，不會把任何資料傳出去。</b></p>
+
+<h2>方法一：書籤（不用裝任何東西，推薦先試）</h2>
+<div class="box">
+  <ol>
+    <li>把下面藍色按鈕<b>拖曳到瀏覽器的書籤列</b>（看不到書籤列：Ctrl+Shift+B 開啟）。</li>
+    <li>在發票請款頁按「📄 上傳工程合約」，開到前台的全部節點頁。</li>
+    <li>按一下書籤列上的「📄 跳到工程合約上傳」。</li>
+  </ol>
+  <p><a id="bm" class="bm" href="#">📄 跳到工程合約上傳</a></p>
+  <p class="warn" id="bmWarn" style="display:none;"></p>
+</div>
+
+<h2>方法二：Tampermonkey 腳本（自動跳，不用按書籤）</h2>
+<div class="box">
+  <p>需要瀏覽器有 Tampermonkey。裝好後新增腳本，把下面全部貼進去存檔。之後從發票頁按「📄 上傳工程合約」就會自動跳過去。</p>
+  <textarea id="us" readonly></textarea>
+  <p><button onclick="copyUs()">📋 複製腳本</button> <span id="cpMsg"></span></p>
+</div>
+
+<h2>如果它跳錯或找不到</h2>
+<p>找不到的時候會跳出提示，說明頁面上看到哪些節點類型，不會亂跳。把提示的文字（或那一頁的截圖）給我，我就能調整。這個小工具是靠頁面上的字「工程合約」去找，前台改版的話可能需要更新。</p>
+
+<script>
+// 注意：函式內不能有 // 註解（書籤會把換行壓成空白）
+function sfGoContract(){
+  var KIND = '工程合約';
+  var rows = [].slice.call(document.querySelectorAll('table tbody tr'));
+  var hit = [], types = {};
+  rows.forEach(function(tr){
+    var tds = [].slice.call(tr.children).map(function(td){ return (td.innerText || '').replace(/\s+/g, ' ').trim(); });
+    if(tds[1]) types[tds[1]] = 1;
+    if(tds.some(function(t){ return t === KIND; })) hit.push({tr: tr, tds: tds});
+  });
+  var want = '';
+  try{ want = new URLSearchParams(location.search).get('q[project_name_cont]') || ''; }catch(e){}
+  var exact = hit.filter(function(h){ return want && h.tds[0] === want; });
+  if(exact.length) hit = exact;
+  if(!hit.length){
+    alert('找不到「' + KIND + '」這個節點。\n這一頁看到的節點類型：' + (Object.keys(types).join('、') || '（沒有任何列，可能還沒登入或搜尋沒有結果）'));
+    return;
+  }
+  var names = {};
+  hit.forEach(function(h){ names[h.tds[0]] = 1; });
+  if(Object.keys(names).length > 1){
+    alert('這一頁有多個案場都有「' + KIND + '」節點：' + Object.keys(names).join('、') + '\n請先縮小到單一案場。');
+    return;
+  }
+  if(hit.length > 1){
+    alert('同一個案場有 ' + hit.length + ' 個「' + KIND + '」節點，請自己選要上傳的那一個。');
+    return;
+  }
+  var a = [].slice.call(hit[0].tr.querySelectorAll('a')).filter(function(x){ return /檔案管理/.test(x.innerText || ''); })[0];
+  if(!a){
+    alert('找到「' + KIND + '」那一列，但那一列沒有「檔案管理」按鈕。');
+    return;
+  }
+  var m = /progress_node_id\w*(?:%5D|\])?=(\d+)/.exec(a.href) || /progress_nodes\/(\d+)/.exec(a.href);
+  location.href = m ? (location.origin + '/admin/project_management/engineering_construction/progress_node_files/new?progress_node_id=' + m[1] + '&hide_menu=1') : a.href;
+}
+
+var fnSrc = sfGoContract.toString().replace(/\s*\n\s*/g, ' ');
+var bm = document.getElementById('bm');
+bm.href = 'javascript:(' + fnSrc + ')()';
+bm.onclick = function(e){
+  e.preventDefault();
+  var w = document.getElementById('bmWarn');
+  w.style.display = 'block';
+  w.textContent = '這顆按鈕要用「拖曳到書籤列」的，在這個頁面按它沒有用。';
+};
+
+var us = '// ==UserScript==\n'
+  + '// @name         前台上傳工程合約：自動跳轉\n'
+  + '// @namespace    sunnyfounder-epc\n'
+  + '// @version      1.0\n'
+  + '// @description  從主控台發票頁開啟簽約款全部節點頁（網址帶 sf_go=contract）時，自動跳到「工程合約」節點的上傳畫面\n'
+  + '// @match        https://www.sf-project.sunnyfounder.com/admin/project_management/engineering_construction/progress_nodes*\n'
+  + '// @grant        none\n'
+  + '// ==/UserScript==\n'
+  + '(function(){\n'
+  + "  if(location.search.indexOf('sf_go=contract') < 0) return;\n"
+  + '  ' + sfGoContract.toString().replace('function sfGoContract', 'function sfGoContract') + '\n'
+  + '  setTimeout(sfGoContract, 600);\n'
+  + '})();\n';
+document.getElementById('us').value = us;
+function copyUs(){
+  var t = document.getElementById('us'); t.select();
+  var ok = false; try{ ok = document.execCommand('copy'); }catch(e){}
+  document.getElementById('cpMsg').textContent = ok ? '✅ 已複製' : '請手動全選複製';
+}
+</script>
+</body>
+</html>
