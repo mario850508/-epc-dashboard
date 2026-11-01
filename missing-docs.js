@@ -13,6 +13,7 @@ let MD_TODAY = '';
 let MD_FILTER = 'open';   // open 缺件中｜due 本週待確認｜got 已取得
 let MD_GROUP = 'rep';     // rep 依業務｜type 依類型｜case 依案場
 const MD_SELF_KEY = '我自己（Mario）要處理';
+const MD_ASSIST_KEY = '業務助理';
 const MD_VENDORS = ['三創', '尚展', '曙光', '光鼎', '宇陽達', '聚曜', '澄品', '大昇', '展亦', '凰太竹', '國欽', '振庭'];
 let MD_VENDOR_FILTER = '';   // 清單依廠商篩選（空＝全部）
 let MD_CASE_PICK = null;
@@ -187,12 +188,14 @@ function mdRender(){
     box.innerHTML = '<div class="login-note">' + (MD_FILTER === 'got' ? '還沒有已取得的資料' : (MD_FILTER === 'due' ? '沒有需要確認的項目 🎉' : '目前沒有缺件，用上面的表單新增吧')) + '</div>';
     return;
   }
-  const keyOf = it => MD_GROUP === 'rep' ? (it.provider === 'Mario' ? MD_SELF_KEY : (it.rep || '（未指定業務）')) : (MD_GROUP === 'type' ? (it.doc_type || '其他') : (it.alias || it.case_no));
+  const keyOf = it => MD_GROUP === 'rep' ? (it.provider === 'Mario' ? MD_SELF_KEY : (it.provider === '業務助理' ? MD_ASSIST_KEY : (it.rep || '（未指定業務）'))) : (MD_GROUP === 'type' ? (it.doc_type || '其他') : (it.alias || it.case_no));
   const groups = new Map();
   list.forEach(it => { const k = keyOf(it); if(!groups.has(k)) groups.set(k, []); groups.get(k).push(it); });
   const order = Array.from(groups.keys()).sort((a, b) => {
     if(a === MD_SELF_KEY) return 1;      // 我自己要處理的放最後,跟業務分開
     if(b === MD_SELF_KEY) return -1;
+    if(a === MD_ASSIST_KEY) return 1;    // 業務助理當成一個人名,排在一般業務之後
+    if(b === MD_ASSIST_KEY) return -1;
     if(a.startsWith('（未指定')) return 1;
     if(b.startsWith('（未指定')) return -1;
     if(MD_GROUP === 'type') return MD_TYPES.indexOf(a) - MD_TYPES.indexOf(b);
@@ -200,19 +203,20 @@ function mdRender(){
   });
   box.innerHTML = order.map(k => {
     const its = groups.get(k);
-    const notifyBtn = (MD_GROUP === 'rep' && MD_FILTER !== 'got' && !k.startsWith('（未指定') && k !== MD_SELF_KEY)
+    const notifyBtn = (MD_GROUP === 'rep' && MD_FILTER !== 'got' && !k.startsWith('（未指定') && k !== MD_SELF_KEY && k !== MD_ASSIST_KEY)
       ? `<button class="btn btn-primary md-btn" onclick="mdNotifyOpen(${JSON.stringify(k).replace(/"/g, '&quot;')})">📨 通知這位業務</button>` : '';
+    const showRep = MD_GROUP !== 'rep' || k === MD_SELF_KEY || k === MD_ASSIST_KEY;   // 業務助理/我自己那區要看得到是哪位業務的案
     return `<div class="md-group"><div class="md-group-head"><span>${mdEsc(k)} <span class="md-sub">${its.length} 項</span></span>${notifyBtn}</div>` +
       `<div class="md-table-wrap"><table class="md-table"><thead><tr>` +
       (MD_GROUP === 'case' ? '' : '<th>案場</th>') + (MD_GROUP === 'type' || MD_GROUP === 'rep' ? '' : '<th>缺件類型</th>') +
-      `<th>備註</th>${MD_GROUP === 'rep' ? '' : '<th>業務</th>'}<th>誰提供</th><th>已缺</th><th>上次確認</th><th>上次通知</th><th></th></tr></thead><tbody>` +
-      mdRowsFor(its) + '</tbody></table></div></div>';
+      `<th>備註</th>${showRep ? '<th>業務</th>' : ''}<th>誰提供</th><th>已缺</th><th>上次確認</th><th>上次通知</th><th></th></tr></thead><tbody>` +
+      mdRowsFor(its, showRep) + '</tbody></table></div></div>';
   }).join('');
 }
 
 // 依業務分組時,每個人底下再依缺件類型分區(電費單一區、使用執照一區…),同類型內依案場排序
-function mdRowsFor(its){
-  if(MD_GROUP !== 'rep') return its.map(it => mdRow(it)).join('');
+function mdRowsFor(its, showRep){
+  if(MD_GROUP !== 'rep') return its.map(it => mdRow(it, true)).join('');
   const byType = new Map();
   its.forEach(it => { const t = it.doc_type || '其他'; if(!byType.has(t)) byType.set(t, []); byType.get(t).push(it); });
   const types = Array.from(byType.keys()).sort((a, b) => {
@@ -221,11 +225,11 @@ function mdRowsFor(its){
   });
   return types.map(t => {
     const rows = byType.get(t).sort((a, b) => (a.alias || a.case_no || '').localeCompare(b.alias || b.case_no || '', 'zh-Hant'));
-    return `<tr class="md-subhead"><td colspan="7">▸ ${mdEsc(t)} <span class="md-sub">${rows.length} 項</span></td></tr>` + rows.map(it => mdRow(it)).join('');
+    return `<tr class="md-subhead"><td colspan="${showRep ? 8 : 7}">▸ ${mdEsc(t)} <span class="md-sub">${rows.length} 項</span></td></tr>` + rows.map(it => mdRow(it, showRep)).join('');
   }).join('');
 }
 
-function mdRow(it){
+function mdRow(it, showRep){
   const days = it.created && MD_TODAY ? mdDaysBetween(it.created, MD_TODAY) : null;
   const due = mdIsDue(it);
   const isGot = it.status === '已取得';
@@ -233,12 +237,13 @@ function mdRow(it){
     (MD_GROUP === 'case' ? '' : `<td><b>${mdEsc(it.alias || it.case_no)}</b></td>`) +
     (MD_GROUP === 'type' || MD_GROUP === 'rep' ? '' : `<td>${mdEsc(it.doc_type)}</td>`) +
     `<td class="md-note" onclick="mdEditNote('${it.id}')" title="點一下修改備註">${it.note ? mdEsc(it.note) : '<span class="md-sub">＋備註</span>'}</td>` +
-    (MD_GROUP === 'rep' ? '' : `<td onclick="mdEditRep('${it.id}')" title="點一下修改業務">${mdEsc(it.rep) || '<span class="md-sub">＋業務</span>'}</td>`) +
+    (!showRep ? '' : `<td onclick="mdEditRep('${it.id}')" title="點一下修改業務">${mdEsc(it.rep) || '<span class="md-sub">＋業務</span>'}</td>`) +
     `<td>${mdEsc(it.provider)}</td>` +
     `<td>${isGot ? '✔ ' + mdMD(it.got) : (days == null ? '—' : days + ' 天')}</td>` +
     `<td>${due ? '<span class="md-due">⏰ ' : '<span>'}${mdMD(mdLastCheck(it))}</span></td>` +
     `<td>${it.notified ? mdMD(it.notified) + (it.notify_count > 1 ? '（' + it.notify_count + '次）' : '') : '—'}</td>` +
     `<td class="md-actions">` +
+    `<button class="md-mini" onclick="mdEdit('${it.id}')" title="修改業務、誰提供、缺件類型、備註">✏️ 編輯</button>` +
     (isGot ? `<button class="md-mini" onclick="mdSetStatus('${it.id}','缺件')">↩ 改回缺件</button>`
            : `<button class="md-mini md-ok" onclick="mdSetStatus('${it.id}','已取得')">✅ 已拿到</button><button class="md-mini" onclick="mdConfirm('${it.id}')">本週已確認</button>`) +
     `<button class="md-mini md-del" onclick="mdDelete('${it.id}')" title="刪除">🗑</button></td></tr>`;
@@ -263,6 +268,43 @@ async function mdEditRep(id){
   const v = prompt('負責的業務名字（要跟業務名單一致，通知才找得到人）', it.rep || '');
   if(v === null) return;
   if(await mdPatch(id, {rep: v})) mdLoad();
+}
+// 編輯一筆缺件:業務、誰提供、缺件類型、備註(案場要改請刪掉重新新增)
+function mdEdit(id){
+  const it = MD_ITEMS.find(x => x.id === id); if(!it) return;
+  const old = document.getElementById('mdEditOverlay'); if(old) old.remove();
+  const opt = (arr, cur) => arr.map(v => `<option value="${mdEsc(v)}" ${v === cur ? 'selected' : ''}>${mdEsc(v)}</option>`).join('');
+  const types = MD_TYPES.includes(it.doc_type) ? MD_TYPES : MD_TYPES.concat([it.doc_type]);
+  const fs = 'width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;font-family:inherit;';
+  const lb = 'display:block;font-size:12px;color:#888;margin:10px 0 4px;';
+  const ov = document.createElement('div');
+  ov.id = 'mdEditOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.onclick = e => { if(e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div style="background:#fff;border-radius:14px;width:100%;max-width:440px;padding:18px 20px;max-height:92vh;overflow:auto;">
+    <div style="font-weight:700;font-size:15px;">✏️ 修改缺件</div>
+    <div style="font-size:13px;color:#888;margin-top:4px;">${mdEsc(it.alias || it.case_no)}</div>
+    <label style="${lb}">缺件類型</label><select id="mdEdType" style="${fs}">${opt(types, it.doc_type)}</select>
+    <label style="${lb}">誰提供</label><select id="mdEdProv" style="${fs}">${['業務', '業務助理', 'Mario'].map(v => `<option value="${v}" ${v === it.provider ? 'selected' : ''}>${v === 'Mario' ? 'Mario（我自己）' : v}</option>`).join('')}</select>
+    <label style="${lb}">業務（要跟業務名單一致，通知才找得到人）</label><input id="mdEdRep" list="mdRepList" value="${mdEsc(it.rep || '')}" style="${fs}">
+    <label style="${lb}">備註</label><input id="mdEdNote" value="${mdEsc(it.note || '')}" style="${fs}">
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+      <button type="button" onclick="document.getElementById('mdEditOverlay').remove()" style="padding:7px 16px;border:1px solid #ddd;background:#fff;border-radius:8px;cursor:pointer;">取消</button>
+      <button type="button" id="mdEdSave" onclick="mdEditSave('${it.id}')" style="padding:7px 18px;border:0;background:#F0A050;color:#fff;font-weight:600;border-radius:8px;cursor:pointer;">儲存</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+}
+async function mdEditSave(id){
+  const it = MD_ITEMS.find(x => x.id === id); if(!it) return;
+  const body = {
+    doc_type: document.getElementById('mdEdType').value,
+    provider: document.getElementById('mdEdProv').value,
+    rep: document.getElementById('mdEdRep').value.trim(),
+    note: document.getElementById('mdEdNote').value.trim(),
+  };
+  const btn = document.getElementById('mdEdSave'); btn.disabled = true; btn.textContent = '儲存中…';
+  if(await mdPatch(id, body)){ document.getElementById('mdEditOverlay').remove(); mdLoad(); }
+  else { btn.disabled = false; btn.textContent = '儲存'; }
 }
 async function mdDelete(id){
   const it = MD_ITEMS.find(x => x.id === id); if(!it) return;
