@@ -40,7 +40,7 @@
 <p>找不到的時候會跳出提示，說明頁面上看到哪些節點類型，不會亂跳。把提示的文字（或那一頁的截圖）給我，我就能調整。這個小工具是靠頁面上的字「工程合約」去找，前台改版的話可能需要更新。</p>
 
 <script>
-// 注意：函式內不能有 // 註解（書籤會把換行壓成空白）
+// 注意：函式內不能有 // 註解（書籤會把換行壓成空白），也不能出現 % 加兩個十六進位字（瀏覽器執行書籤前會先解碼）
 function sfGoContract(){
   var KIND = '工程合約';
   var rows = [].slice.call(document.querySelectorAll('table tbody tr'));
@@ -73,7 +73,9 @@ function sfGoContract(){
     alert('找到「' + KIND + '」那一列，但那一列沒有「檔案管理」按鈕。');
     return;
   }
-  var m = /progress_node_id\w*(?:%5D|\])?=(\d+)/.exec(a.href) || /progress_nodes\/(\d+)/.exec(a.href);
+  var h = a.href;
+  try{ h = decodeURIComponent(h); }catch(e){}
+  var m = /progress_node_id\w*\]?=(\d+)/.exec(h) || /progress_nodes\/(\d+)/.exec(h);
   location.href = m ? (location.origin + '/admin/project_management/engineering_construction/progress_node_files/new?progress_node_id=' + m[1] + '&hide_menu=1') : a.href;
 }
 
