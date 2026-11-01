@@ -12,6 +12,7 @@ let MD_ITEMS = [];
 let MD_TODAY = '';
 let MD_FILTER = 'open';   // open 缺件中｜due 本週待確認｜got 已取得
 let MD_GROUP = 'rep';     // rep 依業務｜type 依類型｜case 依案場
+const MD_SELF_KEY = '我自己（Mario）要處理';
 const MD_VENDORS = ['三創', '尚展', '曙光', '光鼎', '宇陽達', '聚曜', '澄品', '大昇', '展亦', '凰太竹', '國欽', '振庭'];
 let MD_VENDOR_FILTER = '';   // 清單依廠商篩選（空＝全部）
 let MD_CASE_PICK = null;
@@ -186,10 +187,12 @@ function mdRender(){
     box.innerHTML = '<div class="login-note">' + (MD_FILTER === 'got' ? '還沒有已取得的資料' : (MD_FILTER === 'due' ? '沒有需要確認的項目 🎉' : '目前沒有缺件，用上面的表單新增吧')) + '</div>';
     return;
   }
-  const keyOf = it => MD_GROUP === 'rep' ? (it.rep || '（未指定業務）') : (MD_GROUP === 'type' ? (it.doc_type || '其他') : (it.alias || it.case_no));
+  const keyOf = it => MD_GROUP === 'rep' ? (it.provider === 'Mario' ? MD_SELF_KEY : (it.rep || '（未指定業務）')) : (MD_GROUP === 'type' ? (it.doc_type || '其他') : (it.alias || it.case_no));
   const groups = new Map();
   list.forEach(it => { const k = keyOf(it); if(!groups.has(k)) groups.set(k, []); groups.get(k).push(it); });
   const order = Array.from(groups.keys()).sort((a, b) => {
+    if(a === MD_SELF_KEY) return 1;      // 我自己要處理的放最後,跟業務分開
+    if(b === MD_SELF_KEY) return -1;
     if(a.startsWith('（未指定')) return 1;
     if(b.startsWith('（未指定')) return -1;
     if(MD_GROUP === 'type') return MD_TYPES.indexOf(a) - MD_TYPES.indexOf(b);
@@ -197,13 +200,28 @@ function mdRender(){
   });
   box.innerHTML = order.map(k => {
     const its = groups.get(k);
-    const notifyBtn = (MD_GROUP === 'rep' && MD_FILTER !== 'got' && !k.startsWith('（未指定'))
+    const notifyBtn = (MD_GROUP === 'rep' && MD_FILTER !== 'got' && !k.startsWith('（未指定') && k !== MD_SELF_KEY)
       ? `<button class="btn btn-primary md-btn" onclick="mdNotifyOpen(${JSON.stringify(k).replace(/"/g, '&quot;')})">📨 通知這位業務</button>` : '';
     return `<div class="md-group"><div class="md-group-head"><span>${mdEsc(k)} <span class="md-sub">${its.length} 項</span></span>${notifyBtn}</div>` +
       `<div class="md-table-wrap"><table class="md-table"><thead><tr>` +
-      (MD_GROUP === 'case' ? '' : '<th>案場</th>') + (MD_GROUP === 'type' ? '' : '<th>缺件類型</th>') +
+      (MD_GROUP === 'case' ? '' : '<th>案場</th>') + (MD_GROUP === 'type' || MD_GROUP === 'rep' ? '' : '<th>缺件類型</th>') +
       `<th>備註</th>${MD_GROUP === 'rep' ? '' : '<th>業務</th>'}<th>誰提供</th><th>已缺</th><th>上次確認</th><th>上次通知</th><th></th></tr></thead><tbody>` +
-      its.map(it => mdRow(it)).join('') + '</tbody></table></div></div>';
+      mdRowsFor(its) + '</tbody></table></div></div>';
+  }).join('');
+}
+
+// 依業務分組時,每個人底下再依缺件類型分區(電費單一區、使用執照一區…),同類型內依案場排序
+function mdRowsFor(its){
+  if(MD_GROUP !== 'rep') return its.map(it => mdRow(it)).join('');
+  const byType = new Map();
+  its.forEach(it => { const t = it.doc_type || '其他'; if(!byType.has(t)) byType.set(t, []); byType.get(t).push(it); });
+  const types = Array.from(byType.keys()).sort((a, b) => {
+    const ia = MD_TYPES.indexOf(a), ib = MD_TYPES.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  return types.map(t => {
+    const rows = byType.get(t).sort((a, b) => (a.alias || a.case_no || '').localeCompare(b.alias || b.case_no || '', 'zh-Hant'));
+    return `<tr class="md-subhead"><td colspan="7">▸ ${mdEsc(t)} <span class="md-sub">${rows.length} 項</span></td></tr>` + rows.map(it => mdRow(it)).join('');
   }).join('');
 }
 
@@ -213,7 +231,7 @@ function mdRow(it){
   const isGot = it.status === '已取得';
   return `<tr class="${due ? 'md-row-due' : ''}">` +
     (MD_GROUP === 'case' ? '' : `<td><b>${mdEsc(it.alias || it.case_no)}</b></td>`) +
-    (MD_GROUP === 'type' ? '' : `<td>${mdEsc(it.doc_type)}</td>`) +
+    (MD_GROUP === 'type' || MD_GROUP === 'rep' ? '' : `<td>${mdEsc(it.doc_type)}</td>`) +
     `<td class="md-note" onclick="mdEditNote('${it.id}')" title="點一下修改備註">${it.note ? mdEsc(it.note) : '<span class="md-sub">＋備註</span>'}</td>` +
     (MD_GROUP === 'rep' ? '' : `<td onclick="mdEditRep('${it.id}')" title="點一下修改業務">${mdEsc(it.rep) || '<span class="md-sub">＋業務</span>'}</td>`) +
     `<td>${mdEsc(it.provider)}</td>` +
