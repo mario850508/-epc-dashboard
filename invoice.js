@@ -256,8 +256,8 @@ function renderInvSelBar(){
     <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="invBulkStatus('待確認')">待確認</button>
     <span class="inv-muted" style="margin-left:6px;">輸出：</span>
     <button class="btn" style="padding:6px 12px;font-size:12.5px;" onclick="openInvDetailSheet()">📋 發票明細（給廠商）</button>
-    <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="downloadInvZip()">📦 下載拆分的發票 PDF（ZIP）</button>
-    <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="downloadInvDocsZip()">🗂 打包請款節點文件（前台上傳用）</button>
+    <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="invDownloadZip('split')">📦 下載拆分的發票 PDF（ZIP）</button>
+    <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="invDownloadZip('docs')">🗂 打包請款節點文件（前台上傳用）</button>
     <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="INV_SELECTED.clear(); renderInvoices();">取消勾選</button>`;
 }
 
@@ -384,45 +384,91 @@ function renderInvCalendar(){
     <div class="inv-muted" style="margin-top:8px;">虛線框的出款日是照「每兩週」自動往後排的，雲端資料夾開好後如果日期不一樣，跟 Claude 說要改哪天。</div>`;
 }
 
-// ---- 打包請款節點文件（2026-10-28：可付款的發票要把節點文件傳到能創前台）----
-// 後端 /api/invoice/docs-zip：每案一個資料夾＝發票 PDF＋各請款節點的文件子資料夾，缺的列在「缺檔清單.txt」
-async function downloadInvDocsZip(){
-  const sel = invSelected();
-  if(!sel.length) return;
-  showToast(`打包 ${sel.length} 張發票的節點文件中，檔案多的話要 1～2 分鐘…`);
-  try{
-    const res = await fetch(API_BASE + '/api/invoice/docs-zip', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: sel.map(it => it.id)})});
-    if(!res.ok){ const d = await res.json().catch(() => ({})); throw new Error(d.error || res.status); }
-    const blob = await res.blob();
-    const m = /filename\*=UTF-8''([^;]+)/.exec(res.headers.get('Content-Disposition') || '');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = m ? decodeURIComponent(m[1]) : '請款節點文件.zip';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    const miss = Number(res.headers.get('X-Missing-Count') || 0);
-    showToast(`已下載：${res.headers.get('X-Files') || '?'} 個檔案` + (miss ? `；${miss} 項沒檔案，看壓縮檔裡的「缺檔清單.txt」` : '，節點文件都有'));
-  }catch(e){ showToast('打包失敗：' + e.message); }
+// ---- 打包下載（2026-11-01 使用者：打包要很久，不知道進度）----
+// 流程：POST /api/invoice/zip-jobs（kind: split＝每張發票一個 PDF／docs＝發票＋各請款節點文件，每案一個資料夾）
+// → 輪詢打包進度「第 X / N 張」→ 打包完用串流下載（讀 Content-Length 算 MB／百分比）→ 存檔。
+// 進度框 #invZipWidget 在右下角，所有分頁都看得到，切到別的頁面照跑；不要關掉或重新整理網頁。
+const INV_ZIP = {running: false};
+function invFmtMB(b){ return (b / 1048576).toFixed(1) + ' MB'; }
+function renderInvZipWidget(o){
+  const w = document.getElementById('invZipWidget');
+  if(!w) return;
+  w.style.display = 'block';
+  w.classList.toggle('done', !!o.finished && !o.error);
+  w.classList.toggle('err', !!o.error);
+  w.innerHTML = `<div class="inv-job-head"><b>${o.error ? '⚠ ' : o.finished ? '✓ ' : '📦 '}${invEsc(o.title)}</b>`
+    + (o.finished || o.error ? `<button class="inv-job-x" onclick="document.getElementById('invZipWidget').style.display='none'">✕</button>` : '') + '</div>'
+    + `<div class="inv-job-bar"><div style="width:${Math.max(0, Math.min(100, o.pct || 0))}%;"></div></div>`
+    + `<div class="inv-job-text">${invEsc(o.line1 || '')}</div>` + (o.line2 ? `<div class="inv-job-text">${invEsc(o.line2)}</div>` : '');
 }
-
-async function downloadInvZip(){
+async function invDownloadZip(kind){
   const sel = invSelected();
   if(!sel.length) return;
-  showToast(`打包 ${sel.length} 張發票中…`);
+  if(INV_ZIP.running){ showToast('已經在打包／下載中，看右下角進度'); return; }
+  INV_ZIP.running = true;
+  const label = kind === 'docs' ? '請款節點文件' : '發票 PDF';
+  renderInvZipWidget({title: `準備打包${label}（步驟 1/2）`, pct: 0, line1: `${sel.length} 張發票，送出中…`});
   try{
-    const res = await fetch(API_BASE + '/api/invoice/zip', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: sel.map(it => it.id)})});
+    const r0 = await fetch(API_BASE + '/api/invoice/zip-jobs', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({kind, ids: sel.map(it => it.id)})});
+    const d0 = await r0.json().catch(() => ({}));
+    if(!r0.ok) throw new Error(d0.error || r0.status);
+    // 步驟 1：打包進度（主機忙碌時偶爾連不到，連續失敗 6 次才放棄）
+    let job, fails = 0;
+    for(;;){
+      await new Promise(r => setTimeout(r, 1200));
+      try{
+        const r = await fetch(API_BASE + '/api/invoice/zip-jobs/' + d0.job_id, {cache: 'no-store'});
+        job = await r.json().catch(() => ({}));
+        if(!r.ok) throw Object.assign(new Error(job.error || r.status), {final: r.status === 404});
+        fails = 0;
+      }catch(e){
+        if(e.final || ++fails >= 6) throw e;
+        renderInvZipWidget({title: `打包${label}中（步驟 1/2）`, pct: 0, line1: '主機忙碌，重試中…', line2: e.message});
+        continue;
+      }
+      if(job.status === 'error') throw new Error(job.error || '打包失敗');
+      if(job.status === 'done') break;
+      const pct = job.total ? Math.round(job.done / job.total * 100) : 0;
+      renderInvZipWidget({title: `打包${label}中（步驟 1/2）`, pct, line1: `第 ${job.done} / ${job.total} 張發票（${pct}%）　已放入 ${job.files} 個檔案`, line2: job.msg});
+    }
+    // 步驟 2：下載（串流讀取，算 MB／百分比／速度）
+    renderInvZipWidget({title: `下載${label}中（步驟 2/2）`, pct: 0, line1: `0 / ${invFmtMB(job.size || 0)}（0%）`});
+    const res = await fetch(API_BASE + '/api/invoice/zip-jobs/' + d0.job_id + '/download');
     if(!res.ok){ const d = await res.json().catch(() => ({})); throw new Error(d.error || res.status); }
-    const blob = await res.blob();
-    const cd = res.headers.get('Content-Disposition') || '';
-    const m = /filename\*=UTF-8''([^;]+)/.exec(cd);
+    const total = Number(res.headers.get('X-File-Size') || res.headers.get('Content-Length') || job.size || 0);
+    let blob;
+    if(res.body && res.body.getReader){
+      const reader = res.body.getReader();
+      const chunks = [];
+      let got = 0;
+      const t0 = Date.now();
+      for(;;){
+        const {done, value} = await reader.read();
+        if(done) break;
+        chunks.push(value);
+        got += value.length;
+        const sec = Math.max(0.5, (Date.now() - t0) / 1000);
+        renderInvZipWidget({title: `下載${label}中（步驟 2/2）`, pct: total ? got / total * 100 : 0,
+          line1: `${invFmtMB(got)} / ${total ? invFmtMB(total) : '?'}（${total ? Math.round(got / total * 100) : 0}%）`, line2: `速度 ${invFmtMB(got / sec)}／秒`});
+      }
+      blob = new Blob(chunks, {type: 'application/zip'});
+    }else{
+      blob = await res.blob();
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = m ? decodeURIComponent(m[1]) : '發票掃描檔.zip';
+    a.download = job.name || (kind === 'docs' ? '請款節點文件.zip' : '發票掃描檔.zip');
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    const missing = decodeURIComponent(res.headers.get('X-Missing') || '');
-    showToast(missing ? `已下載；這幾張沒有檔案：${missing}` : `已下載 ${sel.length} 個發票 PDF`);
-  }catch(e){ showToast('下載失敗：' + e.message); }
+    const miss = job.missing_count || 0;
+    renderInvZipWidget({title: `${label}下載完成`, finished: true, pct: 100, line1: `${job.files} 個檔案，${invFmtMB(blob.size)}（${job.name || ''}）`,
+      line2: miss ? `${miss} 項沒檔案，看壓縮檔裡的「缺檔清單.txt」` : (kind === 'docs' ? '節點文件都有' : '')});
+    showToast(`✓ ${label}已下載：${job.files} 個檔案` + (miss ? `；${miss} 項沒檔案（看缺檔清單.txt）` : ''));
+  }catch(e){
+    renderInvZipWidget({title: '打包／下載失敗', error: true, pct: 0, line1: String(e.message || e), line2: '可以再按一次重試'});
+  }finally{
+    INV_ZIP.running = false;
+  }
 }
 async function invCopy(text, label){
   try{ await navigator.clipboard.writeText(String(text == null ? '' : text)); showToast('已複製' + label + '：' + text); }

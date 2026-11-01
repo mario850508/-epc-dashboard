@@ -659,7 +659,11 @@
   .inv-cal-tag.pay.auto{border:1px dashed var(--success);}
   .inv-batch-chip{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:2px 9px;font-size:12px;}
   .inv-job-2{right:330px;}
-  @media (max-width: 700px){ .inv-job-2{right:18px;bottom:150px;} }
+  .inv-job-3{right:642px;}
+  .inv-job.err{border-color:#C0392B;}
+  .inv-job.err .inv-job-bar>div{background:#C0392B;}
+  @media (max-width: 1000px){ .inv-job-3{right:18px;bottom:290px;} }
+  @media (max-width: 700px){ .inv-job-2{right:18px;bottom:150px;} .inv-job-3{right:18px;bottom:290px;} }
   .inv-job-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
   .inv-job-x{border:none;background:none;cursor:pointer;font-size:14px;color:var(--text-muted);}
   .inv-job-bar{height:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
@@ -2824,6 +2828,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
     <!-- 發票請款：右下角匯入進度（所有分頁都看得到） -->
     <div id="invJobWidget" class="inv-job" style="display:none;"></div>
     <div id="invCheckWidget" class="inv-job inv-job-2" style="display:none;"></div>
+    <div id="invZipWidget" class="inv-job inv-job-3" style="display:none;"></div>
 
     <!-- 發票請款：檢視／修正 modal -->
     <div class="modal-overlay" id="invModalOverlay" onclick="if(event.target===this) closeInvoiceModal()">
@@ -10018,7 +10023,7 @@ async function confirmCertAbbr(id){
 <script src="line-health.js?v=2"></script>
 <script src="shipping.js?v=4"></script>
 <script src="meter-check.js?v=19"></script>
-<script src="invoice.js?v=15"></script>
+<script src="invoice.js?v=16"></script>
 
 </body>
 </html>
