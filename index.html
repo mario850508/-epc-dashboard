@@ -1082,6 +1082,42 @@
   @media (prefers-reduced-motion:reduce){
     *,*::before,*::after{animation:none !important;transition:none !important;scroll-behavior:auto !important;}
   }
+
+  /* --- 缺件追蹤（2026-11-01）--- */
+  .md-form{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;}
+  .md-field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;}
+  .md-field input,.md-field select{width:100%;}
+  .md-field-case{position:relative;}
+  .md-results{position:absolute;left:0;right:0;top:58px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-card);z-index:20;max-height:260px;overflow:auto;}
+  .md-results:empty{display:none;}
+  .md-result{padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);}
+  .md-result:hover{background:var(--primary-soft);}
+  .md-sub{color:var(--text-muted);font-size:12px;}
+  .md-types{display:flex;flex-wrap:wrap;gap:8px;}
+  .md-type{border:1px solid var(--border);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;background:var(--surface);}
+  .md-type:has(input:checked){background:var(--epc-soft);border-color:var(--epc);font-weight:600;}
+  .md-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--text-muted);}
+  .md-sep{width:1px;height:20px;background:var(--border);margin:0 6px;}
+  .md-chip{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:5px 14px;font-size:12.5px;cursor:pointer;color:var(--text);}
+  .md-chip.on{background:var(--epc);border-color:var(--epc);color:#fff;font-weight:600;}
+  .md-due{color:#C4530A;font-weight:700;}
+  .md-group{border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+  .md-group-head{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--epc-soft);padding:9px 14px;font-weight:700;font-size:14px;}
+  .md-table-wrap{overflow-x:auto;}
+  .md-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .md-table th{text-align:left;font-weight:600;color:var(--text-muted);font-size:12px;padding:7px 12px;border-bottom:1px solid var(--border);white-space:nowrap;}
+  .md-table td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .md-table tr:last-child td{border-bottom:none;}
+  .md-row-due{background:#FFF8EC;}
+  .md-note{cursor:pointer;min-width:120px;}
+  .md-actions{white-space:nowrap;text-align:right;}
+  .md-mini{border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:4px 9px;font-size:12px;cursor:pointer;margin-left:4px;}
+  .md-mini:hover{border-color:var(--primary);}
+  .md-ok{background:var(--success-soft);border-color:var(--success);color:var(--success);font-weight:600;}
+  .md-del{color:#B42318;}
+  .md-btn{padding:6px 14px;font-size:12.5px;}
+  .md-notice-text{width:100%;min-height:260px;font-family:inherit;font-size:13px;line-height:1.6;border:1px solid var(--border);border-radius:10px;padding:10px;resize:vertical;background:var(--surface-2);}
+  @media (max-width:760px){ .md-form{grid-template-columns:1fr;} .md-results{top:60px;} }
 </style>
 </head>
 <body>
@@ -1143,6 +1179,9 @@
         </div>
         <div class="nav-item" data-view="invoice" onclick="showView('invoice'); initInvoiceDrop(); loadInvoices();">
           <span class="nav-icon">🧾</span> 發票請款
+        </div>
+        <div class="nav-item" data-view="missingdocs" onclick="showView('missingdocs'); mdLoad();">
+          <span class="nav-icon">📎</span> 缺件追蹤
         </div>
         <div class="nav-item" data-view="ops" onclick="showView('ops'); loadOpsCases();">
           <span class="nav-icon">🔧</span> 維運團隊
@@ -2666,6 +2705,65 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <div id="invBox"><div class="login-note">載入中…</div></div>
       </div>
       <datalist id="invCaseList"></datalist>
+    </section>
+
+    <section class="view" id="view-missingdocs">
+      <div class="topbar">
+        <div>
+          <div class="crumb">功能模組 / 缺件追蹤</div>
+          <h1 class="page-title">缺件追蹤</h1>
+          <div class="page-sub">廠商要求補的案場資料（竣工圖／使用執照／電費單／監控／出場保固書…）→ 每週確認拿到沒 → 一鍵通知業務</div>
+        </div>
+        <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="mdLoad()">🔄 重新整理</button>
+      </div>
+      <div class="panel">
+        <div class="panel-title">➕ 新增缺件</div>
+        <div class="md-form">
+          <div class="md-field md-field-case">
+            <label>案場（輸入案號、別名或地址）</label>
+            <input id="mdCaseInput" class="cert-rename-input" autocomplete="off" placeholder="例如 工程苗栗15號" oninput="mdSearchInput()">
+            <div id="mdCaseResults" class="md-results"></div>
+            <div id="mdPicked" class="md-sub"></div>
+          </div>
+          <div class="md-field">
+            <label>業務（留空＝自動帶入該案負責業務）</label>
+            <input id="mdRepInput" class="cert-rename-input" list="mdRepList" placeholder="自動帶入">
+            <datalist id="mdRepList"></datalist>
+          </div>
+          <div class="md-field">
+            <label>誰提供</label>
+            <select id="mdProviderSel" class="cert-rename-input">
+              <option value="">依類型自動判斷</option>
+              <option value="業務">業務</option>
+              <option value="業務助理">業務助理（申請）</option>
+              <option value="Mario">Mario（我自己）</option>
+            </select>
+          </div>
+        </div>
+        <div class="md-field" style="margin-top:10px;"><label>缺哪些資料（可複選）</label><div id="mdTypeBox" class="md-types"></div></div>
+        <div class="md-field" style="margin-top:10px;max-width:520px;"><label>備註（選填，例如：最新為1月、2戶都要提供最新一期）</label>
+          <input id="mdNoteInput" class="cert-rename-input" placeholder="會一起寫進通知業務的訊息裡">
+        </div>
+        <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-primary" style="padding:7px 18px;font-size:13px;" onclick="mdAdd()">新增</button>
+          <span id="mdAddMsg" class="md-sub"></span>
+        </div>
+      </div>
+      <div class="panel">
+        <div id="mdSummary" style="font-size:13.5px;margin-bottom:10px;"></div>
+        <div id="mdFilters" class="md-filters"></div>
+        <div style="margin:8px 0 12px;"><button id="mdConfirmAllBtn" class="btn btn-ghost" style="padding:6px 14px;font-size:12.5px;display:none;" onclick="mdConfirmAll()"></button></div>
+        <div id="mdBox"><div class="login-note">載入中…</div></div>
+      </div>
+      <div class="modal-overlay" id="mdNoticeOverlay" onclick="if(event.target===this) mdNoticeClose()">
+        <div class="modal-box" style="max-width:560px;">
+          <div class="modal-header">
+            <div class="modal-title">📨 通知業務：缺件提醒預覽</div>
+            <button class="modal-close" onclick="mdNoticeClose()">✕</button>
+          </div>
+          <div class="modal-body" id="mdNoticeBody"></div>
+        </div>
+      </div>
     </section>
 
     <section class="view" id="view-procure">
@@ -10007,6 +10105,9 @@ async function confirmCertAbbr(id){
     showProcureTab(state.procureTab || 'orders');
   } else if(state && state.view === 'invoice'){
     showView('invoice');
+  } else if(state && state.view === 'missingdocs'){
+    showView('missingdocs');
+    mdLoad();
   } else if(state && state.view === 'metercheck'){
     window.MC_RESTORE_TAB = state.mcTab;   // showView 會覆寫導覽狀態，先記下分頁給 meter-check.js
     showView('metercheck');
@@ -10024,6 +10125,7 @@ async function confirmCertAbbr(id){
 <script src="shipping.js?v=4"></script>
 <script src="meter-check.js?v=19"></script>
 <script src="invoice.js?v=16"></script>
+<script src="missing-docs.js?v=1"></script>
 
 </body>
 </html>
