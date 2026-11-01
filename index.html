@@ -1095,7 +1095,7 @@
   .md-sub{color:var(--text-muted);font-size:12px;}
   .md-types{display:flex;flex-wrap:wrap;gap:8px;}
   .md-type{border:1px solid var(--border);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer;background:var(--surface);}
-  .md-type:has(input:checked){background:var(--epc-soft);border-color:var(--epc);font-weight:600;}
+  .md-type:has(input:checked),.md-type.on{background:var(--epc-soft);border-color:var(--epc);font-weight:600;}
   .md-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--text-muted);}
   .md-sep{width:1px;height:20px;background:var(--border);margin:0 6px;}
   .md-chip{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:5px 14px;font-size:12.5px;cursor:pointer;color:var(--text);}
@@ -2719,16 +2719,25 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
       <div class="panel">
         <div class="panel-title">➕ 新增缺件</div>
         <div class="md-form">
-          <div class="md-field md-field-case">
-            <label>案場（輸入案號、別名或地址）</label>
-            <input id="mdCaseInput" class="cert-rename-input" autocomplete="off" placeholder="例如 工程苗栗15號" oninput="mdSearchInput()">
-            <div id="mdCaseResults" class="md-results"></div>
+          <div class="md-field">
+            <label>① 廠商</label>
+            <select id="mdVendorSel" class="cert-rename-input" onchange="mdVendorChanged()"></select>
+          </div>
+          <div class="md-field">
+            <label>② 案場</label>
+            <select id="mdCaseSel" class="cert-rename-input" onchange="mdCaseChanged()"><option value="">先選廠商</option></select>
             <div id="mdPicked" class="md-sub"></div>
           </div>
           <div class="md-field">
-            <label>業務（留空＝自動帶入該案負責業務）</label>
+            <label>業務（選案場後自動帶入，可改）</label>
             <input id="mdRepInput" class="cert-rename-input" list="mdRepList" placeholder="自動帶入">
             <datalist id="mdRepList"></datalist>
+          </div>
+        </div>
+        <div class="md-form" style="margin-top:10px;">
+          <div class="md-field">
+            <label>③ 缺什麼（選一項就加進下面的清單，可選多項）</label>
+            <select id="mdTypeSel" class="cert-rename-input" onchange="mdTypeChosen()"></select>
           </div>
           <div class="md-field">
             <label>誰提供</label>
@@ -2740,7 +2749,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
             </select>
           </div>
         </div>
-        <div class="md-field" style="margin-top:10px;"><label>缺哪些資料（可複選）</label><div id="mdTypeBox" class="md-types"></div></div>
+        <div class="md-field" style="margin-top:10px;"><label>已選的缺件</label><div id="mdTypeBox" class="md-types"><span class="md-sub">還沒選</span></div></div>
         <div class="md-field" style="margin-top:10px;max-width:520px;"><label>備註（選填，例如：最新為1月、2戶都要提供最新一期）</label>
           <input id="mdNoteInput" class="cert-rename-input" placeholder="會一起寫進通知業務的訊息裡">
         </div>
@@ -10089,7 +10098,9 @@ async function confirmCertAbbr(id){
 }
 
 (function restoreNavState(){
-  const state = loadNavState();
+  let state = loadNavState();
+  // 從案件觀測中心的選單連過來：?view=missingdocs&vendor=三創
+  if(new URLSearchParams(location.search).get('view') === 'missingdocs') state = {view: 'missingdocs'};
   if(state && state.view === 'epc' && state.epcTab && document.getElementById('tab-' + state.epcTab)){
     showEpcTab(state.epcTab);
   } else if(state && state.view === 'pdf' && state.pdfTab && document.getElementById('tab-' + state.pdfTab)){

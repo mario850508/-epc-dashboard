@@ -12,10 +12,13 @@ let MD_ITEMS = [];
 let MD_TODAY = '';
 let MD_FILTER = 'open';   // open 缺件中｜due 本週待確認｜got 已取得
 let MD_GROUP = 'rep';     // rep 依業務｜type 依類型｜case 依案場
-let MD_PICK = null;
+const MD_VENDORS = ['三創', '尚展', '曙光', '光鼎', '宇陽達', '聚曜', '澄品', '大昇', '展亦', '凰太竹', '國欽', '振庭'];
+let MD_VENDOR_FILTER = '';   // 清單依廠商篩選（空＝全部）
+let MD_CASES = [];           // 新增表單：目前選的廠商底下進行中的案場
+let MD_TYPES_PICKED = [];    // 新增表單：已選的缺件類型
 let MD_REPS_LOADED = false;
-let MD_SEARCH_TIMER = null;
 let MD_NOTICE = null;
+function mdStore(k, v){ try{ if(v === undefined) return localStorage.getItem('md_' + k) || ''; localStorage.setItem('md_' + k, v); }catch(e){ return ''; } }
 
 function mdEsc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function mdDaysBetween(a, b){ return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
@@ -48,54 +51,68 @@ async function mdLoad(){
 }
 
 function mdRenderForm(){
-  const box = document.getElementById('mdTypeBox');
-  if(!box || box.dataset.ready) return;
-  box.dataset.ready = '1';
-  box.innerHTML = MD_TYPES.map((t, i) =>
-    `<label class="md-type"><input type="checkbox" class="md-type-cb" value="${mdEsc(t)}"> ${mdEsc(t)}</label>`).join('');
+  const vs = document.getElementById('mdVendorSel');
+  if(!vs || vs.dataset.ready) return;
+  vs.dataset.ready = '1';
+  const want = new URLSearchParams(location.search).get('vendor') || mdStore('vendor');
+  vs.innerHTML = '<option value="">請選廠商</option>' + MD_VENDORS.map(v => `<option value="${mdEsc(v)}">${mdEsc(v)}</option>`).join('');
+  document.getElementById('mdTypeSel').innerHTML = '<option value="">請選缺哪一項…</option>' + MD_TYPES.map(t => `<option value="${mdEsc(t)}">缺${mdEsc(t)}</option>`).join('');
+  if(want && MD_VENDORS.includes(want)){ vs.value = want; MD_VENDOR_FILTER = want; mdVendorChanged(); }
 }
 
-// ---------- 新增 ----------
-function mdSearchInput(){
-  clearTimeout(MD_SEARCH_TIMER);
-  const q = document.getElementById('mdCaseInput').value.trim();
-  const dd = document.getElementById('mdCaseResults');
-  MD_PICK = null;
+async function mdVendorChanged(){
+  const v = document.getElementById('mdVendorSel').value;
+  const cs = document.getElementById('mdCaseSel');
   document.getElementById('mdPicked').textContent = '';
-  if(!q){ dd.innerHTML = ''; return; }
-  MD_SEARCH_TIMER = setTimeout(async () => {
-    try{
-      const res = await fetch(API_BASE + '/api/case-search?include_certified=1&q=' + encodeURIComponent(q));
-      const data = await res.json();
-      window._mdResults = data.results || [];
-      dd.innerHTML = window._mdResults.length
-        ? window._mdResults.map((r, i) => `<div class="md-result" onclick="mdPickCase(${i})"><b>${mdEsc(r.alias || r.case)}</b> <span class="md-sub">${mdEsc(r.case)}｜${mdEsc(r.vendor)}</span></div>`).join('')
-        : '<div class="md-result md-sub">找不到符合的案場（也可以直接按「新增」用輸入的文字當案場名）</div>';
-    }catch(e){ dd.innerHTML = '<div class="md-result md-sub">搜尋失敗，請再試一次</div>'; }
-  }, 300);
+  document.getElementById('mdRepInput').value = '';
+  MD_CASES = [];
+  if(!v){ cs.innerHTML = '<option value="">先選廠商</option>'; return; }
+  mdStore('vendor', v);
+  MD_VENDOR_FILTER = v;
+  cs.innerHTML = '<option value="">載入案場中…</option>';
+  mdRender();
+  try{
+    const res = await fetch(API_BASE + '/api/missing-docs/cases?vendor=' + encodeURIComponent(v));
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    MD_CASES = data.cases || [];
+    cs.innerHTML = '<option value="">請選案場（' + MD_CASES.length + ' 個進行中）</option>' +
+      MD_CASES.map((c, i) => `<option value="${i}">${mdEsc(c.alias || c.case_no)}${c.alias && c.case_no ? '（' + mdEsc(c.case_no) + '）' : ''}${c.rep ? '｜' + mdEsc(c.rep) : ''}</option>`).join('');
+  }catch(e){
+    cs.innerHTML = '<option value="">案場載入失敗，請重選廠商再試</option>';
+  }
 }
 
-function mdPickCase(i){
-  const r = (window._mdResults || [])[i];
-  if(!r) return;
-  MD_PICK = r;
-  document.getElementById('mdCaseInput').value = r.alias || r.case;
-  document.getElementById('mdCaseResults').innerHTML = '';
-  document.getElementById('mdPicked').textContent = '✔ 已選：' + (r.case || '') + (r.vendor ? '｜' + r.vendor : '');
-  if(r.sales_person && !document.getElementById('mdRepInput').value) document.getElementById('mdRepInput').value = r.sales_person;
+function mdCaseChanged(){
+  const i = document.getElementById('mdCaseSel').value;
+  const c = i === '' ? null : MD_CASES[Number(i)];
+  document.getElementById('mdPicked').textContent = c ? (c.case_no + (c.rep ? '｜業務：' + c.rep : '｜⚠ 找不到這案的業務，請在右邊填')) : '';
+  document.getElementById('mdRepInput').value = c ? (c.rep || '') : '';
+}
+
+function mdTypeChosen(){
+  const sel = document.getElementById('mdTypeSel');
+  const t = sel.value;
+  sel.value = '';
+  if(t && !MD_TYPES_PICKED.includes(t)) MD_TYPES_PICKED.push(t);
+  mdRenderChips();
+}
+function mdRemoveType(t){ MD_TYPES_PICKED = MD_TYPES_PICKED.filter(x => x !== t); mdRenderChips(); }
+function mdRenderChips(){
+  document.getElementById('mdTypeBox').innerHTML = MD_TYPES_PICKED.length
+    ? MD_TYPES_PICKED.map(t => `<span class="md-type on">缺${mdEsc(t)} <a href="#" onclick="mdRemoveType(${JSON.stringify(t).replace(/"/g, '&quot;')});return false;" style="text-decoration:none;color:#B42318;">✕</a></span>`).join('')
+    : '<span class="md-sub">還沒選</span>';
 }
 
 async function mdAdd(){
-  const typed = document.getElementById('mdCaseInput').value.trim();
-  const types = Array.from(document.querySelectorAll('.md-type-cb:checked')).map(x => x.value);
   const msg = document.getElementById('mdAddMsg');
-  if(!typed && !MD_PICK){ msg.textContent = '請先輸入並選擇案場'; return; }
-  if(!types.length){ msg.textContent = '請至少勾一種缺件類型'; return; }
+  const ci = document.getElementById('mdCaseSel').value;
+  const c = ci === '' ? null : MD_CASES[Number(ci)];
+  if(!c){ msg.textContent = '請先選廠商和案場'; return; }
+  if(!MD_TYPES_PICKED.length){ msg.textContent = '請在「缺什麼」下拉選單選至少一項'; return; }
   const body = {
-    case_no: MD_PICK ? (MD_PICK.case || '') : '',
-    alias: MD_PICK ? (MD_PICK.alias || MD_PICK.case || '') : typed,
-    vendor: MD_PICK ? (MD_PICK.vendor || '') : '',
-    doc_types: types,
+    case_no: c.case_no || '', alias: c.alias || c.case_no || '', vendor: c.vendor || '',
+    doc_types: MD_TYPES_PICKED.slice(),
     note: document.getElementById('mdNoteInput').value.trim(),
     rep: document.getElementById('mdRepInput').value.trim(),
     provider: document.getElementById('mdProviderSel').value,
@@ -105,14 +122,14 @@ async function mdAdd(){
     const res = await fetch(API_BASE + '/api/missing-docs', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
     const data = await res.json();
     if(!res.ok || data.error){ msg.textContent = '新增失敗：' + (data.error || res.status); return; }
-    let t = '✅ 已新增 ' + (data.created || []).length + ' 項' + (data.rep ? '，業務：' + data.rep : '，⚠ 找不到這案的業務，請在清單上補填');
+    let t = '✅ ' + (c.alias || c.case_no) + ' 已新增 ' + (data.created || []).length + ' 項' + (data.rep ? '，業務：' + data.rep : '，⚠ 找不到這案的業務，請在清單上補填');
     if((data.skipped || []).length) t += '（' + data.skipped.join('、') + ' 本來就在追蹤中，略過）';
     msg.textContent = t;
-    document.querySelectorAll('.md-type-cb').forEach(x => x.checked = false);
+    MD_TYPES_PICKED = [];
+    mdRenderChips();
     document.getElementById('mdNoteInput').value = '';
-    document.getElementById('mdCaseInput').value = '';
-    document.getElementById('mdPicked').textContent = '';
-    MD_PICK = null;
+    document.getElementById('mdCaseSel').value = '';   // 廠商留著，方便連續新增同廠商的下一個案場
+    mdCaseChanged();
     await mdLoad();
   }catch(e){ msg.textContent = '新增失敗：' + e; }
 }
@@ -124,15 +141,18 @@ function mdSetGroup(g){ MD_GROUP = g; mdRender(); }
 function mdRender(){
   const box = document.getElementById('mdBox');
   if(!box) return;
-  const open = MD_ITEMS.filter(i => i.status === '缺件');
+  const pool = MD_VENDOR_FILTER ? MD_ITEMS.filter(i => i.vendor === MD_VENDOR_FILTER) : MD_ITEMS;
+  const open = pool.filter(i => i.status === '缺件');
   const due = open.filter(mdIsDue);
-  const got = MD_ITEMS.filter(i => i.status === '已取得').sort((a, b) => (b.got || '').localeCompare(a.got || '')).slice(0, 60);
+  const got = pool.filter(i => i.status === '已取得').sort((a, b) => (b.got || '').localeCompare(a.got || '')).slice(0, 60);
   document.getElementById('mdSummary').innerHTML =
     `缺件中 <b>${open.length}</b> 項，涉及 <b>${new Set(open.map(i => i.alias || i.case_no)).size}</b> 個案場；` +
     (due.length ? `<span class="md-due">⏰ ${due.length} 項已超過 ${MD_DUE_DAYS} 天沒確認</span>` : '本週都確認過了 ✅');
   document.getElementById('mdFilters').innerHTML =
     [['open', `缺件中（${open.length}）`], ['due', `本週待確認（${due.length}）`], ['got', `已取得（${got.length}）`]]
       .map(([k, l]) => `<button class="md-chip ${MD_FILTER === k ? 'on' : ''}" onclick="mdSetFilter('${k}')">${l}</button>`).join('') +
+    '<span class="md-sep"></span>廠商：<select class="cert-rename-input" style="padding:3px 8px;" onchange="MD_VENDOR_FILTER=this.value;mdRender()"><option value="">全部</option>' +
+      MD_VENDORS.map(v => `<option value="${mdEsc(v)}" ${MD_VENDOR_FILTER === v ? 'selected' : ''}>${mdEsc(v)}</option>`).join('') + '</select>' +
     '<span class="md-sep"></span>分組：' +
     [['rep', '業務'], ['type', '缺件類型'], ['case', '案場']]
       .map(([k, l]) => `<button class="md-chip ${MD_GROUP === k ? 'on' : ''}" onclick="mdSetGroup('${k}')">${l}</button>`).join('');
@@ -213,7 +233,7 @@ async function mdDelete(id){
   mdLoad();
 }
 async function mdConfirmAll(){
-  const open = MD_ITEMS.filter(i => i.status === '缺件');
+  const open = MD_ITEMS.filter(i => i.status === '缺件' && (!MD_VENDOR_FILTER || i.vendor === MD_VENDOR_FILTER));
   const ids = (MD_FILTER === 'due' ? open.filter(mdIsDue) : open).map(i => i.id);
   if(!ids.length) return;
   const res = await fetch(API_BASE + '/api/missing-docs/confirm', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids})});
