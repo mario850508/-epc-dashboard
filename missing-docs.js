@@ -6,7 +6,7 @@
 // 後端：GET/POST /api/missing-docs、PATCH/DELETE /api/missing-docs/<id>、POST /api/missing-docs/confirm、
 //       GET /api/missing-docs/notice?rep=、POST /api/missing-docs/notify；案場搜尋沿用 /api/case-search
 // ===================================================================
-const MD_TYPES = ['竣工圖', '使用執照', '電費單', '監控', '模組、逆變器出場&保固書', '結案保固書', '其他'];
+const MD_TYPES = ['竣工圖', '使用執照', '使用執照附件', '無使用執照證明', '使用分區證明', '舊有房屋證明', '電費單', '身分證', '公證書', '監控', '模組、逆變器出場&保固書', '結案保固書', '其他'];
 const MD_DUE_DAYS = 7;   // 距離上次確認（沒確認過就從建立日算）滿 7 天 → 該確認了
 let MD_ITEMS = [];
 let MD_TODAY = '';
