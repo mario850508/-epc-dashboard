@@ -203,8 +203,10 @@ function mdRender(){
   });
   box.innerHTML = order.map(k => {
     const its = groups.get(k);
-    const notifyBtn = (MD_GROUP === 'rep' && MD_FILTER !== 'got' && !k.startsWith('（未指定') && k !== MD_SELF_KEY && k !== MD_ASSIST_KEY)
-      ? `<button class="btn btn-primary md-btn" onclick="mdNotifyOpen(${JSON.stringify(k).replace(/"/g, '&quot;')})">📨 通知這位業務</button>` : '';
+    const notifyBtn = (MD_GROUP === 'rep' && MD_FILTER !== 'got' && !k.startsWith('（未指定') && k !== MD_SELF_KEY)
+      ? (k === MD_ASSIST_KEY
+          ? `<button class="btn btn-primary md-btn" onclick="mdNotifyOpen('', 'assistant')">📨 通知業務助理</button>`
+          : `<button class="btn btn-primary md-btn" onclick="mdNotifyOpen(${JSON.stringify(k).replace(/"/g, '&quot;')})">📨 通知這位業務</button>`) : '';
     const showRep = MD_GROUP !== 'rep' || k === MD_SELF_KEY || k === MD_ASSIST_KEY;   // 業務助理/我自己那區要看得到是哪位業務的案
     return `<div class="md-group"><div class="md-group-head"><span>${mdEsc(k)} <span class="md-sub">${its.length} 項</span></span>${notifyBtn}</div>` +
       `<div class="md-table-wrap"><table class="md-table"><thead><tr>` +
@@ -324,29 +326,50 @@ async function mdConfirmAll(){
 }
 
 // ---------- 通知業務（先預覽、按送出才真的推播）----------
-async function mdNotifyOpen(rep){
+var MD_BOUND_NAMES = null;
+async function mdBoundNames(){
+  if(MD_BOUND_NAMES) return MD_BOUND_NAMES;
+  try{ const r = await fetch(API_BASE + '/api/line/bound-names'); const d = await r.json(); MD_BOUND_NAMES = d.names || []; }catch(e){ MD_BOUND_NAMES = []; }
+  return MD_BOUND_NAMES;
+}
+function mdAsstChanged(){ const v = document.getElementById('mdAsstTo').value.trim(); mdStore('assistant', v); mdNotifyOpen('', 'assistant', true); }
+
+// role='assistant':傳給業務助理(收件人自己選,記在這個瀏覽器);否則傳給 rep 這位業務
+async function mdNotifyOpen(rep, role, keepOpen){
+  const isAsst = role === 'assistant';
   const ov = document.getElementById('mdNoticeOverlay');
-  document.getElementById('mdNoticeBody').innerHTML = '<div class="login-note">整理訊息中…</div>';
+  const body = document.getElementById('mdNoticeBody');
+  const to = isAsst ? (keepOpen && document.getElementById('mdAsstTo') ? document.getElementById('mdAsstTo').value.trim() : mdStore('assistant')) : '';
+  if(!keepOpen) body.innerHTML = '<div class="login-note">整理訊息中…</div>';
   ov.classList.add('show');
   try{
-    const res = await fetch(API_BASE + '/api/missing-docs/notice?rep=' + encodeURIComponent(rep));
+    const url = isAsst
+      ? API_BASE + '/api/missing-docs/notice?role=assistant&to=' + encodeURIComponent(to) + '&vendor=' + encodeURIComponent(MD_VENDOR_FILTER || '')
+      : API_BASE + '/api/missing-docs/notice?rep=' + encodeURIComponent(rep);
+    const res = await fetch(url);
     const data = await res.json();
     if(data.error) throw new Error(data.error);
     MD_NOTICE = data;
+    const names = isAsst ? await mdBoundNames() : [];
+    const toBox = isAsst
+      ? `<div style="margin-bottom:8px;font-size:13px;">傳給：<input id="mdAsstTo" class="cert-rename-input vm-in" list="mdAsstList" value="${mdEsc(to)}" placeholder="選一位業務助理（已綁定 LINE／Slack 的名單）" style="width:260px;max-width:100%;" onchange="mdAsstChanged()">` +
+        `<datalist id="mdAsstList">${names.map(n => `<option value="${mdEsc(n)}"></option>`).join('')}</datalist></div>` : '';
     if(!data.count){
-      document.getElementById('mdNoticeBody').innerHTML = '<div class="login-note">' + mdEsc(rep) + ' 名下沒有需要通知的缺件</div>';
+      body.innerHTML = toBox + '<div class="login-note">' + (isAsst ? '目前沒有業務助理要處理的缺件' : mdEsc(rep) + ' 名下沒有需要通知的缺件') + '</div>';
       return;
     }
-    document.getElementById('mdNoticeBody').innerHTML =
-      `<div class="md-sub" style="margin-bottom:6px;">將傳給：<b>${mdEsc(rep)}</b>（共 ${data.count} 項）` +
-      (data.bound ? ' ✅ 已綁定 LINE／Slack' : ' <span class="md-due">⚠ 這位業務還沒綁定 LINE／Slack，無法直接推播，請複製文字自己貼給他</span>') + '</div>' +
+    const who = isAsst ? (to || '（還沒選收件人）') : rep;
+    const canSend = data.bound && (!isAsst || to);
+    body.innerHTML = toBox +
+      `<div class="md-sub" style="margin-bottom:6px;">將傳給：<b>${mdEsc(who)}</b>（共 ${data.count} 項）` +
+      (!isAsst || to ? (data.bound ? ' ✅ 已綁定 LINE／Slack' : ' <span class="md-due">⚠ 這位還沒綁定 LINE／Slack，無法直接推播，請複製文字自己貼給他</span>') : ' <span class="md-due">⚠ 請先在上面選收件人</span>') + '</div>' +
       `<textarea id="mdNoticeText" class="md-notice-text" readonly>${mdEsc(data.text)}</textarea>` +
       `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap;">` +
       `<button class="btn btn-ghost md-btn" onclick="mdNoticeCopy()">📋 複製文字</button>` +
       `<button class="btn btn-ghost md-btn" onclick="mdNoticeClose()">取消</button>` +
-      (data.bound ? `<button class="btn btn-primary md-btn" id="mdNoticeSend" onclick="mdNoticeSend()">📨 確認送出</button>` : '') + '</div>';
+      (canSend ? `<button class="btn btn-primary md-btn" id="mdNoticeSend" onclick="mdNoticeSend()">📨 確認送出</button>` : '') + '</div>';
   }catch(e){
-    document.getElementById('mdNoticeBody').innerHTML = '<div class="login-note">整理訊息失敗：' + mdEsc(e.message || e) + '</div>';
+    body.innerHTML = '<div class="login-note">整理訊息失敗：' + mdEsc(e.message || e) + '</div>';
   }
 }
 function mdNoticeClose(){ document.getElementById('mdNoticeOverlay').classList.remove('show'); }
@@ -361,7 +384,7 @@ async function mdNoticeSend(){
   const btn = document.getElementById('mdNoticeSend');
   btn.disabled = true; btn.textContent = '送出中…';
   try{
-    const res = await fetch(API_BASE + '/api/missing-docs/notify', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({rep: MD_NOTICE.rep, ids: MD_NOTICE.ids})});
+    const res = await fetch(API_BASE + '/api/missing-docs/notify', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(MD_NOTICE.role === 'assistant' ? {role: 'assistant', to: MD_NOTICE.to, ids: MD_NOTICE.ids} : {rep: MD_NOTICE.rep, ids: MD_NOTICE.ids})});
     const data = await res.json();
     if(!res.ok || data.error) throw new Error(data.error || res.status);
     if(!data.sent){ btn.disabled = false; btn.textContent = '📨 確認送出'; alert('推播沒有成功（可能 LINE 額度用完且沒綁 Slack），請改用「複製文字」自己貼給他。'); return; }
