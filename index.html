@@ -2725,7 +2725,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           </div>
           <div class="md-field">
             <label>② 案場</label>
-            <select id="mdCaseSel" class="cert-rename-input" onchange="mdCaseChanged()"><option value="">先選廠商</option></select>
+            <input id="mdCaseSel" class="cert-rename-input" list="mdCaseList" autocomplete="off" placeholder="先選廠商" oninput="mdCaseChanged()" onchange="mdCaseChanged(true)"><datalist id="mdCaseList"></datalist>
             <div id="mdPicked" class="md-sub"></div>
           </div>
           <div class="md-field">
@@ -10136,7 +10136,7 @@ async function confirmCertAbbr(id){
 <script src="shipping.js?v=4"></script>
 <script src="meter-check.js?v=19"></script>
 <script src="invoice.js?v=16"></script>
-<script src="missing-docs.js?v=2"></script>
+<script src="missing-docs.js?v=3"></script>
 
 </body>
 </html>

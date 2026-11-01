@@ -14,6 +14,7 @@ let MD_FILTER = 'open';   // open 缺件中｜due 本週待確認｜got 已取�
 let MD_GROUP = 'rep';     // rep 依業務｜type 依類型｜case 依案場
 const MD_VENDORS = ['三創', '尚展', '曙光', '光鼎', '宇陽達', '聚曜', '澄品', '大昇', '展亦', '凰太竹', '國欽', '振庭'];
 let MD_VENDOR_FILTER = '';   // 清單依廠商篩選（空＝全部）
+let MD_CASE_PICK = null;
 let MD_CASES = [];           // 新增表單：目前選的廠商底下進行中的案場
 let MD_TYPES_PICKED = [];    // 新增表單：已選的缺件類型
 let MD_REPS_LOADED = false;
@@ -63,31 +64,51 @@ function mdRenderForm(){
 async function mdVendorChanged(){
   const v = document.getElementById('mdVendorSel').value;
   const cs = document.getElementById('mdCaseSel');
+  const dl = document.getElementById('mdCaseList');
+  MD_CASE_PICK = null;
+  cs.value = '';
   document.getElementById('mdPicked').textContent = '';
   document.getElementById('mdRepInput').value = '';
   MD_CASES = [];
-  if(!v){ cs.innerHTML = '<option value="">先選廠商</option>'; return; }
+  if(!v){ dl.innerHTML = ''; cs.placeholder = '先選廠商'; return; }
   mdStore('vendor', v);
   MD_VENDOR_FILTER = v;
-  cs.innerHTML = '<option value="">載入案場中…</option>';
+  dl.innerHTML = ''; cs.placeholder = '載入案場中…';
   mdRender();
   try{
     const res = await fetch(API_BASE + '/api/missing-docs/cases?vendor=' + encodeURIComponent(v));
     const data = await res.json();
     if(data.error) throw new Error(data.error);
     MD_CASES = data.cases || [];
-    cs.innerHTML = '<option value="">請選案場（' + MD_CASES.length + ' 個進行中）</option>' +
-      MD_CASES.map((c, i) => `<option value="${i}">${mdEsc(c.case_no)}${c.alias && c.alias !== c.case_no ? '（' + mdEsc(c.alias) + '）' : ''}${c.rep ? '｜' + mdEsc(c.rep) : ''}</option>`).join('');
+    cs.placeholder = '輸入關鍵字搜尋，例如 桃園15（共 ' + MD_CASES.length + ' 個進行中）';
+    dl.innerHTML = MD_CASES.map(c => `<option value="${mdEsc(mdCaseLabel(c))}">${c.rep ? mdEsc(c.rep) : ''}</option>`).join('');
   }catch(e){
-    cs.innerHTML = '<option value="">案場載入失敗，請重選廠商再試</option>';
+    cs.placeholder = '案場載入失敗，請重選廠商再試';
   }
 }
 
-function mdCaseChanged(){
-  const i = document.getElementById('mdCaseSel').value;
-  const c = i === '' ? null : MD_CASES[Number(i)];
-  document.getElementById('mdPicked').textContent = c ? (c.case_no + (c.rep ? '｜業務：' + c.rep : '｜⚠ 找不到這案的業務，請在右邊填')) : '';
-  document.getElementById('mdRepInput').value = c ? (c.rep || '') : '';
+function mdCaseLabel(c){ return (c.case_no || '') + (c.alias && c.alias !== c.case_no ? '（' + c.alias + '）' : ''); }
+
+// 案場欄:打關鍵字(例如 桃園15)由瀏覽器列出符合的選項;選到完整名稱就帶入業務。
+// 離開欄位時如果只剩唯一符合的案場,直接採用;多個就維持沒選,請再選一個。
+function mdCaseChanged(commit){
+  const inp = document.getElementById('mdCaseSel');
+  const q = inp.value.trim();
+  let c = MD_CASES.find(x => mdCaseLabel(x) === q) || null;
+  if(!c && commit && q){
+    const hits = MD_CASES.filter(x => (mdCaseLabel(x) + (x.rep || '')).includes(q));
+    if(hits.length === 1){ c = hits[0]; inp.value = mdCaseLabel(c); }
+  }
+  const changed = c !== MD_CASE_PICK;
+  MD_CASE_PICK = c;
+  const pk = document.getElementById('mdPicked');
+  if(c){
+    pk.textContent = c.case_no + (c.rep ? '｜業務：' + c.rep : '｜⚠ 找不到這案的業務，請在右邊填');
+    if(changed) document.getElementById('mdRepInput').value = c.rep || '';
+  }else{
+    pk.textContent = (commit && q) ? '找不到唯一符合的案場，請從下拉清單點選一個' : '';
+    if(commit || !q) document.getElementById('mdRepInput').value = '';
+  }
 }
 
 function mdTypeChosen(){
@@ -106,8 +127,8 @@ function mdRenderChips(){
 
 async function mdAdd(){
   const msg = document.getElementById('mdAddMsg');
-  const ci = document.getElementById('mdCaseSel').value;
-  const c = ci === '' ? null : MD_CASES[Number(ci)];
+  mdCaseChanged(true);
+  const c = MD_CASE_PICK;
   if(!c){ msg.textContent = '請先選廠商和案場'; return; }
   if(!MD_TYPES_PICKED.length){ msg.textContent = '請在「缺什麼」下拉選單選至少一項'; return; }
   const body = {
@@ -128,7 +149,7 @@ async function mdAdd(){
     MD_TYPES_PICKED = [];
     mdRenderChips();
     document.getElementById('mdNoteInput').value = '';
-    document.getElementById('mdCaseSel').value = '';   // 廠商留著，方便連續新增同廠商的下一個案場
+    MD_CASE_PICK = null; document.getElementById('mdCaseSel').value = '';   // 廠商留著，方便連續新增同廠商的下一個案場
     mdCaseChanged();
     await mdLoad();
   }catch(e){ msg.textContent = '新增失敗：' + e; }
