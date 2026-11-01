@@ -245,8 +245,8 @@ function invSfUrl(caseNo, node){
 function invNodeLinks(it){
   const nodes = (it.nodes || '').split('、').filter(Boolean);
   if(!it.case_no) return invEsc(it.nodes || '');
-  return nodes.map(n => n === '其他' ? invEsc(n)
-    : `<a href="${invEsc(invSfUrl(it.case_no, n))}" target="_blank" rel="noopener" title="開前台：${invEsc(it.case_no)} ${invEsc(n)} 上傳頁" onclick="event.stopPropagation()">${invEsc(n)}↗</a>`).join('、');
+  // 「其他」（附加工程等合約以外的款項）前台沒有對應的款項篩選，直接開該案全部節點（同簽約款連結）
+  return nodes.map(n => `<a href="${invEsc(invSfUrl(it.case_no, n === '其他' ? '' : n))}" target="_blank" rel="noopener" title="開前台：${invEsc(it.case_no)} ${n === '其他' ? '全部節點' : invEsc(n) + ' 上傳頁'}" onclick="event.stopPropagation()">${invEsc(n)}↗</a>`).join('、');
 }
 
 // ---- 勾選 → 發票明細（給廠商）／拆分 PDF 打包下載（2026-10-28）----
@@ -735,7 +735,7 @@ function openInvoiceModal(id){
         <div>發票號碼</div><button class="inv-copy-btn" onclick="invCopy('${invEsc(it.invoice_no)}','發票號碼')">${invEsc(it.invoice_no)} 📋</button>
         <div>發票開立日期</div><div>${it.date ? `<button class="inv-copy-btn" onclick="invCopy('${invEsc(it.date)}','開立日期')">${invEsc(it.date)} 📋</button> <button class="inv-copy-btn" onclick="invCopy('${invEsc(it.date.replace(/-/g, '/'))}','開立日期')">${invEsc(it.date.replace(/-/g, '/'))} 📋</button>` : '<span class="inv-src-bad">沒讀到日期</span>'}</div>
         ${it.case_no ? `<div>前台上傳頁</div><div>${nodes.filter(n => n !== '其他' && n !== '簽約款').concat(['簽約款']).map(n =>
-          `<a class="inv-copy-btn" style="text-decoration:none;" href="${invEsc(invSfUrl(it.case_no, n))}" target="_blank" rel="noopener">🔗 ${invEsc(n === '簽約款' ? '簽約款（全部節點）' : n)}</a>`).join(' ')}
+          `<a class="inv-copy-btn" style="text-decoration:none;" href="${invEsc(invSfUrl(it.case_no, n))}" target="_blank" rel="noopener">🔗 ${invEsc(n === '簽約款' ? (nodes.includes('其他') ? '其他／簽約款（全部節點）' : '簽約款（全部節點）') : n)}</a>`).join(' ')}
           <div class="inv-src">直接開能創前台的工程節點管理，已帶好案場${invEsc(it.case_no)}</div></div>` : ''}
         <div>核對</div><div class="inv-src">未稅 ${invMoney(it.sales)}｜稅額 ${invMoney(it.tax)}｜總金額 ${invMoney(it.total)}（前台系統已帶的金額，對一下有沒有一樣）</div>
       </div>
