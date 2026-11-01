@@ -226,13 +226,27 @@ function renderInvoices(){
         <td onclick="event.stopPropagation()"><input type="checkbox" ${INV_SELECTED.has(it.id) ? 'checked' : ''} onclick="invToggleSel('${it.id}', this.checked)"></td>
         <td><div style="font-weight:700;">${invEsc(it.invoice_no)}</div><div class="inv-muted">${invEsc(it.date || '')}　${invEsc(it.seller || '')}</div></td>
         <td>${it.case_no ? `<div style="font-weight:700;">${invEsc(it.case_no)}</div><div class="inv-muted">${invEsc(it.alias || '')}　${invEsc(it.vendor || '')}</div>` : '<span class="inv-badge inv-bad">比對不到案場</span>'}</td>
-        <td>${invEsc(it.nodes || '') || '<span class="inv-badge inv-bad">未判斷</span>'}<div class="inv-muted">${invEsc(it.items || '')}</div></td>
+        <td>${invNodeLinks(it) || '<span class="inv-badge inv-bad">未判斷</span>'}<div class="inv-muted">${invEsc(it.items || '')}</div></td>
         <td style="text-align:right;">${invMoney(it.total)}</td>
         <td style="text-align:right;">${invMoney(it.expected)}</td>
         <td>${invOkBadge(c.amount && c.amount.ok, it.amount_check)}</td>
         <td>${invDocBadge(it)}${warn ? `<div class="inv-warn-mini">⚠ ${warn} 個提醒</div>` : ''}</td>
         <td>${invStatusPill(it.status)}${it.pay_date && ['可付款', '已付款'].includes(it.status) ? `<div class="inv-muted">${invMD(it.pay_date)} 付款</div>` : ''}</td></tr>`;
     }).join('') + '</tbody></table></div>';
+}
+
+// ---- 2026-11-02：能創前台「工程節點管理」上傳頁連結（網址規律：款項名稱＋案場名稱兩個查詢參數）----
+// 簽約款＝款項名稱留空，列出該案場全部節點（要自己找「工程合約」節點）。前台的「掛表驗收款」是「表」不是「錶」。
+const SF_NODES_URL = 'https://www.sf-project.sunnyfounder.com/admin/project_management/engineering_construction/progress_nodes';
+function invSfUrl(caseNo, node){
+  const item = (!node || node === '簽約款') ? '' : String(node).replace('掛錶', '掛表');
+  return SF_NODES_URL + '?q%5Bpayment_item_eq%5D=' + encodeURIComponent(item) + '&q%5Bproject_name_cont%5D=' + encodeURIComponent(caseNo) + '&hide_menu=1';
+}
+function invNodeLinks(it){
+  const nodes = (it.nodes || '').split('、').filter(Boolean);
+  if(!it.case_no) return invEsc(it.nodes || '');
+  return nodes.map(n => n === '其他' ? invEsc(n)
+    : `<a href="${invEsc(invSfUrl(it.case_no, n))}" target="_blank" rel="noopener" title="開前台：${invEsc(it.case_no)} ${invEsc(n)} 上傳頁" onclick="event.stopPropagation()">${invEsc(n)}↗</a>`).join('、');
 }
 
 // ---- 勾選 → 發票明細（給廠商）／拆分 PDF 打包下載（2026-10-28）----
@@ -720,6 +734,9 @@ function openInvoiceModal(id){
       <div class="inv-copy-grid">
         <div>發票號碼</div><button class="inv-copy-btn" onclick="invCopy('${invEsc(it.invoice_no)}','發票號碼')">${invEsc(it.invoice_no)} 📋</button>
         <div>發票開立日期</div><div>${it.date ? `<button class="inv-copy-btn" onclick="invCopy('${invEsc(it.date)}','開立日期')">${invEsc(it.date)} 📋</button> <button class="inv-copy-btn" onclick="invCopy('${invEsc(it.date.replace(/-/g, '/'))}','開立日期')">${invEsc(it.date.replace(/-/g, '/'))} 📋</button>` : '<span class="inv-src-bad">沒讀到日期</span>'}</div>
+        ${it.case_no ? `<div>前台上傳頁</div><div>${nodes.filter(n => n !== '其他' && n !== '簽約款').concat(['簽約款']).map(n =>
+          `<a class="inv-copy-btn" style="text-decoration:none;" href="${invEsc(invSfUrl(it.case_no, n))}" target="_blank" rel="noopener">🔗 ${invEsc(n === '簽約款' ? '簽約款（全部節點）' : n)}</a>`).join(' ')}
+          <div class="inv-src">直接開能創前台的工程節點管理，已帶好案場${invEsc(it.case_no)}</div></div>` : ''}
         <div>核對</div><div class="inv-src">未稅 ${invMoney(it.sales)}｜稅額 ${invMoney(it.tax)}｜總金額 ${invMoney(it.total)}（前台系統已帶的金額，對一下有沒有一樣）</div>
       </div>
 
