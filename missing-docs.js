@@ -57,6 +57,13 @@ function mdRenderForm(){
   const vs = document.getElementById('mdVendorSel');
   if(!vs || vs.dataset.ready) return;
   vs.dataset.ready = '1';
+  if(typeof MD_LOCK_VENDOR !== 'undefined' && MD_LOCK_VENDOR){   // 案件觀測中心:廠商以頂端選的為準,整頁只有這一家
+    vs.innerHTML = `<option value="${mdEsc(MD_LOCK_VENDOR)}">${mdEsc(MD_LOCK_VENDOR)}</option>`;
+    vs.value = MD_LOCK_VENDOR; vs.disabled = true;
+    document.getElementById('mdTypeSel').innerHTML = '<option value="">請選缺哪一項…</option>' + MD_TYPES.map(t => `<option value="${mdEsc(t)}">缺${mdEsc(t)}</option>`).join('');
+    MD_VENDOR_FILTER = MD_LOCK_VENDOR; mdVendorChanged();
+    return;
+  }
   const want = new URLSearchParams(location.search).get('vendor') || mdStore('vendor');
   vs.innerHTML = '<option value="">請選廠商</option>' + MD_VENDORS.map(v => `<option value="${mdEsc(v)}">${mdEsc(v)}</option>`).join('');
   document.getElementById('mdTypeSel').innerHTML = '<option value="">請選缺哪一項…</option>' + MD_TYPES.map(t => `<option value="${mdEsc(t)}">缺${mdEsc(t)}</option>`).join('');
@@ -174,8 +181,9 @@ function mdRender(){
   document.getElementById('mdFilters').innerHTML =
     [['open', `缺件中（${open.length}）`], ['due', `本週待確認（${due.length}）`], ['got', `已取得（${got.length}）`]]
       .map(([k, l]) => `<button class="md-chip ${MD_FILTER === k ? 'on' : ''}" onclick="mdSetFilter('${k}')">${l}</button>`).join('') +
-    '<span class="md-sep"></span>廠商：<select class="cert-rename-input" style="padding:3px 8px;" onchange="MD_VENDOR_FILTER=this.value;mdRender()"><option value="">全部</option>' +
-      MD_VENDORS.map(v => `<option value="${mdEsc(v)}" ${MD_VENDOR_FILTER === v ? 'selected' : ''}>${mdEsc(v)}</option>`).join('') + '</select>' +
+    '<span class="md-sep"></span>廠商：' + ((typeof MD_LOCK_VENDOR !== 'undefined' && MD_LOCK_VENDOR) ? `<b>${mdEsc(MD_LOCK_VENDOR)}</b>` :
+      '<select class="cert-rename-input" style="padding:3px 8px;" onchange="MD_VENDOR_FILTER=this.value;mdRender()"><option value="">全部</option>' +
+      MD_VENDORS.map(v => `<option value="${mdEsc(v)}" ${MD_VENDOR_FILTER === v ? 'selected' : ''}>${mdEsc(v)}</option>`).join('') + '</select>') +
     '<span class="md-sep"></span>分組：' +
     [['rep', '業務'], ['type', '缺件類型'], ['case', '案場']]
       .map(([k, l]) => `<button class="md-chip ${MD_GROUP === k ? 'on' : ''}" onclick="mdSetGroup('${k}')">${l}</button>`).join('');
