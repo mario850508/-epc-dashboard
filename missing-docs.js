@@ -77,7 +77,7 @@ async function mdVendorChanged(){
     if(data.error) throw new Error(data.error);
     MD_CASES = data.cases || [];
     cs.innerHTML = '<option value="">請選案場（' + MD_CASES.length + ' 個進行中）</option>' +
-      MD_CASES.map((c, i) => `<option value="${i}">${mdEsc(c.alias || c.case_no)}${c.alias && c.case_no ? '（' + mdEsc(c.case_no) + '）' : ''}${c.rep ? '｜' + mdEsc(c.rep) : ''}</option>`).join('');
+      MD_CASES.map((c, i) => `<option value="${i}">${mdEsc(c.case_no)}${c.alias && c.alias !== c.case_no ? '（' + mdEsc(c.alias) + '）' : ''}${c.rep ? '｜' + mdEsc(c.rep) : ''}</option>`).join('');
   }catch(e){
     cs.innerHTML = '<option value="">案場載入失敗，請重選廠商再試</option>';
   }
@@ -111,7 +111,7 @@ async function mdAdd(){
   if(!c){ msg.textContent = '請先選廠商和案場'; return; }
   if(!MD_TYPES_PICKED.length){ msg.textContent = '請在「缺什麼」下拉選單選至少一項'; return; }
   const body = {
-    case_no: c.case_no || '', alias: c.alias || c.case_no || '', vendor: c.vendor || '',
+    case_no: c.case_no || '', alias: (c.case_no || '') + (c.alias && c.alias !== c.case_no ? '（' + c.alias + '）' : ''), vendor: c.vendor || '',
     doc_types: MD_TYPES_PICKED.slice(),
     note: document.getElementById('mdNoteInput').value.trim(),
     rep: document.getElementById('mdRepInput').value.trim(),
@@ -122,7 +122,7 @@ async function mdAdd(){
     const res = await fetch(API_BASE + '/api/missing-docs', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
     const data = await res.json();
     if(!res.ok || data.error){ msg.textContent = '新增失敗：' + (data.error || res.status); return; }
-    let t = '✅ ' + (c.alias || c.case_no) + ' 已新增 ' + (data.created || []).length + ' 項' + (data.rep ? '，業務：' + data.rep : '，⚠ 找不到這案的業務，請在清單上補填');
+    let t = '✅ ' + c.case_no + ' 已新增 ' + (data.created || []).length + ' 項' + (data.rep ? '，業務：' + data.rep : '，⚠ 找不到這案的業務，請在清單上補填');
     if((data.skipped || []).length) t += '（' + data.skipped.join('、') + ' 本來就在追蹤中，略過）';
     msg.textContent = t;
     MD_TYPES_PICKED = [];
