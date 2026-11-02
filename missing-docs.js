@@ -412,36 +412,11 @@ async function mdNoticeMark(){
     alert('記錄失敗：' + (e.message || e));
   }
 }
-// 按「確認送出」先問一次：要傳給誰？預設是這位業務；也可以改傳給自己（再自己轉給業務），傳給別人不算「已通知業務」
+// 按「確認送出」：傳給業務，同時傳一份一模一樣的副本到你自己的 LINE／Slack（確認業務看到的樣子）
 async function mdNoticeSend(){
   if(!MD_NOTICE) return;
-  if(MD_NOTICE.role === 'assistant'){ return mdNoticeDoSend(''); }
-  const names = await mdBoundNames();
-  const old = document.getElementById('mdSendToOverlay'); if(old) old.remove();
-  const ov = document.createElement('div');
-  ov.id = 'mdSendToOverlay';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px;';
-  ov.onclick = e => { if(e.target === ov) ov.remove(); };
-  const fs = 'width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;font-family:inherit;';
-  ov.innerHTML = `<div style="background:#fff;border-radius:14px;width:100%;max-width:420px;padding:18px 20px;">
-    <div style="font-weight:700;font-size:15px;">📨 確認要傳給誰？</div>
-    <div style="font-size:13px;color:#666;margin-top:6px;">要通知的是 <b>${mdEsc(MD_NOTICE.rep)}</b> 的 ${MD_NOTICE.count} 項缺件。預設直接傳給這位業務；如果想先傳給自己、再自己轉傳給業務，改選你自己的名字（這樣也會直接記成已通知）。</div>
-    <input id="mdSendTo" list="mdSendToList" value="${mdEsc(MD_NOTICE.rep)}" style="${fs}margin-top:10px;" onfocus="this.select()">
-    <datalist id="mdSendToList">${names.map(n => `<option value="${mdEsc(n)}"></option>`).join('')}</datalist>
-    <div id="mdSendToHint" style="font-size:12px;color:#B45309;margin-top:6px;"></div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
-      <button type="button" onclick="document.getElementById('mdSendToOverlay').remove()" style="padding:7px 16px;border:1px solid #ddd;background:#fff;border-radius:8px;cursor:pointer;">取消</button>
-      <button type="button" onclick="mdSendToGo()" style="padding:7px 18px;border:0;background:#F0A050;color:#fff;font-weight:600;border-radius:8px;cursor:pointer;">傳送</button>
-    </div></div>`;
-  document.body.appendChild(ov);
-}
-function mdSendToGo(){
-  const to = document.getElementById('mdSendTo').value.trim();
-  if(!to){ document.getElementById('mdSendToHint').textContent = '請填收件人'; return; }
-  const other = to !== MD_NOTICE.rep;
-  if(!confirm(other ? '要把「' + MD_NOTICE.rep + '」的缺件字卡傳給「' + to + '」嗎？' + '\n' + '（會直接記成已通知 ' + MD_NOTICE.rep + '，請記得再轉給業務）' : '確定直接傳給業務「' + MD_NOTICE.rep + '」嗎？')) return;
-  document.getElementById('mdSendToOverlay').remove();
-  mdNoticeDoSend(to);
+  if(MD_NOTICE.role !== 'assistant' && !confirm('確定傳給業務「' + MD_NOTICE.rep + '」嗎？' + '\n' + '（同時會傳一份一模一樣的副本到你自己的 LINE，讓你看業務看到的樣子）')) return;
+  mdNoticeDoSend('');
 }
 async function mdNoticeDoSend(to){
   if(!MD_NOTICE) return;
@@ -453,7 +428,7 @@ async function mdNoticeDoSend(to){
     if(!res.ok || data.error) throw new Error(data.error || res.status);
     if(!data.sent){ btn.disabled = false; btn.textContent = '📨 確認送出'; alert('推播沒有成功（可能 LINE 額度用完且沒綁 Slack），請改用「複製文字」自己貼給他。'); return; }
     mdNoticeClose();
-    alert(data.to && data.to !== MD_NOTICE.rep ? '✅ 已傳給 ' + data.to + '（' + data.count + ' 項），並記成已通知 ' + MD_NOTICE.rep + '。請記得轉給業務！' : '✅ 已通知 ' + MD_NOTICE.rep + '（' + data.count + ' 項）');
+    alert('✅ 已通知 ' + MD_NOTICE.rep + '（' + data.count + ' 項）' + (MD_NOTICE.role !== 'assistant' ? (data.copied ? '。副本已傳到你的 LINE。' : '。（副本沒有傳成功／不需要）') : ''));
     mdLoad();
   }catch(e){
     btn.disabled = false; btn.textContent = '📨 確認送出';
