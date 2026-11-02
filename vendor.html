@@ -300,8 +300,6 @@ function renderMissing(){
   const blocks = list => mvView === 'case' ? caseBlocks(list) : typeBlocks(list);
   const viewSw = `<div style="display:flex;gap:6px;margin-top:8px;"><div class="type ${mvView === 'type' ? 'on' : ''}" onclick="mvSetView('type')">依資料類型</div><div class="type ${mvView === 'case' ? 'on' : ''}" onclick="mvSetView('case')">依案場</div></div>`;
   const grp = (title, list) => !list.length ? '' : `<div class="card"><h2>${title}</h2>${viewSw}` + blocks(list) + '</div>';
-  const grpOld = (title, list) => !list.length ? '' : `<div class="card"><h2>${title}</h2>` +
-    byCase(list).map(g => `<div style="margin-top:10px;"><b>${esc(g.k)}</b> <span class="muted">${esc((g.alias || '').replace(g.k, '').replace(/^（|）$/g, ''))}</span>${g.rows.map(row).join('')}</div>`).join('') + '</div>';
   pane.innerHTML = `<div class="card" style="border-color:#F2C46B;background:#FFF9EC;">貴公司發現哪個案場「缺資料」（竣工圖、使用執照、電費單…），請在這裡填。送出後陽光窗口會馬上收到通知，並由陽光向業務／屋主追，資料齊了這裡會顯示「已取得」。</div>
     ${mvMsg ? `<div class="card" style="border-color:#9AD9A8;background:#F1FBF3;">${mvMsg}</div>` : ''}
     <div class="card">${form}</div>
