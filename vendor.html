@@ -260,7 +260,7 @@ function renderMissing(){
   };
   const row = i => `<div class="ct-row" style="align-items:flex-start;">
       <span><b>${esc(i.doc_type)}</b>${i.note ? `<span class="muted"> ｜${esc(i.note)}</span>` : ''}${i.mine ? ' <span class="chip" style="margin:0 0 0 4px;">您通報</span>' : ''}
-        <div class="muted" style="font-size:12px;">${i.status === '缺件' ? `通知日 ${esc(i.created || '')}` : `已取得 ${esc(i.got || '')}`}</div></span>
+        <div class="muted" style="font-size:12px;">${i.status === '缺件' ? `陽光登錄日 ${esc(i.created || '')}` : `已取得 ${esc(i.got || '')}`}</div></span>
       ${i.cancel ? `<button type="button" style="width:auto;border-radius:10px;padding:0 10px;font-size:13px;" onclick="mvCancel('${esc(i.id)}')">撤回</button>` : ''}</div>`;
   const grp = (title, list) => !list.length ? '' : `<div class="card"><h2>${title}</h2>` +
     byCase(list).map(g => `<div style="margin-top:10px;"><b>${esc(g.k)}</b> <span class="muted">${esc((g.alias || '').replace(g.k, '').replace(/^（|）$/g, ''))}</span>${g.rows.map(row).join('')}</div>`).join('') + '</div>';
