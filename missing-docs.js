@@ -397,8 +397,7 @@ function mdNoticeCopy(){
 // 使用者自己把文字貼給對方後，按這顆只在系統記錄「已通知」，不會推播
 async function mdNoticeMark(){
   if(!MD_NOTICE) return;
-  if(!confirm('要把這 ' + MD_NOTICE.count + ' 項標記為「已通知 ' + (MD_NOTICE.rep || '業務助理') + '」嗎？
-（只是記錄，系統不會再發任何訊息）')) return;
+  if(!confirm('要把這 ' + MD_NOTICE.count + ' 項標記為「已通知 ' + (MD_NOTICE.rep || '業務助理') + '」嗎？\n（只是記錄，系統不會再發任何訊息）')) return;
   const btn = document.getElementById('mdNoticeMark'); btn.disabled = true; btn.textContent = '記錄中…';
   try{
     const res = await fetch(API_BASE + '/api/missing-docs/notify', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(MD_NOTICE.role === 'assistant' ? {role: 'assistant', to: MD_NOTICE.to, ids: MD_NOTICE.ids, manual: true} : {rep: MD_NOTICE.rep, ids: MD_NOTICE.ids, manual: true})});
