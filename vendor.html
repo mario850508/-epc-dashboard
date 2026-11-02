@@ -170,6 +170,7 @@ async function init(){
   if(new URLSearchParams(location.search).get('tab') === 'booked') tab = 'booked';   // 「行程日曆連結」：直接開到行程日曆
   render();
   if(D.cached) refreshInfo();
+  if(!MV) loadMissing();   // 先在背景載入缺件清單，點進「缺件通報」才不會等
 }
 async function refreshInfo(){
   try{
@@ -190,6 +191,7 @@ function typeChips(types){ return (types || []).map(t => { const c = TYPE_COLORS
 
 function render(){
   const wrapEl = document.querySelector('.wrap'); if(wrapEl) wrapEl.classList.toggle('wide', tab === 'booked');
+  const oldTabs = document.querySelector('.tabs'), keepScroll = oldTabs ? oldTabs.scrollLeft : 0;   // 重畫分頁列會讓橫向捲動歸零，現在的分頁就被擠到畫面外
   const waiting = D.requests.filter(r => r.status === '待處理').length;
   const app = document.getElementById('app');
   app.innerHTML = `<div class="tabs">
@@ -204,6 +206,13 @@ function render(){
   else if(tab === 'stock') renderStock();
   else if(tab === 'missing') renderMissing();
   else renderBooked();
+  const tabsEl = document.querySelector('.tabs');
+  if(tabsEl){
+    tabsEl.scrollLeft = keepScroll;
+    const on = tabsEl.querySelector('.tab.active');
+    if(on && (on.offsetLeft < tabsEl.scrollLeft || on.offsetLeft + on.offsetWidth > tabsEl.scrollLeft + tabsEl.clientWidth))
+      tabsEl.scrollLeft = on.offsetLeft - (tabsEl.clientWidth - on.offsetWidth) / 2;   // 現在的分頁一定要看得到
+  }
 }
 // ---------- 料件庫存（2026-10-27）：陽光登記「還擺在現場、沒用到」的料件，請廠商核對 ----------
 function renderStock(){
@@ -222,15 +231,26 @@ function setTab(t){ tab = t; if(t === 'new' && !picked) {} render(); }
 // ---------- 缺件通報（2026-11-02）：廠商自己填「哪個案場缺什麼資料」，陽光窗口即時收到 Slack、LINE 每日中午彙整 ----------
 let MV = null;                       // {items, types}
 let mvPicked = null, mvQ = '', mvRes = [], mvTimer = null, mvSel = new Set(), mvMsg = '';
+let mvLoading = false;
 async function loadMissing(){
+  if(mvLoading) return;   // 已經在載入就不要重複打
+  mvLoading = true;
   try{ MV = await api('/missing'); }
   catch(e){ MV = {items: [], types: [], error: e.message}; }
-  if(tab === 'missing') renderMissing();
+  mvLoading = false;
+  if(tab === 'missing'){
+    const a = document.activeElement;
+    if(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+    render();   // 連分頁上的筆數一起更新
+  }else{
+    const t = [...document.querySelectorAll('.tab')].find(x => x.textContent.indexOf('缺件通報') >= 0);
+    if(t){ const n = MV.items.filter(i => i.status === '缺件').length; t.textContent = '📎 缺件通報' + (n ? '（' + n + '）' : ''); }
+  }
 }
 function mvTypes(){ return (MV && MV.types && MV.types.length) ? MV.types : ['竣工圖', '使用執照', '電費單', '其他']; }
 function renderMissing(){
   const pane = document.getElementById('pane');
-  if(!MV){ pane.innerHTML = '<div class="loading">載入中…</div>'; loadMissing(); return; }
+  if(!MV){ pane.innerHTML = '<div class="card muted" style="text-align:center;">📎 缺件清單載入中…（約需數秒，請稍候）</div>'; loadMissing(); return; }
   const savedContact = lsGet('vp_mv_contact');
   const contactOpts = (D.contacts || []).map(c => `<option value="${esc(contactText(c))}">`).join('');
   let form;
