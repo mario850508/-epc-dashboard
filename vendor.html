@@ -232,6 +232,8 @@ function setTab(t){ tab = t; if(t === 'new' && !picked) {} render(); }
 // ---------- 缺件通報（2026-11-02）：廠商自己填「哪個案場缺什麼資料」，陽光窗口即時收到 Slack、LINE 每日中午彙整 ----------
 let MV = null;                       // {items, types}
 let mvPicked = null, mvQ = '', mvRes = [], mvTimer = null, mvSel = new Set(), mvMsg = '';
+let mvView = lsGet('vp_mv_view') === 'case' ? 'case' : 'type';
+function mvSetView(v){ mvView = v; lsSet('vp_mv_view', v); renderMissing(); }
 let mvLoading = false;
 async function loadMissing(){
   if(mvLoading) return;   // 已經在載入就不要重複打
@@ -283,14 +285,29 @@ function renderMissing(){
       <span><b>${esc(i.doc_type)}</b>${i.note ? `<span class="muted"> ｜${esc(i.note)}</span>` : ''}${i.mine ? ' <span class="chip" style="margin:0 0 0 4px;">您通報</span>' : ''}
         <div class="muted" style="font-size:12px;">${i.status === '缺件' ? `陽光登錄日 ${esc(i.created || '')}` : `已取得 ${esc(i.got || '')}`}</div></span>
       ${i.cancel ? `<button type="button" style="width:auto;border-radius:10px;padding:0 10px;font-size:13px;" onclick="mvCancel('${esc(i.id)}')">撤回</button>` : ''}</div>`;
-  const grp = (title, list) => !list.length ? '' : `<div class="card"><h2>${title}</h2>` +
+  // 依資料類型分組（電費單一組、竣工圖一組…），方便一次核對同一種資料；也可切回依案場
+  const byType = list => {
+    const order = mvTypes(), m = new Map();
+    list.forEach(i => { if(!m.has(i.doc_type)) m.set(i.doc_type, []); m.get(i.doc_type).push(i); });
+    return [...m.entries()].sort((a, b) => { const x = order.indexOf(a[0]), y = order.indexOf(b[0]); return (x < 0 ? 99 : x) - (y < 0 ? 99 : y); });
+  };
+  const rowT = i => `<div class="ct-row" style="align-items:flex-start;">
+      <span><b>${esc(i.case_no || i.alias)}</b> <span class="muted">${esc((i.alias || '').replace(i.case_no || '', '').replace(/^（|）$/g, ''))}</span>${i.note ? `<span class="muted"> ｜${esc(i.note)}</span>` : ''}${i.mine ? ' <span class="chip" style="margin:0 0 0 4px;">您通報</span>' : ''}
+        <div class="muted" style="font-size:12px;">${i.status === '缺件' ? `陽光登錄日 ${esc(i.created || '')}` : `已取得 ${esc(i.got || '')}`}</div></span>
+      ${i.cancel ? `<button type="button" style="width:auto;border-radius:10px;padding:0 10px;font-size:13px;" onclick="mvCancel('${esc(i.id)}')">撤回</button>` : ''}</div>`;
+  const typeBlocks = list => byType(list).map(([t, rows]) => `<div style="margin-top:12px;"><b>${esc(t)}</b> <span class="muted">${rows.length} 筆</span>${rows.sort((a, b) => (a.case_no || '').localeCompare(b.case_no || '', 'zh-Hant', {numeric: true})).map(rowT).join('')}</div>`).join('');
+  const caseBlocks = list => byCase(list).map(g => `<div style="margin-top:10px;"><b>${esc(g.k)}</b> <span class="muted">${esc((g.alias || '').replace(g.k, '').replace(/^（|）$/g, ''))}</span>${g.rows.map(row).join('')}</div>`).join('');
+  const blocks = list => mvView === 'case' ? caseBlocks(list) : typeBlocks(list);
+  const viewSw = `<div style="display:flex;gap:6px;margin-top:8px;"><div class="type ${mvView === 'type' ? 'on' : ''}" onclick="mvSetView('type')">依資料類型</div><div class="type ${mvView === 'case' ? 'on' : ''}" onclick="mvSetView('case')">依案場</div></div>`;
+  const grp = (title, list) => !list.length ? '' : `<div class="card"><h2>${title}</h2>${viewSw}` + blocks(list) + '</div>';
+  const grpOld = (title, list) => !list.length ? '' : `<div class="card"><h2>${title}</h2>` +
     byCase(list).map(g => `<div style="margin-top:10px;"><b>${esc(g.k)}</b> <span class="muted">${esc((g.alias || '').replace(g.k, '').replace(/^（|）$/g, ''))}</span>${g.rows.map(row).join('')}</div>`).join('') + '</div>';
   pane.innerHTML = `<div class="card" style="border-color:#F2C46B;background:#FFF9EC;">貴公司發現哪個案場「缺資料」（竣工圖、使用執照、電費單…），請在這裡填。送出後陽光窗口會馬上收到通知，並由陽光向業務／屋主追，資料齊了這裡會顯示「已取得」。</div>
     ${mvMsg ? `<div class="card" style="border-color:#9AD9A8;background:#F1FBF3;">${mvMsg}</div>` : ''}
     <div class="card">${form}</div>
     ${MV.error ? `<div class="card muted" style="color:#B42318;">缺件清單載入失敗：${esc(MV.error)}</div>` : ''}
     ${grp(`目前缺件（${open.length} 筆）`, open)}
-    ${got.length ? `<details class="card"><summary style="font-weight:800;cursor:pointer;">最近 30 天已取得（${got.length} 筆）</summary>${byCase(got).map(g => `<div style="margin-top:10px;"><b>${esc(g.k)}</b>${g.rows.map(row).join('')}</div>`).join('')}</details>` : ''}`;
+    ${got.length ? `<details class="card"><summary style="font-weight:800;cursor:pointer;">最近 30 天已取得（${got.length} 筆）</summary>${blocks(got)}</details>` : ''}`;
   if(!mvPicked) mvShowRes();
 }
 function mvSearch(q){
