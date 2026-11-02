@@ -246,7 +246,7 @@ function mdRow(it, showRep){
   return `<tr class="${due ? 'md-row-due' : ''}">` +
     (MD_GROUP === 'case' ? '' : `<td><b>${mdEsc(it.alias || it.case_no)}</b></td>`) +
     (MD_GROUP === 'type' || MD_GROUP === 'rep' ? '' : `<td>${mdEsc(it.doc_type)}</td>`) +
-    `<td class="md-note" onclick="mdEditNote('${it.id}')" title="點一下修改備註">${it.note ? mdEsc(it.note) : '<span class="md-sub">＋備註</span>'}</td>` +
+    `<td class="md-note" onclick="mdEditNote('${it.id}')" title="點一下修改備註">${it.source === '廠商填報' ? '<span class="md-tag-v" title="廠商在預約頁自己填的' + (it.reporter ? '；填報人：' + mdEsc(it.reporter) : '') + '" style="display:inline-block;font-size:11px;font-weight:700;background:#FFF1D6;color:#B45309;border-radius:99px;padding:0 7px;margin-right:4px;">🏭廠商填報</span>' : ''}${it.note ? mdEsc(it.note) : '<span class="md-sub">＋備註</span>'}</td>` +
     (!showRep ? '' : `<td onclick="mdEditRep('${it.id}')" title="點一下修改業務">${mdEsc(it.rep) || '<span class="md-sub">＋業務</span>'}</td>`) +
     `<td>${mdEsc(it.provider)}</td>` +
     `<td>${isGot ? '✔ ' + mdMD(it.got) : (days == null ? '—' : days + ' 天')}</td>` +

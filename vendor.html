@@ -82,8 +82,9 @@
     display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;box-shadow:0 5px 14px rgba(196,83,10,.3);}
   .brand-name{font-weight:800;font-size:17px;}
   .brand-sub{font-size:12.5px;color:var(--text-muted);}
-  .tabs{display:flex;gap:6px;margin-bottom:14px;}
-  .tab{flex:1;text-align:center;padding:11px 6px;border-radius:12px;border:1.5px solid var(--border);background:#fff;font-size:14.5px;font-weight:700;cursor:pointer;}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none;}
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab{flex:1 0 auto;white-space:nowrap;text-align:center;padding:11px 12px;border-radius:12px;border:1.5px solid var(--border);background:#fff;font-size:14.5px;font-weight:700;cursor:pointer;}
   .tab.active{background:linear-gradient(135deg,var(--sun-1),var(--sun-2));color:#fff;border-color:transparent;}
   .card{background:#FFFCF5;border:1px solid #F0E4CC;border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 2px 10px rgba(30,40,70,.06);}
   h2{font-size:17px;margin:0 0 6px;}
@@ -196,10 +197,12 @@ function render(){
       <div class="tab ${tab === 'mine' ? 'active' : ''}" onclick="setTab('mine')">我的申請${D.requests.length ? '（' + D.requests.length + '）' : ''}</div>
       <div class="tab ${tab === 'booked' ? 'active' : ''}" onclick="setTab('booked')">📅 行程日曆${unackedUpcoming().length ? ' <span style="background:#E5484D;color:#fff;border-radius:99px;padding:1px 7px;font-size:12px;">' + unackedUpcoming().length + '</span>' : ''}</div>
       <div class="tab ${tab === 'stock' ? 'active' : ''}" onclick="setTab('stock')">📦 料件庫存${(D.stock || []).length ? '（' + D.stock.length + '）' : ''}</div>
+      <div class="tab ${tab === 'missing' ? 'active' : ''}" onclick="setTab('missing')">📎 缺件通報${MV ? (MV.items.filter(i => i.status === '缺件').length ? '（' + MV.items.filter(i => i.status === '缺件').length + '）' : '') : ''}</div>
     </div>${tab !== 'booked' && unackedUpcoming().length ? `<div class="alertbar" onclick="setTab('booked')">⏳ 有 ${unackedUpcoming().length} 筆行程等您確認 ➜ 點這裡查看</div>` : ''}<div id="pane"></div>`;
   if(tab === 'new') renderNew();
   else if(tab === 'mine') renderMine();
   else if(tab === 'stock') renderStock();
+  else if(tab === 'missing') renderMissing();
   else renderBooked();
 }
 // ---------- 料件庫存（2026-10-27）：陽光登記「還擺在現場、沒用到」的料件，請廠商核對 ----------
@@ -215,6 +218,111 @@ function renderStock(){
     </div>`).join('');
 }
 function setTab(t){ tab = t; if(t === 'new' && !picked) {} render(); }
+
+// ---------- 缺件通報（2026-11-02）：廠商自己填「哪個案場缺什麼資料」，陽光窗口即時收到 Slack、LINE 每日中午彙整 ----------
+let MV = null;                       // {items, types}
+let mvPicked = null, mvQ = '', mvRes = [], mvTimer = null, mvSel = new Set(), mvMsg = '';
+async function loadMissing(){
+  try{ MV = await api('/missing'); }
+  catch(e){ MV = {items: [], types: [], error: e.message}; }
+  if(tab === 'missing') renderMissing();
+}
+function mvTypes(){ return (MV && MV.types && MV.types.length) ? MV.types : ['竣工圖', '使用執照', '電費單', '其他']; }
+function renderMissing(){
+  const pane = document.getElementById('pane');
+  if(!MV){ pane.innerHTML = '<div class="loading">載入中…</div>'; loadMissing(); return; }
+  const savedContact = lsGet('vp_mv_contact');
+  const contactOpts = (D.contacts || []).map(c => `<option value="${esc(contactText(c))}">`).join('');
+  let form;
+  if(!mvPicked){
+    form = `<h2>① 選擇案件</h2><div class="muted">只會顯示${esc(D.vendor)}的案件。</div>
+      <div class="searchbox"><span class="ic">🔍</span>
+        <input id="mvq" type="search" autocomplete="off" placeholder="搜尋案號、別名、地址（例：桃園80）" value="${esc(mvQ)}" oninput="mvSearch(this.value)"></div>
+      <div id="mvres"></div>`;
+  }else{
+    form = `<div class="row"><h2>② 缺哪些資料</h2><button class="btn-ghost" onclick="mvPicked=null;mvSel=new Set();renderMissing()">換一案</button></div>
+      <div style="margin-top:6px;"><b>${esc(mvPicked.case)}</b> <span class="muted">${esc(mvPicked.alias || '')}</span>${mvPicked.address ? `<div class="muted">📍 ${esc(mvPicked.address)}</div>` : ''}</div>
+      <label>缺的資料（可複選）</label>
+      <div class="types">${mvTypes().map(t => `<div class="type ${mvSel.has(t) ? 'on' : ''}" onclick="mvToggle('${esc(t)}')">${esc(t)}</div>`).join('')}</div>
+      <label>備註 <span class="muted" style="font-weight:400;">（選填；勾「其他」時請寫缺什麼。例：電費單只有一樓、最新為6月）</span></label>
+      <textarea id="mvnote" placeholder="例如：電費單最新為115年6月，需要更新的一期"></textarea>
+      <label>聯絡人（姓名或電話）</label>
+      <input id="mvcontact" list="mvContacts" placeholder="例如：林先生 0912-345-678" value="${esc(savedContact)}">
+      <datalist id="mvContacts">${contactOpts}</datalist>
+      <div class="err" id="mverr"></div>
+      <button class="btn" id="mvsubmit" onclick="mvSubmit()">送出缺件通報</button>`;
+  }
+  const open = MV.items.filter(i => i.status === '缺件'), got = MV.items.filter(i => i.status !== '缺件');
+  const byCase = list => {
+    const m = new Map();
+    list.forEach(i => { const k = i.case_no || i.alias; if(!m.has(k)) m.set(k, {k, alias: i.alias, rows: []}); m.get(k).rows.push(i); });
+    return [...m.values()];
+  };
+  const row = i => `<div class="ct-row" style="align-items:flex-start;">
+      <span><b>${esc(i.doc_type)}</b>${i.note ? `<span class="muted"> ｜${esc(i.note)}</span>` : ''}${i.mine ? ' <span class="chip" style="margin:0 0 0 4px;">您通報</span>' : ''}
+        <div class="muted" style="font-size:12px;">${i.status === '缺件' ? `通知日 ${esc(i.created || '')}` : `已取得 ${esc(i.got || '')}`}</div></span>
+      ${i.cancel ? `<button type="button" style="width:auto;border-radius:10px;padding:0 10px;font-size:13px;" onclick="mvCancel('${esc(i.id)}')">撤回</button>` : ''}</div>`;
+  const grp = (title, list) => !list.length ? '' : `<div class="card"><h2>${title}</h2>` +
+    byCase(list).map(g => `<div style="margin-top:10px;"><b>${esc(g.k)}</b> <span class="muted">${esc((g.alias || '').replace(g.k, '').replace(/^（|）$/g, ''))}</span>${g.rows.map(row).join('')}</div>`).join('') + '</div>';
+  pane.innerHTML = `<div class="card" style="border-color:#F2C46B;background:#FFF9EC;">貴公司發現哪個案場「缺資料」（竣工圖、使用執照、電費單…），請在這裡填。送出後陽光窗口會馬上收到通知，並由陽光向業務／屋主追，資料齊了這裡會顯示「已取得」。</div>
+    ${mvMsg ? `<div class="card" style="border-color:#9AD9A8;background:#F1FBF3;">${mvMsg}</div>` : ''}
+    <div class="card">${form}</div>
+    ${MV.error ? `<div class="card muted" style="color:#B42318;">缺件清單載入失敗：${esc(MV.error)}</div>` : ''}
+    ${grp(`目前缺件（${open.length} 筆）`, open)}
+    ${got.length ? `<details class="card"><summary style="font-weight:800;cursor:pointer;">最近 30 天已取得（${got.length} 筆）</summary>${byCase(got).map(g => `<div style="margin-top:10px;"><b>${esc(g.k)}</b>${g.rows.map(row).join('')}</div>`).join('')}</details>` : ''}`;
+  if(!mvPicked) mvShowRes();
+}
+function mvSearch(q){
+  mvQ = q; clearTimeout(mvTimer);
+  if(!q.trim()){ mvRes = []; mvShowRes(); return; }
+  mvTimer = setTimeout(async () => {
+    try{
+      const d = await api('/cases?q=' + encodeURIComponent(q.trim()));
+      if(q !== mvQ) return;
+      mvRes = d.results || [];
+    }catch(e){ mvRes = []; }
+    mvShowRes(true);
+  }, 350);
+}
+function mvShowRes(done){
+  const box = document.getElementById('mvres'); if(!box) return;
+  if(!mvQ.trim()){ box.innerHTML = ''; return; }
+  if(!mvRes.length){ box.innerHTML = `<div class="muted" style="margin-top:10px;">${done ? '找不到符合的案件' : '搜尋中…'}</div>`; return; }
+  box.innerHTML = mvRes.map((c, i) => `<div class="case" onclick="mvPick(${i})"><b>${esc(c.case)}</b> <span class="muted">${esc(c.alias || '')}</span>${c.address ? `<div class="addr">📍 ${esc(c.address)}</div>` : ''}</div>`).join('');
+}
+function mvPick(i){ mvPicked = mvRes[i]; mvSel = new Set(); mvMsg = ''; renderMissing(); window.scrollTo({top: 0, behavior: 'smooth'}); }
+function mvToggle(t){
+  const note = document.getElementById('mvnote'), contact = document.getElementById('mvcontact');
+  const keep = {note: note ? note.value : '', contact: contact ? contact.value : ''};
+  if(mvSel.has(t)) mvSel.delete(t); else mvSel.add(t);
+  renderMissing();
+  document.getElementById('mvnote').value = keep.note; document.getElementById('mvcontact').value = keep.contact;
+}
+async function mvSubmit(){
+  const err = document.getElementById('mverr'), btn = document.getElementById('mvsubmit');
+  const show = m => { err.textContent = m; err.style.display = 'block'; };
+  err.style.display = 'none';
+  const note = document.getElementById('mvnote').value.trim(), contact = document.getElementById('mvcontact').value.trim();
+  if(!mvSel.size){ show('請至少勾選一項缺的資料'); return; }
+  if(mvSel.has('其他') && !note){ show('勾「其他」請在備註寫明缺什麼資料'); return; }
+  if(!contact){ show('請填聯絡人（姓名或電話）'); return; }
+  btn.disabled = true; btn.textContent = '送出中…';
+  try{
+    const d = await api('/missing', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({case: mvPicked.case, doc_types: [...mvSel], note, contact})});
+    lsSet('vp_mv_contact', contact);
+    const c = d.created || [], sk = d.skipped || [];
+    mvMsg = `✅ <b>${esc(mvPicked.case)}</b> 已送出：${c.length ? esc(c.join('、')) : '（沒有新增）'}。陽光窗口已收到通知。` +
+      (sk.length ? `<div class="muted">${esc(sk.join('、'))} 陽光已經在追蹤中，不重複新增。</div>` : '');
+    mvPicked = null; mvSel = new Set(); mvQ = ''; mvRes = [];
+    MV = null; renderMissing();
+  }catch(e){ show(e.message); btn.disabled = false; btn.textContent = '送出缺件通報'; }
+}
+async function mvCancel(id){
+  if(!confirm('要撤回這筆缺件通報嗎？（填錯時使用）')) return;
+  try{ await api('/missing/' + encodeURIComponent(id) + '/cancel', {method: 'POST'}); mvMsg = '已撤回。'; MV = null; renderMissing(); }
+  catch(e){ alert(e.message); }
+}
 
 // ---------- 提出預約 ----------
 function caseCard(c, fn){
