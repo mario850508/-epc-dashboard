@@ -375,6 +375,8 @@ async function mdNotifyOpen(rep, role, keepOpen){
     body.innerHTML = toBox +
       `<div class="md-sub" style="margin-bottom:6px;">將傳給：<b>${mdEsc(who)}</b>（共 ${data.count} 項）` +
       (!isAsst || to ? (data.bound ? ' ✅ 已綁定 LINE／Slack' : ' <span class="md-due">⚠ 這位還沒綁定 LINE／Slack，無法直接推播，請複製文字自己貼給他</span>') : ' <span class="md-due">⚠ 請先在上面選收件人</span>') + '</div>' +
+      (data.cards ? `<div class="md-sub" style="margin-bottom:6px;">📇 實際會用<b>字卡</b>送出（共 ${data.cards} 張，業務可左右滑；每個案場有「📂 上傳」按鈕開業務雲端資料夾）。下面是文字版，給你複製用。` +
+        ((data.no_folder || []).length ? ` <span class="md-due">⚠ 這些案場找不到資料夾連結、沒有上傳按鈕：${mdEsc(data.no_folder.join('、'))}</span>` : '') + '</div>' : '') +
       `<textarea id="mdNoticeText" class="md-notice-text" readonly>${mdEsc(data.text)}</textarea>` +
       `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap;">` +
       `<button class="btn btn-ghost md-btn" onclick="mdNoticeCopy()">📋 複製文字</button>` +
