@@ -425,7 +425,7 @@ async function mdNoticeSend(){
   const fs = 'width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;font-family:inherit;';
   ov.innerHTML = `<div style="background:#fff;border-radius:14px;width:100%;max-width:420px;padding:18px 20px;">
     <div style="font-weight:700;font-size:15px;">📨 確認要傳給誰？</div>
-    <div style="font-size:13px;color:#666;margin-top:6px;">要通知的是 <b>${mdEsc(MD_NOTICE.rep)}</b> 的 ${MD_NOTICE.count} 項缺件。預設直接傳給這位業務；如果想先傳給自己、再自己轉給業務，改選你自己的名字。</div>
+    <div style="font-size:13px;color:#666;margin-top:6px;">要通知的是 <b>${mdEsc(MD_NOTICE.rep)}</b> 的 ${MD_NOTICE.count} 項缺件。預設直接傳給這位業務；如果想先傳給自己、再自己轉傳給業務，改選你自己的名字（這樣也會直接記成已通知）。</div>
     <input id="mdSendTo" list="mdSendToList" value="${mdEsc(MD_NOTICE.rep)}" style="${fs}margin-top:10px;" onfocus="this.select()">
     <datalist id="mdSendToList">${names.map(n => `<option value="${mdEsc(n)}"></option>`).join('')}</datalist>
     <div id="mdSendToHint" style="font-size:12px;color:#B45309;margin-top:6px;"></div>
@@ -439,7 +439,7 @@ function mdSendToGo(){
   const to = document.getElementById('mdSendTo').value.trim();
   if(!to){ document.getElementById('mdSendToHint').textContent = '請填收件人'; return; }
   const other = to !== MD_NOTICE.rep;
-  if(!confirm(other ? '要把「' + MD_NOTICE.rep + '」的缺件字卡傳給「' + to + '」嗎？\n（這不算已通知 ' + MD_NOTICE.rep + '，你轉給業務之後請再按「確認已通知」）' : '確定直接傳給業務「' + MD_NOTICE.rep + '」嗎？')) return;
+  if(!confirm(other ? '要把「' + MD_NOTICE.rep + '」的缺件字卡傳給「' + to + '」嗎？' + '\n' + '（會直接記成已通知 ' + MD_NOTICE.rep + '，請記得再轉給業務）' : '確定直接傳給業務「' + MD_NOTICE.rep + '」嗎？')) return;
   document.getElementById('mdSendToOverlay').remove();
   mdNoticeDoSend(to);
 }
@@ -452,14 +452,8 @@ async function mdNoticeDoSend(to){
     const data = await res.json();
     if(!res.ok || data.error) throw new Error(data.error || res.status);
     if(!data.sent){ btn.disabled = false; btn.textContent = '📨 確認送出'; alert('推播沒有成功（可能 LINE 額度用完且沒綁 Slack），請改用「複製文字」自己貼給他。'); return; }
-    if(data.to && data.to !== MD_NOTICE.rep){
-      btn.disabled = false; btn.textContent = '📨 確認送出';
-      const mk = document.getElementById('mdNoticeMark'); if(mk){ mk.classList.remove('btn-ghost'); mk.classList.add('btn-primary'); }
-      alert('✅ 已傳給 ' + data.to + '（' + data.count + ' 項）。這份還沒算通知 ' + MD_NOTICE.rep + '，你轉給業務之後，請按「確認已通知」。');
-      return;
-    }
     mdNoticeClose();
-    alert('✅ 已通知 ' + MD_NOTICE.rep + '（' + data.count + ' 項）');
+    alert(data.to && data.to !== MD_NOTICE.rep ? '✅ 已傳給 ' + data.to + '（' + data.count + ' 項），並記成已通知 ' + MD_NOTICE.rep + '。請記得轉給業務！' : '✅ 已通知 ' + MD_NOTICE.rep + '（' + data.count + ' 項）');
     mdLoad();
   }catch(e){
     btn.disabled = false; btn.textContent = '📨 確認送出';
