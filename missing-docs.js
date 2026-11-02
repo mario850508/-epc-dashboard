@@ -165,6 +165,8 @@ async function mdAdd(){
 }
 
 // ---------- 清單 ----------
+// 還沒通知過業務的缺件（我自己處理的不用通知）
+function mdNeedNotify(it){ return it.status === '缺件' && !it.notified && it.provider !== 'Mario'; }
 function mdSetFilter(f){ MD_FILTER = f; mdRender(); }
 function mdSetGroup(g){ MD_GROUP = g; mdRender(); }
 
@@ -174,12 +176,13 @@ function mdRender(){
   const pool = MD_VENDOR_FILTER ? MD_ITEMS.filter(i => i.vendor === MD_VENDOR_FILTER) : MD_ITEMS;
   const open = pool.filter(i => i.status === '缺件');
   const due = open.filter(mdIsDue);
+  const unn = open.filter(mdNeedNotify);
   const got = pool.filter(i => i.status === '已取得').sort((a, b) => (b.got || '').localeCompare(a.got || '')).slice(0, 60);
   document.getElementById('mdSummary').innerHTML =
     `缺件中 <b>${open.length}</b> 項，涉及 <b>${new Set(open.map(i => i.alias || i.case_no)).size}</b> 個案場；` +
     (due.length ? `<span class="md-due">⏰ ${due.length} 項已超過 ${MD_DUE_DAYS} 天沒確認</span>` : '本週都確認過了 ✅');
   document.getElementById('mdFilters').innerHTML =
-    [['open', `缺件中（${open.length}）`], ['due', `本週待確認（${due.length}）`], ['got', `已取得（${got.length}）`]]
+    [['open', `缺件中（${open.length}）`], ['unn', `🆕 未通知（${unn.length}）`], ['due', `本週待確認（${due.length}）`], ['got', `已取得（${got.length}）`]]
       .map(([k, l]) => `<button class="md-chip ${MD_FILTER === k ? 'on' : ''}" onclick="mdSetFilter('${k}')">${l}</button>`).join('') +
     '<span class="md-sep"></span>廠商：' + ((typeof MD_LOCK_VENDOR !== 'undefined' && MD_LOCK_VENDOR) ? `<b>${mdEsc(MD_LOCK_VENDOR)}</b>` :
       '<select class="cert-rename-input" style="padding:3px 8px;" onchange="MD_VENDOR_FILTER=this.value;mdRender()"><option value="">全部</option>' +
@@ -191,9 +194,9 @@ function mdRender(){
   confirmBtn.style.display = (MD_FILTER === 'due' && due.length) || (MD_FILTER === 'open' && open.length) ? '' : 'none';
   confirmBtn.textContent = MD_FILTER === 'due' ? `✅ 這 ${due.length} 項本週都確認過了` : `✅ 全部 ${open.length} 項標為本週已確認`;
 
-  const list = MD_FILTER === 'due' ? due : (MD_FILTER === 'got' ? got : open);
+  const list = MD_FILTER === 'due' ? due : (MD_FILTER === 'got' ? got : (MD_FILTER === 'unn' ? unn : open));
   if(!list.length){
-    box.innerHTML = '<div class="login-note">' + (MD_FILTER === 'got' ? '還沒有已取得的資料' : (MD_FILTER === 'due' ? '沒有需要確認的項目 🎉' : '目前沒有缺件，用上面的表單新增吧')) + '</div>';
+    box.innerHTML = '<div class="login-note">' + (MD_FILTER === 'got' ? '還沒有已取得的資料' : (MD_FILTER === 'due' ? '沒有需要確認的項目 🎉' : (MD_FILTER === 'unn' ? '都通知過了 ✅' : '目前沒有缺件，用上面的表單新增吧'))) + '</div>';
     return;
   }
   const keyOf = it => MD_GROUP === 'rep' ? (it.provider === 'Mario' ? MD_SELF_KEY : (it.provider === '業務助理' ? MD_ASSIST_KEY : (it.rep || '（未指定業務）'))) : (MD_GROUP === 'type' ? (it.doc_type || '其他') : (it.alias || it.case_no));
@@ -211,10 +214,11 @@ function mdRender(){
   });
   box.innerHTML = order.map(k => {
     const its = groups.get(k);
+    const nn = its.filter(mdNeedNotify).length, nnTxt = nn ? `（🆕 ${nn} 項未通知）` : '';
     const notifyBtn = (MD_GROUP === 'rep' && MD_FILTER !== 'got' && !k.startsWith('（未指定') && k !== MD_SELF_KEY)
       ? (k === MD_ASSIST_KEY
-          ? `<button class="btn btn-primary md-btn" onclick="mdNotifyOpen('', 'assistant')">📨 通知業務助理</button>`
-          : `<button class="btn btn-primary md-btn" onclick="mdNotifyOpen(${JSON.stringify(k).replace(/"/g, '&quot;')})">📨 通知這位業務</button>`) : '';
+          ? `<button class="btn btn-primary md-btn" onclick="mdNotifyOpen('', 'assistant')">📨 通知業務助理${nnTxt}</button>`
+          : `<button class="btn btn-primary md-btn" onclick="mdNotifyOpen(${JSON.stringify(k).replace(/"/g, '&quot;')})">📨 通知這位業務${nnTxt}</button>`) : '';
     const showRep = MD_GROUP !== 'rep' || k === MD_SELF_KEY || k === MD_ASSIST_KEY;   // 業務助理/我自己那區要看得到是哪位業務的案
     return `<div class="md-group"><div class="md-group-head"><span>${mdEsc(k)} <span class="md-sub">${its.length} 項</span></span>${notifyBtn}</div>` +
       `<div class="md-table-wrap"><table class="md-table"><thead><tr>` +
@@ -251,7 +255,7 @@ function mdRow(it, showRep){
     `<td>${mdEsc(it.provider)}</td>` +
     `<td>${isGot ? '✔ ' + mdMD(it.got) : (days == null ? '—' : days + ' 天')}</td>` +
     `<td>${due ? '<span class="md-due">⏰ ' : '<span>'}${mdMD(mdLastCheck(it))}</span></td>` +
-    `<td>${it.notified ? mdMD(it.notified) + (it.notify_count > 1 ? '（' + it.notify_count + '次）' : '') : '—'}</td>` +
+    `<td>${it.notified ? mdMD(it.notified) + (it.notify_count > 1 ? '（' + it.notify_count + '次）' : '') : (mdNeedNotify(it) ? '<span class="md-due" style="white-space:nowrap;">🆕 未通知</span>' : '—')}</td>` +
     `<td class="md-actions">` +
     `<button class="md-mini" onclick="mdEdit('${it.id}')" title="修改業務、誰提供、缺件類型、備註">✏️ 編輯</button>` +
     (isGot ? `<button class="md-mini" onclick="mdSetStatus('${it.id}','缺件')">↩ 改回缺件</button>`
@@ -374,6 +378,7 @@ async function mdNotifyOpen(rep, role, keepOpen){
       `<textarea id="mdNoticeText" class="md-notice-text" readonly>${mdEsc(data.text)}</textarea>` +
       `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap;">` +
       `<button class="btn btn-ghost md-btn" onclick="mdNoticeCopy()">📋 複製文字</button>` +
+      `<button class="btn btn-ghost md-btn" id="mdNoticeMark" onclick="mdNoticeMark()" title="不會推播，只在系統記下「已通知」，列表上就不會再顯示未通知">✅ 確認已通知（我自己傳的）</button>` +
       `<button class="btn btn-ghost md-btn" onclick="mdNoticeClose()">取消</button>` +
       (canSend ? `<button class="btn btn-primary md-btn" id="mdNoticeSend" onclick="mdNoticeSend()">📨 確認送出</button>` : '') + '</div>';
   }catch(e){
@@ -386,6 +391,25 @@ function mdNoticeCopy(){
   if(!ta) return;
   ta.select();
   try{ navigator.clipboard.writeText(ta.value); }catch(e){ document.execCommand('copy'); }
+  const mk = document.getElementById('mdNoticeMark');
+  if(mk){ mk.classList.remove('btn-ghost'); mk.classList.add('btn-primary'); }   // 複製完，提醒下一步是按「確認已通知」
+}
+// 使用者自己把文字貼給對方後，按這顆只在系統記錄「已通知」，不會推播
+async function mdNoticeMark(){
+  if(!MD_NOTICE) return;
+  if(!confirm('要把這 ' + MD_NOTICE.count + ' 項標記為「已通知 ' + (MD_NOTICE.rep || '業務助理') + '」嗎？
+（只是記錄，系統不會再發任何訊息）')) return;
+  const btn = document.getElementById('mdNoticeMark'); btn.disabled = true; btn.textContent = '記錄中…';
+  try{
+    const res = await fetch(API_BASE + '/api/missing-docs/notify', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(MD_NOTICE.role === 'assistant' ? {role: 'assistant', to: MD_NOTICE.to, ids: MD_NOTICE.ids, manual: true} : {rep: MD_NOTICE.rep, ids: MD_NOTICE.ids, manual: true})});
+    const data = await res.json();
+    if(!res.ok || data.error) throw new Error(data.error || res.status);
+    mdNoticeClose();
+    mdLoad();
+  }catch(e){
+    btn.disabled = false; btn.textContent = '✅ 確認已通知（我自己傳的）';
+    alert('記錄失敗：' + (e.message || e));
+  }
 }
 async function mdNoticeSend(){
   if(!MD_NOTICE) return;
