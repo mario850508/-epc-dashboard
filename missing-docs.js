@@ -177,12 +177,13 @@ function mdRender(){
   const open = pool.filter(i => i.status === '缺件');
   const due = open.filter(mdIsDue);
   const unn = open.filter(mdNeedNotify);
+  const sup = open.filter(i => i.supplied);
   const got = pool.filter(i => i.status === '已取得').sort((a, b) => (b.got || '').localeCompare(a.got || '')).slice(0, 60);
   document.getElementById('mdSummary').innerHTML =
     `缺件中 <b>${open.length}</b> 項，涉及 <b>${new Set(open.map(i => i.alias || i.case_no)).size}</b> 個案場；` +
     (due.length ? `<span class="md-due">⏰ ${due.length} 項已超過 ${MD_DUE_DAYS} 天沒確認</span>` : '本週都確認過了 ✅');
   document.getElementById('mdFilters').innerHTML =
-    [['open', `缺件中（${open.length}）`], ['unn', `🆕 未通知（${unn.length}）`], ['due', `本週待確認（${due.length}）`], ['got', `已取得（${got.length}）`]]
+    [['open', `缺件中（${open.length}）`], ['unn', `🆕 未通知（${unn.length}）`], ['sup', `📬 業務已補件（${sup.length}）`], ['due', `本週待確認（${due.length}）`], ['got', `已取得（${got.length}）`]]
       .map(([k, l]) => `<button class="md-chip ${MD_FILTER === k ? 'on' : ''}" onclick="mdSetFilter('${k}')">${l}</button>`).join('') +
     '<span class="md-sep"></span>廠商：' + ((typeof MD_LOCK_VENDOR !== 'undefined' && MD_LOCK_VENDOR) ? `<b>${mdEsc(MD_LOCK_VENDOR)}</b>` :
       '<select class="cert-rename-input" style="padding:3px 8px;" onchange="MD_VENDOR_FILTER=this.value;mdRender()"><option value="">全部</option>' +
@@ -194,9 +195,9 @@ function mdRender(){
   confirmBtn.style.display = (MD_FILTER === 'due' && due.length) || (MD_FILTER === 'open' && open.length) ? '' : 'none';
   confirmBtn.textContent = MD_FILTER === 'due' ? `✅ 這 ${due.length} 項本週都確認過了` : `✅ 全部 ${open.length} 項標為本週已確認`;
 
-  const list = MD_FILTER === 'due' ? due : (MD_FILTER === 'got' ? got : (MD_FILTER === 'unn' ? unn : open));
+  const list = MD_FILTER === 'due' ? due : (MD_FILTER === 'got' ? got : (MD_FILTER === 'unn' ? unn : (MD_FILTER === 'sup' ? sup : open)));
   if(!list.length){
-    box.innerHTML = '<div class="login-note">' + (MD_FILTER === 'got' ? '還沒有已取得的資料' : (MD_FILTER === 'due' ? '沒有需要確認的項目 🎉' : (MD_FILTER === 'unn' ? '都通知過了 ✅' : '目前沒有缺件，用上面的表單新增吧'))) + '</div>';
+    box.innerHTML = '<div class="login-note">' + (MD_FILTER === 'got' ? '還沒有已取得的資料' : (MD_FILTER === 'due' ? '沒有需要確認的項目 🎉' : (MD_FILTER === 'unn' ? '都通知過了 ✅' : MD_FILTER === 'sup' ? '目前沒有業務按「已補件」待確認的項目' : '目前沒有缺件，用上面的表單新增吧'))) + '</div>';
     return;
   }
   const keyOf = it => MD_GROUP === 'rep' ? (it.provider === 'Mario' ? MD_SELF_KEY : (it.provider === '業務助理' ? MD_ASSIST_KEY : (it.rep || '（未指定業務）'))) : (MD_GROUP === 'type' ? (it.doc_type || '其他') : (it.alias || it.case_no));
@@ -255,7 +256,8 @@ function mdRow(it, showRep){
     `<td>${mdEsc(it.provider)}</td>` +
     `<td>${isGot ? '✔ ' + mdMD(it.got) : (days == null ? '—' : days + ' 天')}</td>` +
     `<td>${due ? '<span class="md-due">⏰ ' : '<span>'}${mdMD(mdLastCheck(it))}</span></td>` +
-    `<td>${it.notified ? mdMD(it.notified) + (it.notify_count > 1 ? '（' + it.notify_count + '次）' : '') : (mdNeedNotify(it) ? '<span class="md-due" style="white-space:nowrap;">🆕 未通知</span>' : '—')}</td>` +
+    `<td>${it.notified ? mdMD(it.notified) + (it.notify_count > 1 ? '（' + it.notify_count + '次）' : '') : (mdNeedNotify(it) ? '<span class="md-due" style="white-space:nowrap;">🆕 未通知</span>' : '—')}` +
+    `${it.supplied && !isGot ? '<div><span title="業務在字卡按了已補件，請到資料夾確認" style="display:inline-block;font-size:11px;font-weight:700;background:#DCFCE7;color:#15803D;border-radius:99px;padding:0 7px;white-space:nowrap;">📬 已補件 ' + mdMD(it.supplied) + '</span></div>' : ''}</td>` +
     `<td class="md-actions">` +
     `<button class="md-mini" onclick="mdEdit('${it.id}')" title="修改業務、誰提供、缺件類型、備註">✏️ 編輯</button>` +
     (isGot ? `<button class="md-mini" onclick="mdSetStatus('${it.id}','缺件')">↩ 改回缺件</button>`
