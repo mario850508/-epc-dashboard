@@ -296,6 +296,7 @@ function renderSlotTasks(){
         ${busy ? '<span style="font-size:11px;color:var(--text-muted);">廠商這段已被其他案件預約</span>'
                : picked ? '<span style="font-size:11px;color:#16A34A;font-weight:700;">✓ 目前選定</span>'
                : `<button class="btn btn-warm-primary" style="padding:4px 12px;font-size:11.5px;" onclick="chooseSlotAlt('${t.record_id}', ${i})">選這個</button>`}
+        ${busy ? '' : `<button class="btn btn-ghost" style="padding:4px 12px;font-size:11.5px;color:#16A34A;border-color:#BFE6CF;" title="屋主已經同意這個時間：直接完成預約，然後帶你去通知廠商（不用等業務再按確認）" onclick="bookSlotAltNow('${t.record_id}', ${i})">✅ 直接預約並通知廠商</button>`}
       </div>`;
     }).join('');
     const note = t.rep_note ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">業務備註：${t.rep_note}</div>` : '';
@@ -399,6 +400,48 @@ async function chooseSlotAlt(recordId, idx){
     if(t) showSlotChosenMessage(t);
   }catch(err){
     showToast('選定失敗：' + err.message);
+  }
+}
+// 2026-11-04：業務回報的「屋主可以的其他時間」＝屋主已經同意，窗口跟廠商確認過就能直接預約，
+// 預約完馬上開「通知廠商」視窗（確認屋主資料→傳卡片到廠商群組），不用再等業務打開連結按確認。
+async function bookSlotAltNow(recordId, idx){
+  const tk = SLOT_TASKS.find(x => x.record_id === recordId);
+  const alt = tk && (tk.alt_slots || [])[idx];
+  if(!tk || !alt){ showToast('找不到這個備選時間，請重新整理'); return; }
+  const dateOnly = (tk.type || []).includes('進場');
+  const body = {date: alt.date, owner_name: tk.owner_name || '', owner_phone: tk.owner_phone || '', note: '窗口依業務回報的屋主可配合時間直接預約'};
+  if(!dateOnly){
+    let st = alt.start_time, en = alt.end_time;
+    if(!st){
+      const input = prompt(fmtDate(alt.date) + ' 要從幾點開始？（例如 09:00，結束時間會依作業時長自動算）', tk.est_start || '09:00');
+      if(input === null) return;
+      const m = input.trim().match(/^(\d{1,2}):(\d{2})$/);
+      if(!m){ showToast('時間格式不對，請輸入像 09:00'); return; }
+      const sm = (+m[1]) * 60 + (+m[2]), em = sm + (tk.duration_min || 60);
+      st = String(m[1]).padStart(2, '0') + ':' + m[2];
+      en = String(Math.floor(em / 60)).padStart(2, '0') + ':' + String(em % 60).padStart(2, '0');
+    }
+    body.start_time = st; body.end_time = en;
+  }
+  if(!confirm('確定直接預約嗎？\n\n' + tk.vendor + '｜' + (tk.type || []).join('＋') + '｜' + (tk.case || '') + '\n' + slotLabelText(alt) + '\n\n屋主已經同意這個時間、也跟廠商確認過了，才按確定。預約完會帶你去通知廠商。')) return;
+  try{
+    const post = () => fetch(API_BASE + '/api/vendor-slots/tasks/' + encodeURIComponent(recordId) + '/complete', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    let res = await post();
+    let d = await res.json().catch(() => ({}));
+    if(res.status === 409 && d.conflict){
+      if(!confirmOverlap(d, tk.vendor)) return;
+      body.allow_overlap = true;
+      res = await post();
+      d = await res.json().catch(() => ({}));
+    }
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    showToast('✅ 已完成預約，接著通知廠商');
+    await loadVendorSlots();
+    const bid = d.record && d.record.id;
+    if(bid && SLOT_BOOKINGS.some(b => b.record_id === bid)) openVendorNotice(bid);
+  }catch(err){
+    showToast('預約失敗：' + err.message);
   }
 }
 async function resetSlotAlts(recordId){
