@@ -178,6 +178,7 @@ function mdRender(){
   const due = open.filter(mdIsDue);
   const unn = open.filter(mdNeedNotify);
   const sup = open.filter(i => i.supplied);
+  const gotPend = pool.filter(i => i.status === '已取得' && i.vendor && !i.vendor_notified && i.got && MD_TODAY && mdDaysBetween(i.got, MD_TODAY) <= 21);
   const got = pool.filter(i => i.status === '已取得').sort((a, b) => (b.got || '').localeCompare(a.got || '')).slice(0, 60);
   document.getElementById('mdSummary').innerHTML =
     `缺件中 <b>${open.length}</b> 項，涉及 <b>${new Set(open.map(i => i.alias || i.case_no)).size}</b> 個案場；` +
@@ -188,6 +189,7 @@ function mdRender(){
     '<span class="md-sep"></span>廠商：' + ((typeof MD_LOCK_VENDOR !== 'undefined' && MD_LOCK_VENDOR) ? `<b>${mdEsc(MD_LOCK_VENDOR)}</b>` :
       '<select class="cert-rename-input" style="padding:3px 8px;" onchange="MD_VENDOR_FILTER=this.value;mdRender()"><option value="">全部</option>' +
       MD_VENDORS.map(v => `<option value="${mdEsc(v)}" ${MD_VENDOR_FILTER === v ? 'selected' : ''}>${mdEsc(v)}</option>`).join('') + '</select>') +
+    '<span class="md-sep"></span>' + `<button class="btn ${gotPend.length ? 'btn-primary' : 'btn-ghost'} md-btn" onclick="mdGotNoticeOpen()" title="把最近已拿到的資料整理成訊息，通知廠商已補件">📣 通知廠商已補件（${gotPend.length}）</button>` +
     '<span class="md-sep"></span>分組：' +
     [['rep', '業務'], ['type', '缺件類型'], ['case', '案場']]
       .map(([k, l]) => `<button class="md-chip ${MD_GROUP === k ? 'on' : ''}" onclick="mdSetGroup('${k}')">${l}</button>`).join('');
@@ -257,6 +259,7 @@ function mdRow(it, showRep){
     `<td>${isGot ? '✔ ' + mdMD(it.got) : (days == null ? '—' : days + ' 天')}</td>` +
     `<td>${due ? '<span class="md-due">⏰ ' : '<span>'}${mdMD(mdLastCheck(it))}</span></td>` +
     `<td>${it.notified ? mdMD(it.notified) + (it.notify_count > 1 ? '（' + it.notify_count + '次）' : '') : (mdNeedNotify(it) ? '<span class="md-due" style="white-space:nowrap;">🆕 未通知</span>' : '—')}` +
+    `${isGot ? '<div><span style="font-size:11px;white-space:nowrap;' + (it.vendor_notified ? 'color:#15803D;' : 'color:#B45309;') + '">' + (it.vendor_notified ? '📣 已通知廠商 ' + mdMD(it.vendor_notified) : '📣 還沒通知廠商') + '</span></div>' : ''}` +
     `${it.supplied && !isGot ? '<div><span title="業務在字卡按了已補件，請到資料夾確認" style="display:inline-block;font-size:11px;font-weight:700;background:#DCFCE7;color:#15803D;border-radius:99px;padding:0 7px;white-space:nowrap;">📬 已補件 ' + mdMD(it.supplied) + '</span></div>' : ''}</td>` +
     `<td class="md-actions">` +
     `<button class="md-mini" onclick="mdEdit('${it.id}')" title="修改業務、誰提供、缺件類型、備註">✏️ 編輯</button>` +
@@ -435,5 +438,56 @@ async function mdNoticeDoSend(to){
   }catch(e){
     btn.disabled = false; btn.textContent = '📨 確認送出';
     alert('送出失敗：' + (e.message || e));
+  }
+}
+
+// ---------- 通知廠商已補件（先預覽、複製貼給廠商、按「確認已通知廠商」只記日期）----------
+async function mdGotNoticeOpen(){
+  const ov = document.getElementById('mdNoticeOverlay');
+  const body = document.getElementById('mdNoticeBody');
+  body.innerHTML = '<div class="login-note">整理訊息中…</div>';
+  ov.classList.add('show');
+  try{
+    const res = await fetch(API_BASE + '/api/missing-docs/got-notice?vendor=' + encodeURIComponent(MD_VENDOR_FILTER || ''));
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+    if(!data.groups.length){
+      body.innerHTML = '<div class="login-note">最近 ' + (data.days || 21) + ' 天內「已拿到」的資料，都已經通知過廠商了 ✅</div>' +
+        '<div style="text-align:right;margin-top:10px;"><button class="btn btn-ghost md-btn" onclick="mdNoticeClose()">關閉</button></div>';
+      return;
+    }
+    body.innerHTML = '<div class="md-sub" style="margin-bottom:8px;">下面是要通知廠商的「已補件」訊息（只含最近 ' + (data.days || 21) + ' 天標成已拿到、還沒通知廠商的）。複製貼給廠商後，按「確認已通知廠商」記錄；系統不會自己發給廠商。</div>' +
+      data.groups.map((g, i) =>
+        `<div style="border:1px solid #E5E7EB;border-radius:10px;padding:10px;margin-bottom:10px;">` +
+        `<div style="font-weight:700;margin-bottom:6px;">${mdEsc(g.vendor)} <span class="md-sub">${g.count} 項</span></div>` +
+        `<textarea id="mdGotText${i}" class="md-notice-text" readonly>${mdEsc(g.text)}</textarea>` +
+        `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap;">` +
+        `<button class="btn btn-ghost md-btn" onclick="mdGotNoticeCopy(${i})">📋 複製文字</button>` +
+        `<button class="btn btn-ghost md-btn" id="mdGotMark${i}" onclick='mdGotNoticeMark(${i}, ${JSON.stringify(g.ids)})'>✅ 確認已通知廠商</button></div></div>`).join('') +
+      '<div style="text-align:right;"><button class="btn btn-ghost md-btn" onclick="mdNoticeClose()">關閉</button></div>';
+  }catch(e){
+    body.innerHTML = '<div class="login-note">整理訊息失敗：' + mdEsc(e.message || e) + '</div>';
+  }
+}
+function mdGotNoticeCopy(i){
+  const ta = document.getElementById('mdGotText' + i);
+  if(!ta) return;
+  ta.select();
+  try{ navigator.clipboard.writeText(ta.value); }catch(e){ document.execCommand('copy'); }
+  const mk = document.getElementById('mdGotMark' + i);
+  if(mk){ mk.classList.remove('btn-ghost'); mk.classList.add('btn-primary'); }   // 複製完，提醒下一步是按「確認已通知廠商」
+}
+async function mdGotNoticeMark(i, ids){
+  if(!confirm('要把這 ' + ids.length + ' 項標記為「已通知廠商」嗎？' + '\n' + '（只是記錄，系統不會發任何訊息）')) return;
+  const btn = document.getElementById('mdGotMark' + i); btn.disabled = true; btn.textContent = '記錄中…';
+  try{
+    const res = await fetch(API_BASE + '/api/missing-docs/got-notice/mark', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids})});
+    const data = await res.json();
+    if(!res.ok || data.error) throw new Error(data.error || res.status);
+    await mdLoad();
+    mdGotNoticeOpen();   // 重新整理這個視窗：剩下還沒通知的廠商
+  }catch(e){
+    btn.disabled = false; btn.textContent = '✅ 確認已通知廠商';
+    alert('記錄失敗：' + (e.message || e));
   }
 }
