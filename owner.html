@@ -76,6 +76,11 @@ const WD = ['日','一','二','三','四','五','六'];
 
 const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const fmtMin = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+// 2026-11-04：同一天施工團隊在其他縣市也有行程 → 提醒到達時間可能依前面案場的施工狀況調整
+function farNote(date){
+  if(D.date_only || !date || !(D.far_dates || []).includes(date)) return '';
+  return '<div class="muted" style="margin-top:10px;background:#FFF7E6;border-radius:10px;padding:10px 12px;">📍 這天施工團隊在其他縣市也有行程安排，<b>抵達時間可能會有一定的調整</b>，實際依工程單位前面案場的施工狀況而定，我們會再跟您確認。</div>';
+}
 function dateLabel(iso){ const d = new Date(iso + 'T00:00:00'); return `${d.getMonth()+1}/${d.getDate()}（週${WD[d.getDay()]}）`; }
 function durLabel(m){ const h = Math.floor(m / 60), r = m % 60; return (h ? h + ' 小時' : '') + (r ? r + ' 分鐘' : '') || m + ' 分鐘'; }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -226,6 +231,7 @@ function render(){
     app.innerHTML = `<div class="card ok-box"><div class="ok-icon">✅</div><h1>預約完成，謝謝您！</h1>
       ${b.date ? `<div class="big-time">${dateLabel(b.date)}${D.date_only ? '' : '<br>' + esc(b.start_time) + '–' + esc(b.end_time)}</div>` : ''}
       <div class="lead">${D.date_only ? '施工團隊預計在這天進場，施工約需 <b>' + esc(D.duration_label || '3～5 天') + '</b>。' + (b.date ? '<br><span style="color:var(--sun-3);font-weight:700;">' + esc(estSpanText(b.date)) + '</span>' + (weekendNote(b.date) ? '<br><span class="muted" style="font-size:12.5px;">' + esc(weekendNote(b.date)) + '</span>' : '') : '') : '施工團隊預計在這個時間到場。'}</div>
+      ${farNote(b.date)}
       ${estNote()}
       ${b.date ? `<div style="margin-top:16px;">
         <a class="btn" style="display:block;text-decoration:none;" href="${googleCalUrl(b)}" target="_blank" rel="noopener">📅 加入 Google 日曆</a>
@@ -349,7 +355,7 @@ function renderPick(){
     <div class="step" style="margin-top:0;"><span class="n">1</span>${single ? '預計前往日期' : '請選一天'}</div>
     <div class="grid">${dateBtns}</div>
     <div class="step"><span class="n">2</span>${okTimes.length === 1 ? '預計時間' : '請選開始時間'}</div>
-    ${fullSel ? busyDayNote() : (selDate ? `<div class="grid">${timeBtns}</div>${estNote()}` : '<div class="muted">請先選上面的日期</div>')}
+    ${fullSel ? busyDayNote() : (selDate ? `<div class="grid">${timeBtns}</div>${farNote(selDate)}${estNote()}` : '<div class="muted">請先選上面的日期</div>')}
     ${contactHtml()}
     ${fullSel ? `<button class="btn" id="submitBtn" onclick="submitDateRequest()">送出：請窗口幫我確認這一天</button>` : `<button class="btn" id="submitBtn" onclick="submitBook()">確認預約</button>`}
     <div class="err" id="err"></div>
