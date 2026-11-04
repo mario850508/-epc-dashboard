@@ -116,7 +116,10 @@ function mcAdjAmount(c){
   if(unit === null || a === null || b === null || mcSame(a, b, 0.0005)) return null;
   return Math.round(Math.abs(b - a) * unit * 1.05);
 }
-const MC_ADJ = ['待廠商提供', '已收到折讓／發票', '已通知內部'];
+// 2026-11-04：調整處理改成兩個狀態（待出協議書 → 協議書已完成）；舊名稱（含瀏覽器暫存的舊資料）換成新的
+const MC_ADJ = ['待出協議書', '協議書已完成'];
+const MC_ADJ_LEGACY = {'待廠商提供': '待出協議書', '已收到折讓／發票': '待出協議書', '已通知內部': '協議書已完成'};
+function mcAdjCur(c){ const v = c.adj_status || ''; return MC_ADJ_LEGACY[v] || v || '待出協議書'; }
 // 比對結果：{state: ok|adj|missing, items:[{what, from, to, dir}], need:[折讓|發票], missing:[…], done}
 function mcCompare(c){
   const pairs = [['容量', mcContractCap(c), mcCapOk(c), 0.0005, 'kW'], ['電價', mcContractPrice(c), mcPriceOk(c), 0.00005, '']];
@@ -130,7 +133,7 @@ function mcCompare(c){
   if(items.some(x => x.dir === 'down')) need.push('折讓');
   if(items.some(x => x.dir === 'up')) need.push('發票');
   const state = items.length ? 'adj' : missing.length ? 'missing' : 'ok';
-  return {state, items, need, missing, done: state === 'adj' && c.adj_status === '已通知內部'};
+  return {state, items, need, missing, done: state === 'adj' && mcAdjCur(c) === '協議書已完成'};
 }
 
 function mcState(c){ return mcCompare(c).state; }
@@ -296,10 +299,13 @@ function renderMeterCheck(){
   };
   const adjCell = c => {
     if(cmp.get(c).state !== 'adj') return '<span class="cert-src">—</span>';
-    const cur = c.adj_status || '待廠商提供';
-    return '<select class="quick-mark-input" style="width:118px;padding:3px 4px;font-size:12px;' + (cur === '已通知內部' ? 'background:#E7F6EC;' : cur === '待廠商提供' ? 'background:#FFF4E5;' : '') + '"'
-      + ' onchange="mcSave(\'' + mcJs(c.case_no) + '\',\'adj\',this.value)">'
+    const cur = mcAdjCur(c), cn = mcJs(c.case_no);
+    return '<select class="quick-mark-input" style="width:118px;padding:3px 4px;font-size:12px;' + (cur === '協議書已完成' ? 'background:#E7F6EC;' : 'background:#FFF4E5;') + '"'
+      + ' onchange="mcSave('' + cn + '','adj',this.value)">'
       + MC_ADJ.map(x => '<option' + (x === cur ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
+      + '<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;">'
+      + '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;" title="依這案的容量／電價差異產生協議書（範本做好後啟用）" onclick="mcGenAgreement('' + cn + '')">📝 產出協議書</button>'
+      + '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;" title="雙方簽完後上傳：自動歸檔到案場資料夾 03 契約，並改成「協議書已完成」" onclick="mcPickAgreement('' + cn + '')">⬆ 上傳協議書</button></div>'
       + (c.by || c.updated ? sub(mcEsc([c.by, c.updated].filter(Boolean).join(' '))) : '');
   };
 
@@ -573,6 +579,39 @@ async function mcUploadDoc(caseNo, kind, file){
   }catch(e){ showToast('上傳失敗：' + e.message); }
 }
 
+// ---- 協議書（2026-11-04）----
+// 產出：範本還沒提供，先放按鈕（之後依這案的容量／電價差異自動產生）
+function mcGenAgreement(caseNo){
+  showToast('「產出協議書」還在準備中：等協議書範本給我之後，這顆鈕就會自動產出');
+}
+// 上傳雙方簽完的協議書：後端走公文更名流程確認（檔名 簡稱_日期_協議書）、背景程式歸檔到 03 契約，調整處理改成「協議書已完成」
+function mcPickAgreement(caseNo){
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'application/pdf,.pdf';
+  inp.onchange = () => { if(inp.files[0]) mcUploadAgreement(caseNo, inp.files[0]); };
+  inp.click();
+}
+async function mcUploadAgreement(caseNo, file){
+  if(!/\.pdf$/i.test(file.name)){ showToast('請選 PDF 檔'); return; }
+  if(file.size > 20 * 1024 * 1024){ showToast('檔案超過 20MB，請先壓縮再上傳'); return; }
+  if(!confirm('把「' + file.name + '」上傳成 ' + caseNo + ' 的協議書？
+會歸檔到案場資料夾 03 契約，並把這案的調整處理改成「協議書已完成」。')) return;
+  showToast('上傳協議書中…');
+  try{
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const res = await fetch(API_BASE + '/api/meter-check/agreement', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({month: MC_MONTH, case_no: caseNo, filename: file.name, data: mcB64(bytes), by: mcMe()}),
+    });
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    const c = (MC_DATA.cases || []).find(x => x.case_no === caseNo);
+    if(c){ c.adj_status = '協議書已完成'; c.by = mcMe(); mcStore(); renderMeterCheck(); }
+    showToast('✅ 已上傳，檔名 ' + (d.final_name || '') + (d.note ? '（' + d.note + '）' : '') + '；稍後會自動歸檔到 03 契約');
+  }catch(e){ showToast('上傳協議書失敗：' + e.message); }
+}
+
 async function mcReparse(){
   try{
     const res = await fetch(API_BASE + '/api/procurement/drawings/reparse', {method: 'POST'});
@@ -629,7 +668,7 @@ function mcCopyTable(){
       : r.items.map(x => x.what + (x.dir === 'down' ? '下修' : '上調') + mcFmt(x.from) + '→' + mcFmt(x.to)).join('；') + '（需' + r.need.join('、')
         + (mcAdjAmount(c) !== null ? '，容量差估 NT$' + mcAdjAmount(c) + ' 含稅' : '') + '）';
     lines.push([c.case_no, c.alias, mcDate(c.meter_date), c.vendor, mcFmt(mcContractCap(c)), mcFmt(mcContractPrice(c)),
-      mcFmt(mcCapOk(c)), mcFmt(mcPriceOk(c)), res, r.state === 'adj' ? (c.adj_status || '待廠商提供') : '', (c.note || '').replace(/\s+/g, ' ')].join('\t'));
+      mcFmt(mcCapOk(c)), mcFmt(mcPriceOk(c)), res, r.state === 'adj' ? mcAdjCur(c) : '', (c.note || '').replace(/\s+/g, ' ')].join('\t'));
   });
   if((MC_DATA.withdrawn || []).length){
     lines.push('', '撤案案件', ['案號', '別名', '容量', '施工廠商', '案件狀況'].join('\t'));
