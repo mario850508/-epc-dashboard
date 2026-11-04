@@ -48,13 +48,27 @@ const MC_TARIFF_FULL_115 = [
   [3.5037, 4.0293, 3.5693, 4.0949, 3.7795, 4.3051],
 ];
 const MC_TARIFF_TABLES = {
-  '115-1': {title: '115年度第一期電費(1/1-6/30)', rows: MC_TARIFF_FULL_115},
+  '115-1': {title: '115年度第一期電費(1/1-6/30)', rows: MC_TARIFF_FULL_115,
+    extras: [['模組回收費', '+0.0656'], ['併網低壓50-100', '+0.0688'], ['併網低壓100-500', '+0.0964'], ['併網高壓', '+0.0413']]},
   '115-2': {title: '115年度第二期電費(7/1-12/31)', rows: MC_TARIFF_FULL_115,
-    extras: [['併網低壓50-100', '+0.0688'], ['併網低壓100-500', '+0.0964'], ['併網高壓', '+0.0413'], ['加強電力網', '+0.1356']]},
+    extras: [['模組回收費', '+0.0656'], ['併網低壓50-100', '+0.0688'], ['併網低壓100-500', '+0.0964'], ['併網高壓', '+0.0413'], ['加強電力網', '+0.1356']]},
 };
 // 計算用：高效&模組(南／北)，前 6 列（不含地面型）
+// 2026-11-04 使用者說明（附表三躉購費率＋附表四額外費率）：模組回收費 0.0656 一定加；
+//   1–20 kW（前兩個級距）一定有高效模組額外費率 → 用「高效&模組」兩欄；
+//   20 kW 以上不加高效模組 → 用「nonvpc&回收」兩欄（基本費率＋回收費），再加併網工程費額外費率（50 kW 以上，累進，見 mcGridFee）。
+//   驗證：工程苗栗11號 64.61 kW 同備 2026/7/21（第二期北）工程合約 4.734 ＝ 4.7184（北、含回收費）＋ 0.0156（併網工程費）。
 const MC_TARIFF = Object.fromEntries(Object.entries(MC_TARIFF_TABLES).map(([k, t]) =>
-  [k, {south: t.rows.slice(0, 6).map(r => r[4]), north: t.rows.slice(0, 6).map(r => r[5])}]));
+  [k, {south: t.rows.slice(0, 6).map(r => r[4]), north: t.rows.slice(0, 6).map(r => r[5]),
+       southBase: t.rows.slice(0, 6).map(r => r[2]), northBase: t.rows.slice(0, 6).map(r => r[3])}]));
+// 屋頂型太陽光電併網工程費額外費率（低壓；附表四註1：依所屬級距容量累進×費率，再除以總裝置容量，四捨五入到小數第四位）
+const MC_GRID_FEE = [[50, 100, 0.0688], [100, 500, 0.0964]];
+function mcGridFee(cap){
+  if(cap >= 500) return null;   // 500 kW 以上（高壓 0.0413 等）規則不確定，請手動填
+  let sum = 0;
+  MC_GRID_FEE.forEach(([lo, hi, r]) => { if(cap > lo) sum += (Math.min(cap, hi) - lo) * r; });
+  return Math.round(sum / cap * 10000) / 10000;
+}
 const MC_TIERS = [10, 20, 50, 100, 500];   // 1-10／10-20／20-50／50-100／100-500／>500 kWp
 const MC_TIER_LABEL = ['1-10', '10-20', '20-50', '50-100', '100-500', '>500'];
 // 北部加乘地區（台電躉購北部地區；宜蘭使用者確認算北）；其他縣市算南
@@ -73,7 +87,14 @@ function mcAddMonths(date, n){
   const t = new Date(y, m - 1 + n, Math.min(d, last));
   return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
 }
-function mcPriceAt(period, region, tier){ const t = MC_TARIFF[period]; return t ? t[region][tier] : null; }
+function mcPriceAt(period, region, tier, cap){
+  const t = MC_TARIFF[period];
+  if(!t) return null;
+  if(tier < 2) return t[region][tier];   // 1–20 kW：基本＋回收費＋高效模組
+  const fee = mcGridFee(cap);
+  if(fee === null) return null;
+  return Math.round((t[region + 'Base'][tier] + fee) * 10000) / 10000;   // 20 kW 以上：基本＋回收費＋併網工程費（沒有高效模組）
+}
 
 // 回傳 {price, label, basis, dropped} 或 {price: null, label: 原因}
 //   basis：電價依據說明；dropped：超過同備 4 個月、掛表那期比同備那期便宜時 {from, to}
@@ -97,12 +118,14 @@ function mcTariff(c){
     basis = '同備 ' + mcDate(c.agree_date) + '，4 個月內掛表';
   }else{
     basis = '同備 ' + mcDate(c.agree_date) + '，超過 4 個月，依掛表日';
-    const was = mcPriceAt(mcPeriod(c.agree_date), region, tier), now = mcPriceAt(meterP, region, tier);
+    const was = mcPriceAt(mcPeriod(c.agree_date), region, tier, cap), now = mcPriceAt(meterP, region, tier, cap);
     if(was !== null && now !== null && now < was) dropped = {from: was, to: now};
   }
-  const price = mcPriceAt(period, region, tier);
-  if(price === null) return {price: null, label: '沒有 ' + mcPeriodName(period) + '電價表', basis};
-  return {price, label: mcPeriodName(period) + '・' + (region === 'north' ? '北' : '南') + (byAddr ? '（依地址）' : '') + ' ' + MC_TIER_LABEL[tier] + ' kWp', basis, dropped};
+  const price = mcPriceAt(period, region, tier, cap);
+  if(price === null) return {price: null, label: tier >= 5 ? '500 kWp 以上併網工程費規則不確定，請手動填' : '沒有 ' + mcPeriodName(period) + '電價表', basis};
+  const fee = tier >= 2 ? mcGridFee(cap) : 0;
+  const parts = tier < 2 ? '含回收費＋高效模組' : '含回收費' + (fee ? '＋併網工程費 ' + fee : '') + '，不含高效模組';
+  return {price, label: mcPeriodName(period) + '・' + (region === 'north' ? '北' : '南') + (byAddr ? '（依地址）' : '') + ' ' + MC_TIER_LABEL[tier] + ' kWp', basis: basis + '；' + parts, dropped};
 }
 // 掛表時電價：人工填的優先，沒填就直接帶依規則算出來的電價（不退回 Airtable：Airtable 那個是工程合約電價，是比對的另一邊）
 function mcPriceOk(c){ const v = mcNum(c.price_confirm); return v !== null ? v : mcTariff(c).price; }
@@ -442,7 +465,8 @@ function renderMcTariff(){
     + (t.extras ? '<div class="cert-src" style="margin-top:6px;">加乘：' + t.extras.map(e => mcEsc(e[0]) + ' ' + mcEsc(e[1])).join('　') + '</div>' : '')
     + '</div>').join('')
     + '<div class="login-note"><div style="line-height:1.7;">'
-    + '<div>🔗 橘色兩欄「高效&模組(南／北)」是我們用的電價，掛表案件分頁的電價就是從這兩欄算的：</div>'
+    + '<div>🔗 掛表案件分頁的電價從這張表算：模組回收費 +0.0656 一定加；1–20 kW 用橘色兩欄「高效&模組(南／北)」（一定有高效模組）；20 kW 以上不加高效模組，用「nonvpc&回收(南／北)」再加併網工程費額外費率：</div>'
+    + '<div>・併網工程費（50 kW 以上，附表四註1）：級距容量累進 × 額外費率（50–100 kW 部分 0.0688、100–500 kW 部分 0.0964），再除以總裝置容量，四捨五入到小數第四位。例：64.61 kW ＝ (64.61−50)×0.0688÷64.61 ＝ 0.0156。500 kW 以上請手動填。</div>'
     + '<div>・期別：1–6 月第一期、7–12 月第二期，看掛表日；掛表日在同意備案日 4 個月內，用同備日那一期。</div>'
     + '<div>・北／南：新北、桃園、新竹、苗栗、宜蘭等北部用（北），其他用（南）；案號看不出縣市就看地址。</div>'
     + '<div>・容量級距：下限含、上限不含（10 kWp 算 10–20），有台電契約／細協的容量就用那個。</div>'
