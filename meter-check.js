@@ -301,11 +301,11 @@ function renderMeterCheck(){
     if(cmp.get(c).state !== 'adj') return '<span class="cert-src">—</span>';
     const cur = mcAdjCur(c), cn = mcJs(c.case_no);
     return '<select class="quick-mark-input" style="width:118px;padding:3px 4px;font-size:12px;' + (cur === '協議書已完成' ? 'background:#E7F6EC;' : 'background:#FFF4E5;') + '"'
-      + ' onchange="mcSave('' + cn + '','adj',this.value)">'
+      + ' onchange="mcSave(\'' + cn + '\',\'adj\',this.value)">'
       + MC_ADJ.map(x => '<option' + (x === cur ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
       + '<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;">'
-      + '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;" title="依這案的容量／電價差異產生協議書（範本做好後啟用）" onclick="mcGenAgreement('' + cn + '')">📝 產出協議書</button>'
-      + '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;" title="雙方簽完後上傳：自動歸檔到案場資料夾 03 契約，並改成「協議書已完成」" onclick="mcPickAgreement('' + cn + '')">⬆ 上傳協議書</button></div>'
+      + '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;" title="依這案的容量／電價差異產生協議書（範本做好後啟用）" onclick="mcGenAgreement(\'' + cn + '\')">📝 產出協議書</button>'
+      + '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;" title="雙方簽完後上傳：自動歸檔到案場資料夾 03 契約，並改成「協議書已完成」" onclick="mcPickAgreement(\'' + cn + '\')">⬆ 上傳協議書</button></div>'
       + (c.by || c.updated ? sub(mcEsc([c.by, c.updated].filter(Boolean).join(' '))) : '');
   };
 
@@ -595,8 +595,7 @@ function mcPickAgreement(caseNo){
 async function mcUploadAgreement(caseNo, file){
   if(!/\.pdf$/i.test(file.name)){ showToast('請選 PDF 檔'); return; }
   if(file.size > 20 * 1024 * 1024){ showToast('檔案超過 20MB，請先壓縮再上傳'); return; }
-  if(!confirm('把「' + file.name + '」上傳成 ' + caseNo + ' 的協議書？
-會歸檔到案場資料夾 03 契約，並把這案的調整處理改成「協議書已完成」。')) return;
+  if(!confirm('把「' + file.name + '」上傳成 ' + caseNo + ' 的協議書？\n會歸檔到案場資料夾 03 契約，並把這案的調整處理改成「協議書已完成」。')) return;
   showToast('上傳協議書中…');
   try{
     const bytes = new Uint8Array(await file.arrayBuffer());
