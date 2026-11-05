@@ -1704,6 +1704,12 @@ function showEditBooking(recordId){
       <div style="flex:1;"><div style="font-size:12px;font-weight:700;margin-bottom:6px;">屋主姓名</div><input class="quick-mark-input" id="ebOwner" value="${escHtml(b.owner_name || '')}"></div>
       <div style="flex:1;"><div style="font-size:12px;font-weight:700;margin-bottom:6px;">屋主電話</div><input class="quick-mark-input" id="ebPhone" value="${escHtml(b.owner_phone || '')}"></div>
     </div>
+    <div style="font-size:12px;font-weight:700;margin:10px 0 6px;">🚗 車程緩衝（開車到這一案要留多久）</div>
+    <select class="quick-mark-input" id="ebBuffer">
+      <option value="" ${b.buffer_min == null ? 'selected' : ''}>沒記錄（系統當 30 分鐘）</option>
+      ${[0, 30, 60, 90, 120, 150, 180].map(m => `<option value="${m}" ${b.buffer_min === m ? 'selected' : ''}>${m === 0 ? '不留（0 分鐘）' : m + ' 分鐘'}</option>`).join('')}
+    </select>
+    <div style="font-size:11.5px;color:#6B7280;margin-top:4px;line-height:1.6;">前一個行程結束後，要隔這麼久才開始這一案；也是別人想排在這一案「前面」時，要留給這一案的車程。</div>
     <div style="font-size:12px;font-weight:700;margin:10px 0 6px;">備註</div>
     <textarea class="quick-mark-input" id="ebNote" rows="2">${escHtml(b.note || '')}</textarea>
     <div id="bookingEditCompanions" style="margin-top:12px;"></div>
@@ -1720,6 +1726,7 @@ async function submitEditBooking(recordId){
     date: document.getElementById('ebDate').value, start_time: document.getElementById('ebStart').value, end_time: document.getElementById('ebEnd').value,
     owner_name: document.getElementById('ebOwner').value.trim(), owner_phone: document.getElementById('ebPhone').value.trim(),
     note: document.getElementById('ebNote').value.trim(), add_companions: COMPANIONS.bookingEdit,
+    buffer_min: document.getElementById('ebBuffer').value,
   };
   if(!body.date || !body.start_time || !body.end_time){ showToast('日期、開始與結束時間都要填'); return; }
   btn.disabled = true; btn.textContent = '儲存中…';

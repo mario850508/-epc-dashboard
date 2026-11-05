@@ -96,7 +96,8 @@ function startOptions(date){
   }
   const wins = (D.windows && D.windows.length ? D.windows : [[D.window_start, D.window_end]]).map(([a, b]) => [toMin(a), toMin(b)]);
   const buf = D.buffer_min || 0;   // 車程緩衝：跟同廠商其他預約之間要隔這麼久；有設緩衝時開始時間以 30 分鐘為單位
-  const busy = (D.busy_slots || []).filter(b => b.date === date).map(b => [toMin(b.start_time) - buf, toMin(b.end_time) + buf]);
+  // 車程緩衝每段只算一次（2026-11-05）：排在既有預約後面 → 隔「這案自己的緩衝」；排在既有預約前面 → 隔「那筆預約自己記錄的緩衝」（沒記錄當 30）
+  const busy = (D.busy_slots || []).filter(b => b.date === date).map(b => [toMin(b.start_time) - (buf ? (b.buffer != null ? b.buffer : 30) : 0), toMin(b.end_time) + buf]);
   const out = [];
   const step = buf ? 30 : 60;
   wins.forEach(([ws, we]) => {   // 每個可選時段各列一排開始時間（中間的休息時間不會出現）
