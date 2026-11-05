@@ -893,8 +893,14 @@ function fmtMin(total){ return String(Math.floor(total / 60)).padStart(2,'0') + 
 function getBusyRanges(date, padded){
   // padded：把每筆預約前後各加上「車程緩衝」，選時間時用它，才會跟別的預約隔開路程時間（2026-10-19）
   // 2026-11-05：每段車程只算一次——後面接這案自己的緩衝，前面接那筆預約自己記錄的緩衝（沒記錄當 30）
+  // 有座標（gap_before／gap_after）：用兩案之間實際開車時間＋10 分鐘，前後各自算；沒座標才用手動緩衝
   const buf = padded ? ((TASK && TASK.buffer_min) || 0) : 0;
-  return ((TASK && TASK.busy_slots) || []).filter(b => b.date === date).map(b => [toMin(b.start_time) - (buf ? (b.buffer != null ? b.buffer : 30) : 0), toMin(b.end_time) + buf]);
+  return ((TASK && TASK.busy_slots) || []).filter(b => b.date === date).map(b => {
+    if(!padded) return [toMin(b.start_time), toMin(b.end_time)];
+    const gb = b.gap_before != null ? b.gap_before : (buf ? (b.buffer != null ? b.buffer : 30) : 0);
+    const ga = b.gap_after != null ? b.gap_after : buf;
+    return [toMin(b.start_time) - gb, toMin(b.end_time) + ga];
+  });
 }
 function refreshTimeOptions(){
   const startSel = document.getElementById('startTime');
@@ -905,7 +911,7 @@ function refreshTimeOptions(){
   const hint = document.getElementById('busyHint');
   if(hint){
     if(busy.length){
-      const bufMin = (TASK && TASK.buffer_min) || 0;
+      const bufMin = ((TASK && TASK.buffer_min) || 0) || ((TASK && TASK.auto_travel) ? 1 : 0);
       hint.textContent = '📌 這個廠商這天已經有預約：' + busy.slice().sort((a, b) => a[0] - b[0]).map(([s, e]) => fmtMin(s) + '-' + fmtMin(e)).join('、') + '（灰色的時間不能選' + (bufMin ? '；預約之間要留車程時間' : '') + '）';
       hint.style.display = 'block';
     } else {

@@ -97,9 +97,15 @@ function startOptions(date){
   const wins = (D.windows && D.windows.length ? D.windows : [[D.window_start, D.window_end]]).map(([a, b]) => [toMin(a), toMin(b)]);
   const buf = D.buffer_min || 0;   // 車程緩衝：跟同廠商其他預約之間要隔這麼久；有設緩衝時開始時間以 30 分鐘為單位
   // 車程緩衝每段只算一次（2026-11-05）：排在既有預約後面 → 隔「這案自己的緩衝」；排在既有預約前面 → 隔「那筆預約自己記錄的緩衝」（沒記錄當 30）
-  const busy = (D.busy_slots || []).filter(b => b.date === date).map(b => [toMin(b.start_time) - (buf ? (b.buffer != null ? b.buffer : 30) : 0), toMin(b.end_time) + buf]);
+  // 有座標的案子（gap_before／gap_after）：用兩案之間實際開車時間＋10 分鐘，前後各自算（2026-11-05）；沒座標才用手動緩衝
+  const busy = (D.busy_slots || []).filter(b => b.date === date).map(b => {
+    if(b.region) return [toMin(b.start_time), toMin(b.end_time)];
+    const gb = b.gap_before != null ? b.gap_before : (buf ? (b.buffer != null ? b.buffer : 30) : 0);
+    const ga = b.gap_after != null ? b.gap_after : buf;
+    return [toMin(b.start_time) - gb, toMin(b.end_time) + ga];
+  });
   const out = [];
-  const step = buf ? 30 : 60;
+  const step = (buf || D.auto_travel) ? 30 : 60;
   wins.forEach(([ws, we]) => {   // 每個可選時段各列一排開始時間（中間的休息時間不會出現）
     const starts = [];
     if(ws % step !== 0) starts.push(ws);   // 時段從非整點（或半點）開始（例如 09:30）：時段起點本身也是一個選項，不然剛好塞得下的時段會整個消失
