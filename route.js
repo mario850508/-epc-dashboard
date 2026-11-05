@@ -78,6 +78,10 @@ function renderRouteTab(){
       <button class="btn btn-ghost" style="padding:1px 7px;font-size:12px;" onclick="rpMove(${i},-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
       <button class="btn btn-ghost" style="padding:1px 7px;font-size:12px;" onclick="rpMove(${i},1)" ${i === RP.order.length - 1 ? 'disabled' : ''}>↓</button></span>`).join('');
   c.innerHTML = `
+    <div style="margin-bottom:12px;">
+      <button class="btn btn-ghost" style="padding:6px 14px;font-size:12.5px;" onclick="rpCoverage()" ${RP.covBusy ? 'disabled' : ''}>${RP.covBusy ? '檢查中…' : '📍 座標檢查（哪些案子有／沒有座標）'}</button>
+      <div id="rpCoverage">${rpCoverageHtml()}</div>
+    </div>
     <div class="login-note" style="margin-bottom:10px;">🧪 測試版：只計算、不會建立任何預約。勾選案件 → 設縣市順位 → 算出最佳拜訪順序、時程和路線圖。座標優先用業務自治區的案場座標，沒有才用地址轉換（只到路名附近時會標示）。</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
       <b style="font-size:13px;">廠商</b>
@@ -133,6 +137,34 @@ function rpDrawMap(){
       .bindPopup(`<b>${s.seq}. ${escHtml(s.label)}</b><br>${s.start}–${s.end}<br>${escHtml(s.address)}`).addTo(RP_MAP);
   });
   RP_MAP.fitBounds(line.getBounds().pad(0.15));
+}
+
+// 座標檢查：預約時段自動算車程只用案場座標；沒座標的案子會退回手動緩衝。這裡列出指派中的任務＋今天以後的預約有沒有座標。
+async function rpCoverage(){
+  RP.covBusy = true; RP.cov = null; renderRouteTab();
+  try{
+    const res = await fetch(API_BASE + '/api/travel-coverage', {cache: 'no-store'});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    RP.cov = d;
+  }catch(err){
+    RP.cov = {error: err.message};
+  }
+  RP.covBusy = false;
+  renderRouteTab();
+}
+function rpCoverageHtml(){
+  const d = RP.cov;
+  if(!d) return '';
+  if(d.error) return '<div style="color:#B42318;font-size:13px;margin-top:8px;">檢查失敗：' + escHtml(d.error) + '</div>';
+  const rows = d.rows.map(r => `<tr style="border-bottom:1px solid var(--border);${r.has ? '' : 'background:#FEF3F2;'}">
+      <td style="padding:6px;white-space:nowrap;">${r.has ? '✅' : '❌ 缺座標'}</td>
+      <td style="padding:6px;"><b>${escHtml(r.alias || r.case)}</b><div style="font-size:11.5px;color:var(--text-muted);">${escHtml(r.case)}</div></td>
+      <td style="padding:6px;white-space:nowrap;">${escHtml(r.kind)}｜${escHtml(r.vendor)}</td>
+      <td style="padding:6px;font-size:12px;">${escHtml(r.when)}</td>
+      <td style="padding:6px;font-size:11.5px;color:var(--text-muted);">${escHtml(r.has ? r.source + '：' + r.coords : '')}</td></tr>`).join('');
+  return `<div style="margin-top:8px;font-size:13px;">共 ${d.total} 筆，<b style="color:${d.missing ? '#B42318' : '#16A34A'};">${d.missing ? d.missing + ' 筆缺座標（會退回手動緩衝）' : '全部都有座標'}</b>${d.biz_coords_loaded ? '' : '｜⚠️ 業務自治區座標資料目前是空的（伺服器剛重啟、還沒同步），請稍後再檢查'}</div>
+    <div style="max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:10px;margin-top:6px;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><tbody>${rows}</tbody></table></div>`;
 }
 
 function rpToggle(id, on){ RP.sel[id] = Object.assign(RP.sel[id] || {}, {on}); renderRouteTab(); }
