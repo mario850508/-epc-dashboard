@@ -61,6 +61,7 @@ function showSlotsTab(tab){
   const tabEl = document.querySelector('#view-slots .tab[data-slots-tab="'+tab+'"]');   // 廠商日曆（vcal）沒有上方分頁，是側邊選單的獨立項目
   if(tabEl) tabEl.classList.add('active');
   if(tab === 'joint' && typeof loadJoint === 'function') loadJoint();
+  if(tab === 'route' && typeof loadRouteTab === 'function') loadRouteTab();
   if(tab === 'vcal' && typeof renderVendorCalendar === 'function') renderVendorCalendar();
   if(tab === 'requests' && typeof loadVendorRequests === 'function') loadVendorRequests();
   // 2026-10-20：側邊選單「廠商時段協調」底下分成「屋主預約」（指派任務／聯合排程／完成安排／歷史紀錄）跟「廠商預約」（廠商申請）

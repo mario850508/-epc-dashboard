@@ -3023,6 +3023,7 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <div class="tab active" data-slots-tab="pending" onclick="showSlotsTab('pending')">📋 指派任務</div>
         <div class="tab" data-slots-tab="requests" style="display:none;" onclick="showSlotsTab('requests')">📥 廠商申請<span id="slotsReqBadge" style="display:none;"></span></div>
         <div class="tab" data-slots-tab="joint" onclick="showSlotsTab('joint')">🧩 聯合排程</div>
+        <div class="tab" data-slots-tab="route" onclick="showSlotsTab('route')">🧭 路線排程（測試）</div>
         <div class="tab" data-slots-tab="done" onclick="showSlotsTab('done')">✅ 完成安排</div>
         <div class="tab" data-slots-tab="history" onclick="showSlotsTab('history')">🗂 歷史紀錄</div>
       </div>
@@ -3042,6 +3043,10 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
 
       <div class="subview" id="slots-tab-joint">
         <div id="jointContainer"><div class="login-note">載入中…</div></div>
+      </div>
+
+      <div class="subview" id="slots-tab-route">
+        <div id="routeContainer"><div class="login-note">載入中…</div></div>
       </div>
 
       <div class="subview" id="slots-tab-done">
@@ -10131,6 +10136,7 @@ async function confirmCertAbbr(id){
 <script src="home-todo.js?v=1"></script>
 <script src="event-detail.js?v=1"></script>
 <script src="joint.js?v=13"></script>
+<script src="route.js?v=1"></script>
 <script src="vendor-requests.js?v=3"></script>
 <script src="slack-bind.js?v=4"></script>
 <script src="line-health.js?v=2"></script>
