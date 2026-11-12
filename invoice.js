@@ -273,7 +273,29 @@ function renderInvSelBar(){
     <button class="btn" style="padding:6px 12px;font-size:12.5px;" onclick="openInvDetailSheet()">📋 發票明細（給廠商）</button>
     <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="invDownloadZip('split')">📦 下載拆分的發票 PDF（ZIP）</button>
     <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="invDownloadZip('docs')">🗂 打包請款節點文件（前台上傳用）</button>
-    <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="INV_SELECTED.clear(); renderInvoices();">取消勾選</button>`;
+    <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;" onclick="INV_SELECTED.clear(); renderInvoices();">取消勾選</button>
+    <button class="btn btn-ghost" style="padding:6px 12px;font-size:12.5px;color:#C0392B;margin-left:auto;" onclick="invBulkDelete()">🗑 刪除勾選（${sel.length}）</button>`;
+}
+
+// 批次刪除（2026-11-12）：誤傳的檔案（例如案場文件傳到發票請款）可勾選後一次刪掉；只刪發票紀錄，不動雲端資料夾的原檔
+async function invBulkDelete(){
+  const sel = invSelected();
+  if(!sel.length) return;
+  const paid = sel.filter(it => it.status === '已付款').length;
+  const msg = `確定刪除勾選的 ${sel.length} 筆發票紀錄？\n刪除後無法復原。` + (paid ? `\n\n⚠️ 其中 ${paid} 筆是「已付款」，付款紀錄也會一起消失。` : '');
+  if(!confirm(msg)) return;
+  let ok = 0, fail = 0;
+  for(const it of sel){
+    try{
+      const res = await fetch(API_BASE + '/api/invoice/' + encodeURIComponent(it.id), {method: 'DELETE'});
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      INV_ITEMS = INV_ITEMS.filter(x => x.id !== it.id);
+      INV_SELECTED.delete(it.id);
+      ok++;
+    }catch(e){ fail++; }
+  }
+  renderInvoices();
+  showToast(`已刪除 ${ok} 筆` + (fail ? `，${fail} 筆刪除失敗` : ''));
 }
 
 // 案場簡稱：潤特宜蘭33號→宜33、工程宜蘭5號→工宜5、潤特新竹47號→竹47（照使用者給廠商的發票明細寫法）
