@@ -9,6 +9,7 @@
 const MD_TYPES = ['竣工圖', '使用執照', '使用執照附件', '無使用執照證明', '使用分區證明', '舊有房屋證明', '電費單', '身分證', '公證書', '監控', '模組、逆變器出場&保固書', '結案保固書', '其他'];
 const MD_DUE_DAYS = 7;   // 距離上次確認（沒確認過就從建立日算）滿 7 天 → 該確認了
 let MD_ITEMS = [];
+let MD_DELETED = [];
 let MD_TODAY = '';
 let MD_FILTER = 'open';   // open 缺件中｜due 本週待確認｜got 已取得
 let MD_GROUP = 'rep';     // rep 依業務｜type 依類型｜case 依案場
@@ -37,6 +38,7 @@ async function mdLoad(){
     const data = await res.json();
     if(data.error) throw new Error(data.error);
     MD_ITEMS = data.items || [];
+    MD_DELETED = data.deleted || [];
     MD_TODAY = data.today || '';
   }catch(e){
     if(box) box.innerHTML = '<div class="login-note">載入失敗，請按「重新整理」再試一次（' + mdEsc(e.message || e) + '）</div>';
@@ -184,7 +186,7 @@ function mdRender(){
     `缺件中 <b>${open.length}</b> 項，涉及 <b>${new Set(open.map(i => i.alias || i.case_no)).size}</b> 個案場；` +
     (due.length ? `<span class="md-due">⏰ ${due.length} 項已超過 ${MD_DUE_DAYS} 天沒確認</span>` : '本週都確認過了 ✅');
   document.getElementById('mdFilters').innerHTML =
-    [['open', `缺件中（${open.length}）`], ['unn', `🆕 未通知（${unn.length}）`], ['sup', `📬 業務已補件（${sup.length}）`], ['due', `本週待確認（${due.length}）`], ['got', `已取得（${got.length}）`]]
+    [['open', `缺件中（${open.length}）`], ['unn', `🆕 未通知（${unn.length}）`], ['sup', `📬 業務已補件（${sup.length}）`], ['del', `🗑 最近刪除（${MD_DELETED.length}）`], ['due', `本週待確認（${due.length}）`], ['got', `已取得（${got.length}）`]]
       .map(([k, l]) => `<button class="md-chip ${MD_FILTER === k ? 'on' : ''}" onclick="mdSetFilter('${k}')">${l}</button>`).join('') +
     '<span class="md-sep"></span>廠商：' + ((typeof MD_LOCK_VENDOR !== 'undefined' && MD_LOCK_VENDOR) ? `<b>${mdEsc(MD_LOCK_VENDOR)}</b>` :
       '<select class="cert-rename-input" style="padding:3px 8px;" onchange="MD_VENDOR_FILTER=this.value;mdRender()"><option value="">全部</option>' +
@@ -197,6 +199,7 @@ function mdRender(){
   confirmBtn.style.display = (MD_FILTER === 'due' && due.length) || (MD_FILTER === 'open' && open.length) ? '' : 'none';
   confirmBtn.textContent = MD_FILTER === 'due' ? `✅ 這 ${due.length} 項本週都確認過了` : `✅ 全部 ${open.length} 項標為本週已確認`;
 
+  if(MD_FILTER === 'del'){ box.innerHTML = mdDeletedHtml(); return; }
   const list = MD_FILTER === 'due' ? due : (MD_FILTER === 'got' ? got : (MD_FILTER === 'unn' ? unn : (MD_FILTER === 'sup' ? sup : open)));
   if(!list.length){
     box.innerHTML = '<div class="login-note">' + (MD_FILTER === 'got' ? '還沒有已取得的資料' : (MD_FILTER === 'due' ? '沒有需要確認的項目 🎉' : (MD_FILTER === 'unn' ? '都通知過了 ✅' : MD_FILTER === 'sup' ? '目前沒有業務按「已補件」待確認的項目' : '目前沒有缺件，用上面的表單新增吧'))) + '</div>';
@@ -327,7 +330,7 @@ async function mdEditSave(id){
 }
 async function mdDelete(id){
   const it = MD_ITEMS.find(x => x.id === id); if(!it) return;
-  if(!confirm('確定刪除「' + (it.alias || it.case_no) + '」的「' + it.doc_type + '」這筆缺件？（拿到了請按「已拿到」，不要刪）')) return;
+  if(!confirm('確定刪除「' + (it.alias || it.case_no) + '」的「' + it.doc_type + '」這筆缺件？（拿到了請按「已拿到」，不要刪。刪錯了可以到上面「最近刪除」還原）')) return;
   const res = await fetch(API_BASE + '/api/missing-docs/' + id, {method: 'DELETE'});
   if(!res.ok){ alert('刪除失敗'); return; }
   mdLoad();
@@ -490,4 +493,20 @@ async function mdGotNoticeMark(i, ids){
     btn.disabled = false; btn.textContent = '✅ 確認已通知廠商';
     alert('記錄失敗：' + (e.message || e));
   }
+}
+
+// ---------- 最近刪除（可還原）----------
+function mdDeletedHtml(){
+  const pool = MD_VENDOR_FILTER ? MD_DELETED.filter(i => i.vendor === MD_VENDOR_FILTER) : MD_DELETED;
+  if(!pool.length) return '<div class="login-note">沒有最近刪除的缺件（刪除後會保留 60 天，可在這裡還原）</div>';
+  return '<div class="md-sub" style="margin-bottom:8px;">刪掉的缺件會保留 60 天，按「↩ 還原」就會回到原本的狀態。</div>' +
+    '<div class="md-table-wrap"><table class="md-table"><thead><tr><th>案場</th><th>缺件類型</th><th>備註</th><th>業務</th><th>廠商</th><th>刪除日</th><th>刪除前</th><th></th></tr></thead><tbody>' +
+    pool.map(it => `<tr><td><b>${mdEsc(it.alias || it.case_no)}</b></td><td>${mdEsc(it.doc_type)}</td><td class="md-note">${mdEsc(it.note)}</td><td>${mdEsc(it.rep)}</td><td>${mdEsc(it.vendor)}</td><td>${mdMD(it.deleted)}</td><td>${mdEsc(it.prev_status || '缺件')}</td>` +
+      `<td class="md-actions"><button class="md-mini md-ok" onclick="mdRestore('${it.id}')">↩ 還原</button></td></tr>`).join('') + '</tbody></table></div>';
+}
+async function mdRestore(id){
+  const res = await fetch(API_BASE + '/api/missing-docs/' + id + '/restore', {method: 'POST'});
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok || data.error){ alert('還原失敗：' + (data.error || res.status)); return; }
+  await mdLoad();
 }
