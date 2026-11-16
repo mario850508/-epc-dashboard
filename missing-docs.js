@@ -383,6 +383,7 @@ async function mdNotifyOpen(rep, role, keepOpen){
       return;
     }
     const who = isAsst ? (to || '（還沒選收件人）') : rep;
+    setTimeout(() => mdSlackLoad(isAsst ? to : rep, data.slack_id || ''), 0);
     const canSend = data.bound && (!isAsst || to);
     body.innerHTML = toBox +
       `<div class="md-sub" style="margin-bottom:6px;">將傳給：<b>${mdEsc(who)}</b>（共 ${data.count} 項）` +
@@ -391,17 +392,44 @@ async function mdNotifyOpen(rep, role, keepOpen){
       (data.cards ? `<div class="md-sub" style="margin-bottom:6px;">📇 實際會用<b>字卡</b>送出（共 ${data.cards} 張，業務可左右滑；每個案場有「📂 上傳」按鈕開業務雲端資料夾）。下面是文字版，給你複製用。` +
         ((data.no_folder || []).length ? ` <span class="md-due">⚠ 這些案場找不到資料夾連結、沒有上傳按鈕：${mdEsc(data.no_folder.join('、'))}</span>` : '') + '</div>' : '') +
       `<textarea id="mdNoticeText" class="md-notice-text" readonly>${mdEsc(data.text)}</textarea>` +
+      (data.slack_me_ready ? `<div style="margin-top:10px;padding:8px 10px;border:1px solid #E5E7EB;border-radius:10px;font-size:13px;">💬 用<b>我的 Slack</b>傳給：` +
+        `<input id="mdSlackTo" class="cert-rename-input vm-in" list="mdSlackList" placeholder="載入 Slack 成員中…" style="width:230px;max-width:100%;margin:0 6px;" onchange="mdSlackPicked()">` +
+        `<datalist id="mdSlackList"></datalist>` +
+        `<button class="btn btn-ghost md-btn" id="mdNoticeSlackMe" onclick="mdNoticeSlackMe()" title="用你本人的 Slack 帳號私訊（字卡有「上傳」「已補件」按鈕），不需要對方綁定">💬 用我的 Slack 傳</button>` +
+        `<div class="md-sub" style="margin-top:4px;">直接從 Slack 成員挑人就好，不用綁定。</div></div>` : '') +
       `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap;">` +
       `<button class="btn btn-ghost md-btn" onclick="mdNoticeCopy()">📋 複製文字</button>` +
       `<button class="btn btn-ghost md-btn" id="mdNoticeMark" onclick="mdNoticeMark()" title="不會推播，只在系統記下「已通知」，列表上就不會再顯示未通知">✅ 確認已通知（我自己傳的）</button>` +
       `<button class="btn btn-ghost md-btn" onclick="mdNoticeClose()">取消</button>` +
       (canSend ? `<button class="btn btn-ghost md-btn" id="mdNoticeSend" onclick="mdNoticeSend()" title="由機器人傳給這位業務，並傳一份副本給你">📨 確認送出（機器人）</button>` : '') +
-      (data.slack_bound ? `<button class="btn btn-ghost md-btn" id="mdNoticeSlackMe" onclick="mdNoticeSlackMe()" title="用你本人的 Slack 帳號私訊這位業務（字卡有「上傳」「已補件」按鈕）">💬 用我的 Slack 傳</button>` : '') +
       (data.share_url ? `<a class="btn btn-primary md-btn" href="${mdEsc(data.share_url)}" target="_blank" rel="noopener" onclick="mdSharePending()" style="text-decoration:none;" title="用你自己的 LINE 開啟，自己選要傳給哪位業務或群組">📤 用我的 LINE 傳（自己選對象）</a>` : '') + '</div>';
   }catch(e){
     body.innerHTML = '<div class="login-note">整理訊息失敗：' + mdEsc(e.message || e) + '</div>';
   }
 }
+// 用自己的 Slack 傳：挑 Slack 成員（不需綁定）。預選順序：已綁定的 Slack > 名字剛好對得上的唯一一位
+var MD_SLACK_USERS = null;
+var MD_SLACK_PICK = {};   // 顯示文字 → Slack ID
+async function mdSlackLoad(rep, boundId){
+  const inp = document.getElementById('mdSlackTo');
+  if(!inp) return;
+  try{
+    if(!MD_SLACK_USERS){ const r = await fetch(API_BASE + '/api/slack/users'); const d = await r.json(); MD_SLACK_USERS = d.users || []; }
+  }catch(e){ MD_SLACK_USERS = []; }
+  MD_SLACK_PICK = {};
+  const label = u => u.name + (u.display && u.display !== u.name ? '（' + u.display + '）' : '');
+  MD_SLACK_USERS.forEach(u => { MD_SLACK_PICK[label(u)] = u.id; });
+  const dl = document.getElementById('mdSlackList');
+  if(dl) dl.innerHTML = MD_SLACK_USERS.map(u => `<option value="${mdEsc(label(u))}">`).join('');
+  inp.placeholder = MD_SLACK_USERS.length ? '輸入或選一位 Slack 成員' : '讀不到 Slack 成員名單';
+  let pre = boundId ? MD_SLACK_USERS.find(u => u.id === boundId) : null;
+  if(!pre && rep){
+    const hit = MD_SLACK_USERS.filter(u => (u.name || '').includes(rep) || (u.display || '').includes(rep) || (rep.length > 1 && (rep.includes(u.name) || (u.display && rep.includes(u.display)))));
+    if(hit.length === 1) pre = hit[0];
+  }
+  if(pre) inp.value = label(pre);
+}
+function mdSlackPicked(){ /* 欄位值本身就是選擇，不需另外處理 */ }
 // 用自己的 LINE 傳字卡：另開分頁去 LINE 選人，回到這個分頁時自動重新整理（傳送後後端會把缺件記成已通知）
 let MD_SHARE_PENDING = false;
 function mdSharePending(){
@@ -455,11 +483,14 @@ async function mdNoticeMark(){
 // 用使用者本人的 Slack 帳號私訊這位業務（不是機器人）：字卡每個案場有「上傳」「已補件」按鈕，傳完自動記已通知
 async function mdNoticeSlackMe(){
   if(!MD_NOTICE) return;
-  const who = MD_NOTICE.rep || MD_NOTICE.to || '業務助理';
+  const pickedLabel = (document.getElementById('mdSlackTo') || {}).value || '';
+  const slackTo = MD_SLACK_PICK[pickedLabel.trim()] || '';
+  if(!slackTo){ alert('請先從清單選一位 Slack 成員（要選清單裡的名字）'); return; }
+  const who = pickedLabel.trim();
   if(!confirm('確定用你自己的 Slack 帳號，私訊「' + who + '」嗎？（共 ' + MD_NOTICE.count + ' 項缺件）')) return;
   const btn = document.getElementById('mdNoticeSlackMe'); btn.disabled = true; btn.textContent = '傳送中…';
   try{
-    const res = await fetch(API_BASE + '/api/missing-docs/notify', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(MD_NOTICE.role === 'assistant' ? {role: 'assistant', to: MD_NOTICE.to, ids: MD_NOTICE.ids, via: 'slack_me'} : {rep: MD_NOTICE.rep, ids: MD_NOTICE.ids, via: 'slack_me'})});
+    const res = await fetch(API_BASE + '/api/missing-docs/notify', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(MD_NOTICE.role === 'assistant' ? {role: 'assistant', to: MD_NOTICE.to, ids: MD_NOTICE.ids, via: 'slack_me', slack_to: slackTo} : {rep: MD_NOTICE.rep, ids: MD_NOTICE.ids, via: 'slack_me', slack_to: slackTo})});
     const data = await res.json();
     if(!res.ok || data.error && !data.sent) throw new Error(data.error || res.status);
     if(!data.sent) throw new Error(data.error || '沒有送出');
