@@ -226,7 +226,10 @@ function mdRender(){
           ? `<button class="btn btn-primary md-btn" onclick="mdNotifyOpen('', 'assistant')">📨 通知業務助理${nnTxt}</button>`
           : `<button class="btn btn-primary md-btn" onclick="mdNotifyOpen(${JSON.stringify(k).replace(/"/g, '&quot;')})">📨 通知這位業務${nnTxt}</button>`) : '';
     const showRep = MD_GROUP !== 'rep' || k === MD_SELF_KEY || k === MD_ASSIST_KEY;   // 業務助理/我自己那區要看得到是哪位業務的案
-    return `<div class="md-group"><div class="md-group-head"><span>${mdEsc(k)} <span class="md-sub">${its.length} 項</span></span>${notifyBtn}</div>` +
+    const nameLink = !notifyBtn ? mdEsc(k)
+      : (k === MD_ASSIST_KEY ? `<a href="#" class="md-rep-link" onclick="mdNotifyOpen('', 'assistant'); return false;" title="看這位所有廠商的缺件，並傳字卡">${mdEsc(k)}</a>`
+        : `<a href="#" class="md-rep-link" onclick="mdNotifyOpen(${JSON.stringify(k).replace(/"/g, '&quot;')}); return false;" title="看這位業務所有廠商的缺件，並傳字卡">${mdEsc(k)}</a>`);
+    return `<div class="md-group"><div class="md-group-head"><span>${nameLink} <span class="md-sub">${its.length} 項${MD_VENDOR_FILTER ? '（只算' + mdEsc(MD_VENDOR_FILTER) + '）' : ''}</span></span>${notifyBtn}</div>` +
       `<div class="md-table-wrap"><table class="md-table"><thead><tr>` +
       (MD_GROUP === 'case' ? '' : '<th>案場</th>') + (MD_GROUP === 'type' || MD_GROUP === 'rep' ? '' : '<th>缺件類型</th>') +
       `<th>備註</th>${showRep ? '<th>業務</th>' : ''}<th>誰提供</th><th>已缺</th><th>上次確認</th><th>上次通知</th><th></th></tr></thead><tbody>` +
@@ -383,6 +386,7 @@ async function mdNotifyOpen(rep, role, keepOpen){
     body.innerHTML = toBox +
       `<div class="md-sub" style="margin-bottom:6px;">將傳給：<b>${mdEsc(who)}</b>（共 ${data.count} 項）` +
       (!isAsst || to ? (data.bound ? ' ✅ 已綁定 LINE／Slack' : ' <span class="md-due">⚠ 這位還沒綁定 LINE／Slack，無法直接推播，請複製文字自己貼給他</span>') : ' <span class="md-due">⚠ 請先在上面選收件人</span>') + '</div>' +
+      mdNoticeItemsHtml(data.items) +
       (data.cards ? `<div class="md-sub" style="margin-bottom:6px;">📇 實際會用<b>字卡</b>送出（共 ${data.cards} 張，業務可左右滑；每個案場有「📂 上傳」按鈕開業務雲端資料夾）。下面是文字版，給你複製用。` +
         ((data.no_folder || []).length ? ` <span class="md-due">⚠ 這些案場找不到資料夾連結、沒有上傳按鈕：${mdEsc(data.no_folder.join('、'))}</span>` : '') + '</div>' : '') +
       `<textarea id="mdNoticeText" class="md-notice-text" readonly>${mdEsc(data.text)}</textarea>` +
@@ -404,6 +408,22 @@ function mdSharePending(){
     window.removeEventListener('focus', once);
     if(MD_SHARE_PENDING){ MD_SHARE_PENDING = false; mdNoticeClose(); mdLoad(); }
   });
+}
+// 通知視窗上方：這位業務在「所有廠商」的缺件，依廠商分段（不受頁面上方廠商篩選影響）
+function mdNoticeItemsHtml(items){
+  if(!items || !items.length) return '';
+  const byVendor = new Map();
+  items.forEach(it => { const v = it.vendor || '（未填廠商）'; if(!byVendor.has(v)) byVendor.set(v, []); byVendor.get(v).push(it); });
+  const badge = it => it.supplied ? '<span style="color:#15803D;font-weight:700;">📬 已補件 ' + mdMD(it.supplied) + '</span>'
+    : (it.notified ? '<span class="md-sub">已通知 ' + mdMD(it.notified) + '</span>' : '<span class="md-due">🆕 未通知</span>');
+  return '<div style="border:1px solid #E5E7EB;border-radius:10px;padding:8px 10px;margin-bottom:8px;max-height:230px;overflow:auto;">' +
+    '<div class="md-sub" style="margin-bottom:4px;">這位業務所有廠商的缺件，共 ' + items.length + ' 項</div>' +
+    Array.from(byVendor.entries()).map(([v, its]) =>
+      '<div style="font-weight:700;margin-top:6px;">◆ ' + mdEsc(v) + ' <span class="md-sub">' + its.length + ' 項</span></div>' +
+      its.map(it => '<div style="display:flex;gap:8px;justify-content:space-between;font-size:13px;padding:2px 0;">' +
+        '<span><b>' + mdEsc(it.alias) + '</b>　' + mdEsc(it.doc_type) + (it.note ? '<span class="md-sub">（' + mdEsc(it.note) + '）</span>' : '') +
+        (it.provider === '業務助理' ? ' <span class="md-sub">・業務助理處理</span>' : '') + '</span>' +
+        '<span style="white-space:nowrap;">' + badge(it) + '</span></div>').join('')).join('') + '</div>';
 }
 function mdNoticeClose(){ document.getElementById('mdNoticeOverlay').classList.remove('show'); }
 function mdNoticeCopy(){
