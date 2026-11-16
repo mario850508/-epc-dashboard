@@ -390,10 +390,20 @@ async function mdNotifyOpen(rep, role, keepOpen){
       `<button class="btn btn-ghost md-btn" onclick="mdNoticeCopy()">📋 複製文字</button>` +
       `<button class="btn btn-ghost md-btn" id="mdNoticeMark" onclick="mdNoticeMark()" title="不會推播，只在系統記下「已通知」，列表上就不會再顯示未通知">✅ 確認已通知（我自己傳的）</button>` +
       `<button class="btn btn-ghost md-btn" onclick="mdNoticeClose()">取消</button>` +
-      (canSend ? `<button class="btn btn-primary md-btn" id="mdNoticeSend" onclick="mdNoticeSend()">📨 確認送出</button>` : '') + '</div>';
+      (canSend ? `<button class="btn btn-ghost md-btn" id="mdNoticeSend" onclick="mdNoticeSend()" title="由機器人傳給這位業務，並傳一份副本給你">📨 確認送出（機器人）</button>` : '') +
+      (data.share_url ? `<a class="btn btn-primary md-btn" href="${mdEsc(data.share_url)}" target="_blank" rel="noopener" onclick="mdSharePending()" style="text-decoration:none;" title="用你自己的 LINE 開啟，自己選要傳給哪位業務或群組">📤 用我的 LINE 傳（自己選對象）</a>` : '') + '</div>';
   }catch(e){
     body.innerHTML = '<div class="login-note">整理訊息失敗：' + mdEsc(e.message || e) + '</div>';
   }
+}
+// 用自己的 LINE 傳字卡：另開分頁去 LINE 選人，回到這個分頁時自動重新整理（傳送後後端會把缺件記成已通知）
+let MD_SHARE_PENDING = false;
+function mdSharePending(){
+  MD_SHARE_PENDING = true;
+  window.addEventListener('focus', function once(){
+    window.removeEventListener('focus', once);
+    if(MD_SHARE_PENDING){ MD_SHARE_PENDING = false; mdNoticeClose(); mdLoad(); }
+  });
 }
 function mdNoticeClose(){ document.getElementById('mdNoticeOverlay').classList.remove('show'); }
 function mdNoticeCopy(){
@@ -434,12 +444,12 @@ async function mdNoticeDoSend(to){
     const res = await fetch(API_BASE + '/api/missing-docs/notify', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(MD_NOTICE.role === 'assistant' ? {role: 'assistant', to: MD_NOTICE.to, ids: MD_NOTICE.ids} : {rep: MD_NOTICE.rep, ids: MD_NOTICE.ids, to: to || MD_NOTICE.rep})});
     const data = await res.json();
     if(!res.ok || data.error) throw new Error(data.error || res.status);
-    if(!data.sent){ btn.disabled = false; btn.textContent = '📨 確認送出'; alert('推播沒有成功（可能 LINE 額度用完且沒綁 Slack），請改用「複製文字」自己貼給他。'); return; }
+    if(!data.sent){ btn.disabled = false; btn.textContent = '📨 確認送出（機器人）'; alert('推播沒有成功（可能 LINE 額度用完且沒綁 Slack），請改用「複製文字」自己貼給他。'); return; }
     mdNoticeClose();
     alert('✅ 已通知 ' + MD_NOTICE.rep + '（' + data.count + ' 項）' + (MD_NOTICE.role !== 'assistant' ? (data.copied ? '。副本已傳到你的 LINE。' : '。（副本沒有傳成功／不需要）') : ''));
     mdLoad();
   }catch(e){
-    btn.disabled = false; btn.textContent = '📨 確認送出';
+    btn.disabled = false; btn.textContent = '📨 確認送出（機器人）';
     alert('送出失敗：' + (e.message || e));
   }
 }

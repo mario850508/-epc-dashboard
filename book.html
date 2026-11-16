@@ -418,6 +418,23 @@ function renderVendorShare(msg, ok){
       <div class="hint" style="margin-top:12px;">訊息會以你自己的 LINE 帳號傳給你選的屋主聊天室。傳之前可以先看一下內容對不對。</div>`;
     return;
   }
+  if(VSHARE.kind === 'mc'){   // 缺件通知字卡（可能多張，業務左右滑）：預覽文字，按鈕用自己的 LINE 選人傳送
+    const esc = t => String(t == null ? '' : t).replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]));
+    const cardsHtml = (VSHARE.cards || []).map(c => {
+      const secs = (c.sections || []).map(([head, lines]) => `<div style="font-weight:700;color:${c.color};margin-top:10px;">${esc(head)}</div>` +
+        lines.map(ln => `<div style="white-space:pre-wrap;font-size:13.5px;margin-top:4px;">${esc(Array.isArray(ln) ? ln[0] : ln)}</div>`).join('')).join('');
+      return `<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;">
+        <div style="background:${c.color};color:#fff;font-weight:700;font-size:13px;padding:10px 16px;">${esc(c.tag)}</div>
+        <div style="padding:14px 18px;"><div style="font-weight:700;font-size:16px;">${esc(c.title)}</div>
+        <div class="hint" style="margin-top:4px;">${esc(c.subtitle)}</div>${secs}
+        <div class="hint" style="margin-top:10px;">${esc(c.footer)}</div></div></div>`;
+    }).join('');
+    app.innerHTML = `<div class="hint" style="margin-bottom:8px;">共 ${VSHARE.count} 張字卡，業務收到後可以左右滑動。每個案場都有「上傳」和「已補件」按鈕。</div>${cardsHtml}
+      <button class="btn-line" onclick="startVendorShare()">📤 選擇業務／群組並傳送</button>
+      ${msg ? `<div style="margin-top:10px;font-size:13px;color:${ok ? '#16A34A' : '#c0392b'};font-weight:700;">${msg}</div>` : ''}
+      <div class="hint" style="margin-top:12px;">字卡會以你自己的 LINE 帳號傳給你選的人或群組，可以一次選多個。傳送後，這批缺件會自動記成「已通知」。</div>`;
+    return;
+  }
   const c = VSHARE.card;
   const rows = (c.rows || []).filter(([k, v]) => v).map(([k, v]) => `<div class="info-row"><span class="info-label">${k}</span><span style="white-space:pre-wrap;">${String(v).replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]))}</span></div>`).join('');
   app.innerHTML = `<div class="card" style="padding:0;overflow:hidden;">
@@ -466,7 +483,7 @@ async function startVendorShare(){
     const res = await fetch(API_BASE + '/api/vendor-share/' + encodeURIComponent(VSHARE.token) + '/sent', {method: 'POST'});
     const d = await res.json().catch(() => ({}));
     if(d.sent_at) VSHARE.sent_at = d.sent_at;
-    renderVendorShare(VSHARE.kind === 'rep' || VSHARE.kind === 'own' || VSHARE.kind === 'fwd' || VSHARE.kind === 'card' ? '✅ 已傳送！可以關掉這個畫面了。' : '✅ 已傳送給廠商！可以關掉這個畫面了。', true);
+    renderVendorShare(VSHARE.kind === 'rep' || VSHARE.kind === 'own' || VSHARE.kind === 'fwd' || VSHARE.kind === 'card' || VSHARE.kind === 'mc' ? '✅ 已傳送！可以關掉這個畫面了。' : '✅ 已傳送給廠商！可以關掉這個畫面了。', true);
   }catch(err){
     renderVendorShare('傳送失敗：' + err.message);
   }
