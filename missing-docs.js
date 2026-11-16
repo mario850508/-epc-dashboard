@@ -393,7 +393,7 @@ async function mdNotifyOpen(rep, role, keepOpen){
         ((data.no_folder || []).length ? ` <span class="md-due">⚠ 這些案場找不到資料夾連結、沒有上傳按鈕：${mdEsc(data.no_folder.join('、'))}</span>` : '') + '</div>' : '') +
       `<textarea id="mdNoticeText" class="md-notice-text" readonly>${mdEsc(data.text)}</textarea>` +
       (data.slack_me_ready ? `<div style="margin-top:10px;padding:8px 10px;border:1px solid #E5E7EB;border-radius:10px;font-size:13px;">💬 用<b>我的 Slack</b>傳給：` +
-        `<input id="mdSlackTo" class="cert-rename-input vm-in" list="mdSlackList" placeholder="載入 Slack 成員中…" style="width:230px;max-width:100%;margin:0 6px;" onchange="mdSlackPicked()">` +
+        `<input id="mdSlackTo" class="cert-rename-input vm-in" list="mdSlackList" placeholder="載入 Slack 成員中…" style="width:230px;max-width:100%;margin:0 6px;" onfocus="mdSlackFocus(this)" onblur="mdSlackBlur(this)" onchange="mdSlackPicked()">` +
         `<datalist id="mdSlackList"></datalist>` +
         `<button class="btn btn-ghost md-btn" id="mdNoticeSlackMe" onclick="mdNoticeSlackMe()" title="用你本人的 Slack 帳號私訊（字卡有「上傳」「已補件」按鈕），不需要對方綁定">💬 用我的 Slack 傳</button>` +
         `<div class="md-sub" style="margin-top:4px;">直接從 Slack 成員挑人就好，不用綁定。</div></div>` : '') +
@@ -429,6 +429,9 @@ async function mdSlackLoad(rep, boundId){
   }
   if(pre) inp.value = label(pre);
 }
+// 點進欄位先清空，下拉才會列出全部 76 人（瀏覽器的下拉只列出符合目前文字的選項）；沒選就離開則還原
+function mdSlackFocus(el){ el.dataset.prev = el.value; el.value = ''; }
+function mdSlackBlur(el){ if(!el.value.trim() && el.dataset.prev) el.value = el.dataset.prev; }
 function mdSlackPicked(){ /* 欄位值本身就是選擇，不需另外處理 */ }
 // 用自己的 LINE 傳字卡：另開分頁去 LINE 選人，回到這個分頁時自動重新整理（傳送後後端會把缺件記成已通知）
 let MD_SHARE_PENDING = false;
