@@ -192,6 +192,7 @@ function mdRender(){
       '<select class="cert-rename-input" style="padding:3px 8px;" onchange="MD_VENDOR_FILTER=this.value;mdRender()"><option value="">全部</option>' +
       MD_VENDORS.map(v => `<option value="${mdEsc(v)}" ${MD_VENDOR_FILTER === v ? 'selected' : ''}>${mdEsc(v)}</option>`).join('') + '</select>') +
     '<span class="md-sep"></span>' + `<button class="btn ${gotPend.length ? 'btn-primary' : 'btn-ghost'} md-btn" onclick="mdGotNoticeOpen()" title="把最近已拿到的資料整理成訊息，通知廠商已補件">📣 通知廠商已補件（${gotPend.length}）</button>` +
+    '<span class="md-sep"></span>' + `<button class="btn btn-ghost md-btn" onclick="mdHandoverOpen()" title="業務離職時，把他名下的缺件交接給繼任業務">👥 業務離職交接</button>` +
     '<span class="md-sep"></span>分組：' +
     [['rep', '業務'], ['type', '缺件類型'], ['case', '案場']]
       .map(([k, l]) => `<button class="md-chip ${MD_GROUP === k ? 'on' : ''}" onclick="mdSetGroup('${k}')">${l}</button>`).join('');
@@ -229,7 +230,7 @@ function mdRender(){
     const nameLink = !notifyBtn ? mdEsc(k)
       : (k === MD_ASSIST_KEY ? `<a href="#" class="md-rep-link" onclick="mdNotifyOpen('', 'assistant'); return false;" title="看這位所有廠商的缺件，並傳字卡">${mdEsc(k)}</a>`
         : `<a href="#" class="md-rep-link" onclick="mdNotifyOpen(${JSON.stringify(k).replace(/"/g, '&quot;')}); return false;" title="看這位業務所有廠商的缺件，並傳字卡">${mdEsc(k)}</a>`);
-    return `<div class="md-group"><div class="md-group-head"><span>${nameLink} <span class="md-sub">${its.length} 項${MD_VENDOR_FILTER ? '（只算' + mdEsc(MD_VENDOR_FILTER) + '）' : ''}</span></span>${notifyBtn}</div>` +
+    return `<div class="md-group"><div class="md-group-head"><span>${nameLink} <span class="md-sub">${its.length} 項${MD_VENDOR_FILTER ? '（只算' + mdEsc(MD_VENDOR_FILTER) + '）' : ''}</span>${mdHandoverNote(its)}</span>${notifyBtn}</div>` +
       `<div class="md-table-wrap"><table class="md-table"><thead><tr>` +
       (MD_GROUP === 'case' ? '' : '<th>案場</th>') + (MD_GROUP === 'type' || MD_GROUP === 'rep' ? '' : '<th>缺件類型</th>') +
       `<th>備註</th>${showRep ? '<th>業務</th>' : ''}<th>誰提供</th><th>已缺</th><th>上次確認</th><th>上次通知</th><th></th></tr></thead><tbody>` +
@@ -259,7 +260,7 @@ function mdRow(it, showRep){
   return `<tr class="${due ? 'md-row-due' : ''}">` +
     (MD_GROUP === 'case' ? '' : `<td><b>${mdEsc(it.alias || it.case_no)}</b></td>`) +
     (MD_GROUP === 'type' || MD_GROUP === 'rep' ? '' : `<td>${mdEsc(it.doc_type)}</td>`) +
-    `<td class="md-note" onclick="mdEditNote('${it.id}')" title="點一下修改備註">${it.source === '廠商填報' ? '<span class="md-tag-v" title="廠商在預約頁自己填的' + (it.reporter ? '；填報人：' + mdEsc(it.reporter) : '') + '" style="display:inline-block;font-size:11px;font-weight:700;background:#FFF1D6;color:#B45309;border-radius:99px;padding:0 7px;margin-right:4px;">🏭廠商填報</span>' : ''}${it.note ? mdEsc(it.note) : '<span class="md-sub">＋備註</span>'}</td>` +
+    `<td class="md-note" onclick="mdEditNote('${it.id}')" title="點一下修改備註">${it.source === '廠商填報' ? '<span class="md-tag-v" title="廠商在預約頁自己填的' + (it.reporter ? '；填報人：' + mdEsc(it.reporter) : '') + '" style="display:inline-block;font-size:11px;font-weight:700;background:#FFF1D6;color:#B45309;border-radius:99px;padding:0 7px;margin-right:4px;">🏭廠商填報</span>' : ''}${it.handover_from ? '<span title="這位業務已離職，案件由繼任業務接手" style="display:inline-block;font-size:11px;font-weight:700;background:#E0E7FF;color:#3730A3;border-radius:99px;padding:0 7px;margin-right:4px;white-space:nowrap;">↪ ' + mdEsc(it.handover_from) + '的案件</span>' : ''}${it.note ? mdEsc(it.note) : '<span class="md-sub">＋備註</span>'}</td>` +
     (!showRep ? '' : `<td onclick="mdEditRep('${it.id}')" title="點一下修改業務">${mdEsc(it.rep) || '<span class="md-sub">＋業務</span>'}</td>`) +
     `<td>${mdEsc(it.provider)}</td>` +
     `<td>${isGot ? '✔ ' + mdMD(it.got) : (days == null ? '—' : days + ' 天')}</td>` +
@@ -422,7 +423,7 @@ function mdNoticeItemsHtml(items){
     Array.from(byVendor.entries()).map(([v, its]) =>
       '<div style="font-weight:700;margin-top:6px;">◆ ' + mdEsc(v) + ' <span class="md-sub">' + its.length + ' 項</span></div>' +
       its.map(it => '<div style="display:flex;gap:8px;justify-content:space-between;font-size:13px;padding:2px 0;">' +
-        '<span><b>' + mdEsc(it.alias) + '</b>　' + mdEsc(it.doc_type) + (it.note ? '<span class="md-sub">（' + mdEsc(it.note) + '）</span>' : '') +
+        '<span><b>' + mdEsc(it.alias) + '</b>' + (it.handover_from ? '<span class="md-sub">（' + mdEsc(it.handover_from) + '的案件）</span>' : '') + '　' + mdEsc(it.doc_type) + (it.note ? '<span class="md-sub">（' + mdEsc(it.note) + '）</span>' : '') +
         (it.provider === '業務助理' ? ' <span class="md-sub">・業務助理處理</span>' : '') + '</span>' +
         '<span style="white-space:nowrap;">' + badge(it) + '</span></div>').join('')).join('') + '</div>';
 }
@@ -559,4 +560,71 @@ async function mdRestore(id){
   const data = await res.json().catch(() => ({}));
   if(!res.ok || data.error){ alert('還原失敗：' + (data.error || res.status)); return; }
   await mdLoad();
+}
+
+// ---------- 業務離職交接（2026-11-16）----------
+function mdHandoverNote(its){
+  const from = Array.from(new Set(its.map(i => i.handover_from).filter(Boolean)));
+  return from.length ? ' <span style="font-size:11px;font-weight:700;background:#E0E7FF;color:#3730A3;border-radius:99px;padding:0 7px;white-space:nowrap;">含 ' + from.map(mdEsc).join('、') + ' 交接</span>' : '';
+}
+async function mdHandoverOpen(){
+  let ov = document.getElementById('mdHandoverOverlay');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'mdHandoverOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.onclick = e => { if(e.target === ov) ov.remove(); };
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML = '<div style="background:#fff;border-radius:14px;width:100%;max-width:480px;padding:18px 20px;max-height:92vh;overflow:auto;"><div class="login-note">讀取中…</div></div>';
+  try{
+    const res = await fetch(API_BASE + '/api/missing-docs/handover');
+    const d = await res.json();
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    const fs = 'width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;font-family:inherit;';
+    const lb = 'display:block;font-size:12px;color:#888;margin:10px 0 4px;';
+    const list = (d.handovers || []).map(h => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;font-size:13px;">` +
+      `<span><b>${mdEsc(h.from)}</b> → <b>${mdEsc(h.to)}</b> <span class="md-sub">（${mdMD(h.since)} 起，目前 ${h.count} 項）</span></span>` +
+      `<button class="md-mini" onclick="mdHandoverCancel(${JSON.stringify(h.from).replace(/"/g, '&quot;')})">取消交接</button></div>`).join('');
+    ov.firstElementChild.innerHTML = `<div style="font-weight:700;font-size:15px;">👥 業務離職交接</div>
+      <div style="font-size:13px;color:#666;margin-top:4px;line-height:1.6;">選離職的業務和繼任的業務後，他名下的缺件（含之後新增的）會歸到繼任業務底下一起通知；訊息裡案場名稱後面會註明「某某的案件」。原本的資料不會被改掉，取消交接就恢復。</div>
+      <label style="${lb}">離職的業務</label>
+      <input id="mdHvFrom" list="mdHvFromList" placeholder="選或輸入名字" style="${fs}">
+      <datalist id="mdHvFromList">${(d.candidates || []).map(n => `<option value="${mdEsc(n)}">`).join('')}</datalist>
+      <label style="${lb}">交接給（繼任業務）</label>
+      <input id="mdHvTo" list="mdHvToList" placeholder="選一位繼任的業務" style="${fs}">
+      <datalist id="mdHvToList">${(d.reps || []).map(n => `<option value="${mdEsc(n)}">`).join('')}</datalist>
+      <div style="font-size:12px;color:#B45309;margin-top:8px;">交接時會把這些缺件舊的「已通知」記錄清掉，繼任業務才會顯示為未通知、可以重新通知。</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
+        <button type="button" onclick="document.getElementById('mdHandoverOverlay').remove()" style="padding:7px 16px;border:1px solid #ddd;background:#fff;border-radius:8px;cursor:pointer;">關閉</button>
+        <button type="button" id="mdHvSave" onclick="mdHandoverSave()" style="padding:7px 18px;border:0;background:#F0A050;color:#fff;font-weight:600;border-radius:8px;cursor:pointer;">確定交接</button>
+      </div>` + (list ? `<div style="margin-top:16px;font-weight:700;font-size:13px;">目前的交接</div>${list}` : '');
+  }catch(e){
+    ov.firstElementChild.innerHTML = '<div class="login-note">讀取失敗：' + mdEsc(e.message || e) + '</div><div style="text-align:right;"><button onclick="document.getElementById(\'mdHandoverOverlay\').remove()" style="padding:7px 16px;border:1px solid #ddd;background:#fff;border-radius:8px;cursor:pointer;">關閉</button></div>';
+  }
+}
+async function mdHandoverSave(){
+  const from = document.getElementById('mdHvFrom').value.trim();
+  const to = document.getElementById('mdHvTo').value.trim();
+  if(!from || !to){ alert('請填離職的業務和繼任的業務'); return; }
+  if(!confirm('確定把「' + from + '」名下的缺件交接給「' + to + '」嗎？')) return;
+  const btn = document.getElementById('mdHvSave'); btn.disabled = true; btn.textContent = '處理中…';
+  try{
+    const res = await fetch(API_BASE + '/api/missing-docs/handover', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({from, to})});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    alert('✅ 已交接：' + from + ' → ' + to + '（目前 ' + d.moved + ' 項缺件改歸 ' + to + '）');
+    await mdLoad();
+    mdHandoverOpen();
+  }catch(e){ alert('交接失敗：' + (e.message || e)); btn.disabled = false; btn.textContent = '確定交接'; }
+}
+async function mdHandoverCancel(from){
+  if(!confirm('確定取消「' + from + '」的交接嗎？缺件會回到他自己名下。')) return;
+  try{
+    const res = await fetch(API_BASE + '/api/missing-docs/handover', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({from, to: ''})});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    await mdLoad();
+    mdHandoverOpen();
+  }catch(e){ alert('取消失敗：' + (e.message || e)); }
 }
