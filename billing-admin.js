@@ -20,34 +20,34 @@ function bcaUpdateBadge(){
   el.innerHTML = n ? ' <span style="background:#E5484D;color:#fff;border-radius:99px;padding:1px 7px;font-size:12px;">' + n + ' 待確認</span>' : '';
 }
 
-async function bcaInit(){
-  const box = document.getElementById('bcAdmin');
-  if(!box) return;
-  if(BCA.data || BCA.busy){ renderBca(); return; }
-  BCA.busy = true; renderBca();
+// 載入：後端先回「上次的結果」（背景同時重算），所以通常立刻有畫面；完全沒有結果（後端剛重啟又沒存檔）才會顯示整理中並自動輪詢。
+let BCA_POLL = null, BCA_TRIES = 0;
+async function bcaLoad(opt){
+  opt = opt || {};
+  clearTimeout(BCA_POLL);
+  if(!opt.poll){ BCA_TRIES = 0; BCA.busy = !BCA.data; renderBca(); }
   try{
     const [ov, up, pb] = await Promise.all([
-      fetch(API_BASE + '/api/billing/overview?vendor=' + encodeURIComponent(BCA.vendor), {cache: 'no-store'}).then(r => r.json().then(d => { if(!r.ok) throw new Error(d.error || ('HTTP ' + r.status)); return d; })),
+      fetch(API_BASE + '/api/billing/overview?vendor=' + encodeURIComponent(BCA.vendor) + (opt.fresh ? '&fresh=1' : ''), {cache: 'no-store'}).then(r => r.json().then(d => { if(!r.ok) throw new Error(d.error || ('HTTP ' + r.status)); return d; })),
       fetch(API_BASE + '/api/billing/uploads?status=' + encodeURIComponent('待確認'), {cache: 'no-store'}).then(r => r.json()),
-      fetch(API_BASE + '/api/billing/public', {cache: 'no-store'}).then(r => r.json()),
+      BCA.pub === null ? fetch(API_BASE + '/api/billing/public', {cache: 'no-store'}).then(r => r.json()) : Promise.resolve(null),
     ]);
-    BCA.data = ov; BCA.uploads = up.items || []; BCA.pub = (pb.vendors || {})[BCA.vendor] || false; BCA.err = '';
-  }catch(e){ BCA.err = e.message; }
+    BCA.uploads = up.items || [];
+    if(pb) BCA.pub = (pb.vendors || {})[BCA.vendor] || false;
+    BCA.err = '';
+    if(ov.loading){ BCA.loading = true; BCA.updating = false; }
+    else{ BCA.data = ov; BCA.loading = false; BCA.updating = !!ov.refreshing; }
+    if((BCA.loading || BCA.updating) && BCA_TRIES++ < 50) BCA_POLL = setTimeout(() => bcaLoad({poll: true}), 6000);
+  }catch(e){ BCA.err = e.message; BCA.updating = false; }
   BCA.busy = false;
   renderBca();
 }
-async function bcaReload(fresh){
-  BCA.busy = true; renderBca();
-  try{
-    const [ov, up] = await Promise.all([
-      fetch(API_BASE + '/api/billing/overview?vendor=' + encodeURIComponent(BCA.vendor) + (fresh ? '&fresh=1' : ''), {cache: 'no-store'}).then(r => r.json().then(d => { if(!r.ok) throw new Error(d.error || ('HTTP ' + r.status)); return d; })),
-      fetch(API_BASE + '/api/billing/uploads?status=' + encodeURIComponent('待確認'), {cache: 'no-store'}).then(r => r.json()),
-    ]);
-    BCA.data = ov; BCA.uploads = up.items || []; BCA.err = '';
-  }catch(e){ BCA.err = e.message; }
-  BCA.busy = false;
-  renderBca();
+function bcaInit(){
+  if(!document.getElementById('bcAdmin')) return;
+  if(BCA.data || BCA.busy){ renderBca(); return; }
+  bcaLoad();
 }
+function bcaReload(fresh){ return bcaLoad({fresh: !!fresh}); }
 async function bcaTogglePublic(){
   const on = !BCA.pub;
   if(!confirm(on ? `要把「請款確認」開放給${BCA.vendor}嗎？\n開放後，${BCA.vendor}在預約頁就會看到「💰 請款確認」分頁（可請款節點、缺件清單、上傳）。` : `要對${BCA.vendor}關閉「請款確認」嗎？分頁會從他們的預約頁消失。`)) return;
@@ -85,7 +85,7 @@ async function bcaMark(cs, node, on){
       BCA.data.partial_count = BCA.data.cases.reduce((s, c) => s + c.nodes.filter(n => n.status === 'partial').length, 0);
       BCA.data.manual = d.manual;
       renderBca();
-    }else{ BCA.data = null; bcaReload(true); }
+    }else{ bcaReload(true); }
   }catch(e){ showToast('✗ ' + e.message); }
 }
 
@@ -99,10 +99,10 @@ function renderBca(){
       ${BCA.pub === null ? '' : `<span class="inv-muted" style="padding:2px 9px;border-radius:10px;background:${BCA.pub ? '#DCFCE7' : '#F3F4F6'};color:${BCA.pub ? '#15803D' : '#6B7280'};font-weight:700;">${BCA.pub ? '已開放給廠商' : '尚未開放給廠商'}</span>`}
       <span style="margin-left:auto;display:flex;gap:8px;">
         ${BCA.pub === null ? '' : `<button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;" onclick="bcaTogglePublic()">${BCA.pub ? '關閉廠商頁面' : '開放給廠商'}</button>`}
-        <button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;" onclick="bcaReload(true)" ${BCA.busy ? 'disabled' : ''}>🔄 重新計算</button>
+        <button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;" onclick="bcaReload(true)" ${BCA.busy || BCA.updating ? 'disabled' : ''}>🔄 重新計算</button>
         <button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;" onclick="bcaToggleOpen()">${BCA.open ? '收合' : '展開明細'}</button>
       </span></div>`;
-  if(BCA.busy && !d){ box.innerHTML = `<div class="panel">${head}<div class="inv-muted" style="margin-top:8px;">計算中…（約 1 分鐘）</div></div>`; return; }
+  if((BCA.busy || BCA.loading) && !d){ box.innerHTML = `<div class="panel">${head}<div class="inv-muted" style="margin-top:8px;">${BCA.loading ? '伺服器剛重啟，正在整理各案請款文件（約 2 分鐘），完成後會自動顯示…' : '載入中…'}</div></div>`; return; }
   if(BCA.err && !d){ box.innerHTML = `<div class="panel">${head}<div style="color:#B42318;margin-top:8px;">載入失敗：${invEsc(BCA.err)}</div></div>`; return; }
   if(!d){ box.innerHTML = ''; return; }
   const ups = BCA.uploads.filter(u => u.vendor === BCA.vendor);
@@ -129,6 +129,6 @@ function renderBca(){
     if(man.length) detail += `<div style="margin-top:10px;"><b>手動標記的已請款（${man.length}）</b><div class="inv-muted" style="margin-top:4px;">` + man.map(k => { const [c, n] = k.split('|'); return `<span style="display:inline-block;background:#F3F4F6;border-radius:10px;padding:2px 4px 2px 9px;margin:2px 4px 2px 0;">${invEsc(c)}　${n === '*' ? '整案' : invEsc(n)} <a href="#" onclick="bcaMark('${invEsc(c)}','${invEsc(n)}',false);return false;" title="取消標記">✕</a></span>`; }).join('') + '</div></div>';
   }
   box.innerHTML = `<div class="panel">${head}
-    <div style="margin-top:8px;">✅ 可請款 <b style="color:#15803D;">${d.ready_count}</b> 個節點　📎 還缺文件 <b style="color:#B45309;">${d.partial_count}</b> 個節點　<span class="inv-muted">（已請款的已排除：${invEsc(BCA.vendor)}發票明細表＋發票請款頁；更新 ${invEsc(d.generated_at || '')}）</span></div>
+    <div style="margin-top:8px;">✅ 可請款 <b style="color:#15803D;">${d.ready_count}</b> 個節點　📎 還缺文件 <b style="color:#B45309;">${d.partial_count}</b> 個節點　<span class="inv-muted">（已請款的已排除：${invEsc(BCA.vendor)}發票明細表＋發票請款頁；更新 ${invEsc(d.generated_at || '')}）</span>${BCA.updating ? ' <span style="color:#B45309;font-weight:700;">⏳ 重新整理中，先顯示上次結果…</span>' : ''}</div>
     ${unm}${upHtml}${detail}</div>`;
 }
