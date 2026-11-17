@@ -59,6 +59,7 @@ async function loadInvoices(){
     if(data.nodes) INV_NODES = data.nodes;
     if(!INV_SCHED) await invLoadSchedule();
     renderInvoices();
+    if(typeof bcaInit === 'function') bcaInit();   // 請款確認面板（billing-admin.js）
     if(INV_OPEN_ID && document.getElementById('invModalOverlay').classList.contains('show')) openInvoiceModal(INV_OPEN_ID);
   }catch(e){
     box.innerHTML = `<div class="login-note">載入失敗：${invEsc(e.message)}</div>`;

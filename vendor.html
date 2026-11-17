@@ -177,6 +177,7 @@ async function init(){
   render();
   if(D.cached) refreshInfo();
   if(!MV) loadMissing();   // 先在背景載入缺件清單，點進「缺件通報」才不會等
+  loadBilling(true);       // 請款確認有開放才會出現分頁
 }
 async function refreshInfo(){
   try{
@@ -207,12 +208,14 @@ function render(){
       <div class="tab ${tab === 'stock' ? 'active' : ''}" onclick="setTab('stock')">📦 料件庫存${(D.stock || []).length ? '（' + D.stock.length + '）' : ''}</div>
       <div class="tab ${tab === 'missing' ? 'active' : ''}" onclick="setTab('missing')">📎 缺件通報${MV ? (MV.items.filter(i => i.status === '缺件').length ? '（' + MV.items.filter(i => i.status === '缺件').length + '）' : '') : ''}</div>
       <div class="tab ${tab === 'unmetered' ? 'active' : ''}" onclick="setTab('unmetered')">🏗 未掛表案件${UM ? '（' + UM.items.length + '）' : ''}</div>
+      ${BC && BC.enabled ? `<div class="tab ${tab === 'billing' ? 'active' : ''}" onclick="setTab('billing')">💰 請款確認${BC.ready_count ? ' <span style="background:#16A34A;color:#fff;border-radius:99px;padding:1px 7px;font-size:12px;">' + BC.ready_count + '</span>' : ''}</div>` : ''}
     </div><div id="gotbar">${gotBannerHtml()}</div>${tab !== 'booked' && unackedUpcoming().length ? `<div class="alertbar" onclick="setTab('booked')">⏳ 有 ${unackedUpcoming().length} 筆行程等您確認 ➜ 點這裡查看</div>` : ''}<div id="pane"></div>`;
   if(tab === 'new') renderNew();
   else if(tab === 'mine') renderMine();
   else if(tab === 'stock') renderStock();
   else if(tab === 'missing') renderMissing();
   else if(tab === 'unmetered') renderUnmetered();
+  else if(tab === 'billing') renderBilling();
   else renderBooked();
   const tabsEl = document.querySelector('.tabs');
   if(tabsEl){
@@ -452,6 +455,106 @@ function renderUmList(){
             ${i.folder ? `<a class="folder-btn" href="${esc(i.folder)}" target="_blank" rel="noopener">📂 業務資料夾</a>` : '<span class="folder-none">無資料夾連結</span>'}</div>`).join('') + '</div>';
         }).join('') + '</div>';
     }).join('');
+}
+
+// ---------- 請款確認（2026-11-17）：EPC 要先提供請款節點文件，陽光確認齊了才能開發票請款 ----------
+// 「可以請款」＝這一期要的文件陽光都收到了，可以開發票；「還缺文件」＝列出缺哪些，可直接上傳（陽光確認後才算數）。
+let BC = null, bcLoading = false, bcQ = '', bcTimer = null, bcMsg = '';
+async function loadBilling(quiet){
+  if(bcLoading) return;
+  bcLoading = true;
+  try{
+    BC = await api('/billing');
+    if(BC.loading){ clearTimeout(bcTimer); bcTimer = setTimeout(() => { bcLoading = false; loadBilling(true); }, 5000); }
+  }catch(e){ BC = {enabled: false, error: e.message, cases: []}; }
+  bcLoading = false;
+  if(!quiet || (BC && BC.enabled)){ const a = document.activeElement; if(!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) render(); }
+}
+function bcSearch(q){ bcQ = q; renderBcList(); }
+function bcMatch(c, q){
+  const toks = umNorm(q).split(' ').filter(Boolean);
+  if(!toks.length) return true;
+  const hay = umNorm([c.case, c.alias, c.address, c.county, c.kind].join(' ')).replace(/ /g, '');
+  return toks.every(t => hay.includes(t));
+}
+function renderBilling(){
+  const pane = document.getElementById('pane');
+  if(!BC){ pane.innerHTML = '<div class="card muted" style="text-align:center;">💰 載入中…</div>'; loadBilling(); return; }
+  if(BC.error){ pane.innerHTML = `<div class="card muted" style="color:#B42318;">載入失敗：${esc(BC.error)}</div>`; return; }
+  if(BC.loading){ pane.innerHTML = '<div class="card muted" style="text-align:center;">💰 正在整理各案請款文件（第一次約需 1 分鐘）…<br>完成後會自動顯示</div>'; return; }
+  pane.innerHTML = `<div class="card" style="border-color:#BFE3C7;background:#F3FBF5;">
+      <div style="font-weight:800;margin-bottom:6px;">💰 請款確認</div>
+      陽光收齊該期請款文件，才能開發票請款。<br>
+      <b style="color:#15803D;">✅ 可以請款</b>：該期文件都收到了，可以開發票。<br>
+      <b style="color:#B45309;">📎 還缺文件</b>：列出還缺什麼，能補的請直接上傳，陽光確認後就會變成「可以請款」。<br>
+      <span class="muted" style="font-size:12.5px;">已請款過的節點不會再出現。更新時間：${esc(BC.generated_at || '')}　<a href="#" onclick="bcRefresh();return false;">重新整理</a></span>
+      ${bcMsg ? `<div style="margin-top:8px;color:#15803D;font-weight:700;">${esc(bcMsg)}</div>` : ''}</div>
+    <div class="searchbox" style="margin:10px 0;"><span class="ic">🔍</span>
+      <input id="bcq" type="search" autocomplete="off" placeholder="搜尋案號、別名、地址" value="${esc(bcQ)}" oninput="bcSearch(this.value)"></div>
+    <div id="bclist"></div>`;
+  renderBcList();
+}
+function bcRefresh(){ BC = null; bcMsg = ''; renderBilling(); }
+function bcNodeChip(n){
+  if(n.status === 'ready') return `<span class="chip" style="margin:2px 4px 2px 0;background:#DCFCE7;color:#15803D;">✅ ${esc(n.node)}${n.new ? ' 🆕' : ''}</span>`;
+  return `<span class="chip" style="margin:2px 4px 2px 0;background:#FEF3C7;color:#B45309;">📎 ${esc(n.node)}</span>`;
+}
+function renderBcList(){
+  const box = document.getElementById('bclist'); if(!box) return;
+  const items = (BC.cases || []).filter(c => bcMatch(c, bcQ));
+  if(!items.length){ box.innerHTML = `<div class="card muted" style="text-align:center;">${(BC.cases || []).length ? '找不到符合「' + esc(bcQ) + '」的案件' : '目前沒有待請款的節點。'}</div>`; return; }
+  const ready = items.filter(c => c.nodes.some(n => n.status === 'ready'));
+  const lack = items.filter(c => c.nodes.some(n => n.status === 'partial'));
+  const caseHead = c => `<b>${esc(c.case)}</b> <span class="muted">${esc(c.alias || '')}</span>${c.folder ? ` <a class="folder-btn" style="margin-left:6px;" href="${esc(c.folder)}" target="_blank" rel="noopener">📂 資料夾</a>` : ''}${c.address ? `<div class="muted" style="font-size:12px;">📍 ${esc(c.address)}</div>` : ''}`;
+  const byCounty = list => {
+    const order = BC.county_order || [];
+    const cs = [...new Set(list.map(c => c.county))].sort((a, b) => { const x = order.indexOf(a), y = order.indexOf(b); return (x < 0 ? 99 : x) - (y < 0 ? 99 : y) || a.localeCompare(b, 'zh-Hant'); });
+    return cs.map(cty => ({cty, rows: list.filter(c => c.county === cty).sort((a, b) => a.case.localeCompare(b.case, 'zh-Hant', {numeric: true}))}));
+  };
+  let html = '';
+  if(ready.length){
+    html += `<div class="card"><h2 style="color:#15803D;">✅ 可以請款 <span class="muted" style="font-weight:400;">${ready.reduce((s, c) => s + c.nodes.filter(n => n.status === 'ready').length, 0)} 個節點</span></h2>` +
+      byCounty(ready).map(g => `<div style="margin-top:10px;"><b>${esc(g.cty)}</b>` + g.rows.map(c => `<div class="ct-row" style="align-items:flex-start;"><span>${caseHead(c)}</span>
+        <span style="text-align:right;">${c.nodes.filter(n => n.status === 'ready').map(bcNodeChip).join('')}</span></div>`).join('') + '</div>').join('') + '</div>';
+  }
+  if(lack.length){
+    html += `<div class="card"><h2 style="color:#B45309;">📎 還缺文件 <span class="muted" style="font-weight:400;">${lack.reduce((s, c) => s + c.nodes.filter(n => n.status === 'partial').length, 0)} 個節點</span></h2>` +
+      byCounty(lack).map(g => `<div style="margin-top:10px;"><b>${esc(g.cty)}</b>` + g.rows.map(c => `<div style="padding:8px 0;border-top:1px solid #F0E4CC;">${caseHead(c)}` +
+        c.nodes.filter(n => n.status === 'partial').map(n => `<div style="margin:8px 0 0 8px;"><b>${esc(n.node)}</b>` + n.items.map(it => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;font-size:14px;">
+          <span>${it.ok ? '✅' : '❌'} ${esc(it.label)}${it.via ? ' <span class="muted" style="font-size:12px;">（' + esc(it.via) + '）</span>' : ''}
+            ${it.upload === '待確認' ? '<div class="muted" style="font-size:12px;color:#B45309;">已上傳（' + esc((it.upload_files || []).join('、')) + '），等陽光確認</div>' : ''}
+            ${it.upload === '退回' ? '<div style="font-size:12px;color:#B42318;">上次上傳被退回：' + esc(it.upload_note || '請重新上傳') + '</div>' : ''}
+            ${!it.ok && !it.can_upload ? '<div class="muted" style="font-size:12px;">由陽光系統確認，不需要上傳</div>' : ''}</span>
+          ${it.can_upload && it.upload !== '待確認' ? `<button class="btn-ghost" style="padding:6px 12px;font-size:13px;white-space:nowrap;" onclick="bcPick('${esc(c.case)}','${esc(n.node)}','${esc(it.key)}','${esc(it.label)}')">⬆ 上傳</button>` : ''}</div>`).join('') + '</div>').join('') + '</div>').join('') + '</div>').join('') + '</div>';
+  }
+  box.innerHTML = html;
+}
+let bcTarget = null;
+function bcPick(cs, node, key, label){
+  bcTarget = {case: cs, node, key, label};
+  let inp = document.getElementById('bcFile');
+  if(!inp){ inp = document.createElement('input'); inp.type = 'file'; inp.id = 'bcFile'; inp.accept = 'application/pdf,image/jpeg,image/png'; inp.style.display = 'none'; inp.onchange = bcFileChosen; document.body.appendChild(inp); }
+  inp.value = '';
+  inp.click();
+}
+function bcFileChosen(ev){
+  const f = ev.target.files && ev.target.files[0];
+  if(!f || !bcTarget) return;
+  const t = bcTarget;
+  if(!/^(application\/pdf|image\/jpeg|image\/png)$/.test(f.type)){ alert('只能上傳 PDF 或 JPG／PNG 圖片'); return; }
+  if(f.size > 8 * 1024 * 1024){ alert('檔案超過 8 MB，請壓縮或分開上傳'); return; }
+  if(!confirm(`上傳「${f.name}」作為\n${t.case}　${t.node}\n「${t.label}」？\n\n陽光確認後，這一項才會算齊。`)) return;
+  bcMsg = '上傳中…請稍候'; renderBilling();
+  const rd = new FileReader();
+  rd.onload = async () => {
+    try{
+      const b64 = String(rd.result).split(',')[1] || '';
+      await api('/billing/upload', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({case: t.case, node: t.node, label: t.key, filename: f.name, content_type: f.type, data: b64})});
+      bcMsg = `✅ 已上傳「${f.name}」，陽光確認後會更新`;
+      BC = null; renderBilling();
+    }catch(e){ bcMsg = ''; alert('上傳失敗：' + e.message); renderBilling(); }
+  };
+  rd.readAsDataURL(f);
 }
 
 // ---------- 提出預約 ----------
