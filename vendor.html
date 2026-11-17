@@ -201,11 +201,13 @@ function render(){
       <div class="tab ${tab === 'booked' ? 'active' : ''}" onclick="setTab('booked')">📅 行程日曆${unackedUpcoming().length ? ' <span style="background:#E5484D;color:#fff;border-radius:99px;padding:1px 7px;font-size:12px;">' + unackedUpcoming().length + '</span>' : ''}</div>
       <div class="tab ${tab === 'stock' ? 'active' : ''}" onclick="setTab('stock')">📦 料件庫存${(D.stock || []).length ? '（' + D.stock.length + '）' : ''}</div>
       <div class="tab ${tab === 'missing' ? 'active' : ''}" onclick="setTab('missing')">📎 缺件通報${MV ? (MV.items.filter(i => i.status === '缺件').length ? '（' + MV.items.filter(i => i.status === '缺件').length + '）' : '') : ''}</div>
-    </div>${tab !== 'booked' && unackedUpcoming().length ? `<div class="alertbar" onclick="setTab('booked')">⏳ 有 ${unackedUpcoming().length} 筆行程等您確認 ➜ 點這裡查看</div>` : ''}<div id="pane"></div>`;
+      <div class="tab ${tab === 'unmetered' ? 'active' : ''}" onclick="setTab('unmetered')">🏗 未掛表案件${UM ? '（' + UM.items.length + '）' : ''}</div>
+    </div><div id="gotbar">${gotBannerHtml()}</div>${tab !== 'booked' && unackedUpcoming().length ? `<div class="alertbar" onclick="setTab('booked')">⏳ 有 ${unackedUpcoming().length} 筆行程等您確認 ➜ 點這裡查看</div>` : ''}<div id="pane"></div>`;
   if(tab === 'new') renderNew();
   else if(tab === 'mine') renderMine();
   else if(tab === 'stock') renderStock();
   else if(tab === 'missing') renderMissing();
+  else if(tab === 'unmetered') renderUnmetered();
   else renderBooked();
   const tabsEl = document.querySelector('.tabs');
   if(tabsEl){
@@ -248,8 +250,10 @@ async function loadMissing(){
   }else{
     const t = [...document.querySelectorAll('.tab')].find(x => x.textContent.indexOf('缺件通報') >= 0);
     if(t){ const n = MV.items.filter(i => i.status === '缺件').length; t.textContent = '📎 缺件通報' + (n ? '（' + n + '）' : ''); }
+    const gb = document.getElementById('gotbar'); if(gb) gb.innerHTML = gotBannerHtml();
   }
 }
+function folderLink(u){ return u ? ` <a href="${esc(u)}" target="_blank" rel="noopener" style="white-space:nowrap;font-size:12px;">📂 業務資料夾</a>` : ''; }
 function mvTypes(){ return (MV && MV.types && MV.types.length) ? MV.types : ['竣工圖', '使用執照', '電費單', '其他']; }
 function renderMissing(){
   const pane = document.getElementById('pane');
@@ -282,7 +286,7 @@ function renderMissing(){
     return [...m.values()];
   };
   const row = i => `<div class="ct-row" style="align-items:flex-start;">
-      <span><b>${esc(i.doc_type)}</b>${i.note ? `<span class="muted"> ｜${esc(i.note)}</span>` : ''}${i.mine ? ' <span class="chip" style="margin:0 0 0 4px;">您通報</span>' : ''}
+      <span><b>${esc(i.doc_type)}</b>${folderLink(i.folder)}${i.note ? `<span class="muted"> ｜${esc(i.note)}</span>` : ''}${i.mine ? ' <span class="chip" style="margin:0 0 0 4px;">您通報</span>' : ''}
         <div class="muted" style="font-size:12px;">${i.status === '缺件' ? `陽光登錄日 ${esc(i.created || '')}` : `已取得 ${esc(i.got || '')}`}</div></span>
       ${i.cancel ? `<button type="button" style="width:auto;border-radius:10px;padding:0 10px;font-size:13px;" onclick="mvCancel('${esc(i.id)}')">撤回</button>` : ''}</div>`;
   // 依資料類型分組（電費單一組、竣工圖一組…），方便一次核對同一種資料；也可切回依案場
@@ -292,7 +296,7 @@ function renderMissing(){
     return [...m.entries()].sort((a, b) => { const x = order.indexOf(a[0]), y = order.indexOf(b[0]); return (x < 0 ? 99 : x) - (y < 0 ? 99 : y); });
   };
   const rowT = i => `<div class="ct-row" style="align-items:flex-start;">
-      <span><b>${esc(i.case_no || i.alias)}</b> <span class="muted">${esc((i.alias || '').replace(i.case_no || '', '').replace(/^（|）$/g, ''))}</span>${i.note ? `<span class="muted"> ｜${esc(i.note)}</span>` : ''}${i.mine ? ' <span class="chip" style="margin:0 0 0 4px;">您通報</span>' : ''}
+      <span><b>${esc(i.case_no || i.alias)}</b> <span class="muted">${esc((i.alias || '').replace(i.case_no || '', '').replace(/^（|）$/g, ''))}</span>${folderLink(i.folder)}${i.note ? `<span class="muted"> ｜${esc(i.note)}</span>` : ''}${i.mine ? ' <span class="chip" style="margin:0 0 0 4px;">您通報</span>' : ''}
         <div class="muted" style="font-size:12px;">${i.status === '缺件' ? `陽光登錄日 ${esc(i.created || '')}` : `已取得 ${esc(i.got || '')}`}</div></span>
       ${i.cancel ? `<button type="button" style="width:auto;border-radius:10px;padding:0 10px;font-size:13px;" onclick="mvCancel('${esc(i.id)}')">撤回</button>` : ''}</div>`;
   const typeBlocks = list => byType(list).map(([t, rows]) => `<div style="margin-top:12px;"><b>${esc(t)}</b> <span class="muted">${rows.length} 筆</span>${rows.sort((a, b) => (a.case_no || '').localeCompare(b.case_no || '', 'zh-Hant', {numeric: true})).map(rowT).join('')}</div>`).join('');
@@ -358,6 +362,71 @@ async function mvCancel(id){
   if(!confirm('要撤回這筆缺件通報嗎？（填錯時使用）')) return;
   try{ await api('/missing/' + encodeURIComponent(id) + '/cancel', {method: 'POST'}); mvMsg = '已撤回。'; MV = null; renderMissing(); }
   catch(e){ alert(e.message); }
+}
+
+// ---------- 陽光補件提示（2026-11-17）：陽光把缺件標成「已取得」的隔天起（最多 3 天），提示廠商確認 ----------
+function twToday(){ return new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10); }
+function dayShift(d, n){ const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); }
+function gotAcked(){ try{ return JSON.parse(lsGet('vp_got_ack') || '[]'); }catch(e){ return []; } }
+function gotRecent(){
+  if(!MV || !MV.items) return [];
+  const today = twToday(), from = dayShift(today, -3), acked = new Set(gotAcked());
+  return MV.items.filter(i => i.status === '已取得' && i.got && i.got < today && i.got >= from && !acked.has(i.id));
+}
+function gotBannerHtml(){
+  const list = gotRecent();
+  if(!list.length) return '';
+  const today = twToday();
+  const label = d => d === dayShift(today, -1) ? '昨天' : (d === dayShift(today, -2) ? '前天' : '3 天前');
+  const byDay = new Map();
+  list.forEach(i => { if(!byDay.has(i.got)) byDay.set(i.got, []); byDay.get(i.got).push(i); });
+  const days = [...byDay.keys()].sort().reverse();
+  return `<div class="card" style="border-color:#9AD9A8;background:#F1FBF3;">
+    <div style="font-weight:800;">📬 陽光已補資料，請確認</div>
+    ${days.map(d => `<div style="margin-top:8px;"><b>${label(d)}（${esc(d.slice(5).replace('-', '/'))}）</b>已補：` +
+      byDay.get(d).sort((a, b) => (a.case_no || '').localeCompare(b.case_no || '', 'zh-Hant', {numeric: true})).map(i =>
+        `<div style="font-size:14px;margin-top:2px;">・<b>${esc(i.case_no || i.alias)}</b> ${esc(i.doc_type)}${folderLink(i.folder)}</div>`).join('') + '</div>').join('')}
+    <div class="muted" style="font-size:12px;margin-top:8px;">資料已放進該案的雲端資料夾，請點「業務資料夾」確認內容是否可用；有問題請直接聯絡陽光窗口。</div>
+    <button type="button" style="width:auto;border-radius:10px;padding:6px 14px;margin-top:8px;font-size:13px;" onclick="gotAckAll()">我已確認</button></div>`;
+}
+function gotAckAll(){
+  const ids = new Set(gotAcked()); gotRecent().forEach(i => ids.add(i.id));
+  lsSet('vp_got_ack', JSON.stringify([...ids].slice(-300)));
+  const gb = document.getElementById('gotbar'); if(gb) gb.innerHTML = gotBannerHtml();
+}
+
+// ---------- 未掛表案件（2026-11-17）：進行中、還沒掛表的案件，依縣市、潤特／工程分組，附業務雲端資料夾 ----------
+let UM = null, umLoading = false;
+async function loadUnmetered(){
+  if(umLoading) return;
+  umLoading = true;
+  try{ UM = await api('/unmetered'); }
+  catch(e){ UM = {items: [], county_order: [], error: e.message}; }
+  umLoading = false;
+  render();
+}
+function renderUnmetered(){
+  const pane = document.getElementById('pane');
+  if(!UM){ pane.innerHTML = '<div class="card muted" style="text-align:center;">🏗 案件清單載入中…（約需數秒，請稍候）</div>'; loadUnmetered(); return; }
+  if(UM.error){ pane.innerHTML = `<div class="card muted" style="color:#B42318;">載入失敗：${esc(UM.error)}</div>`; return; }
+  const items = UM.items, order = UM.county_order || [];
+  if(!items.length){ pane.innerHTML = '<div class="card muted">目前沒有進行中、尚未掛表的案件。</div>'; return; }
+  const stageTxt = {'放樣': '待放樣', '進場': '待進場', '掛表': '待掛表'};
+  const counties = [...new Set(items.map(i => i.county))].sort((a, b) => { const x = order.indexOf(a), y = order.indexOf(b); return (x < 0 ? 99 : x) - (y < 0 ? 99 : y) || a.localeCompare(b, 'zh-Hant'); });
+  const nat = (a, b) => (a.case || '').localeCompare(b.case || '', 'zh-Hant', {numeric: true});
+  pane.innerHTML = `<div class="card" style="border-color:#F2C46B;background:#FFF9EC;">以下是${esc(D.vendor)}目前<b>進行中、尚未掛表</b>的案件（共 ${items.length} 件），依縣市分類，再分工程／潤特。點「📂 業務資料夾」可直接開啟該案的雲端資料夾。</div>` +
+    counties.map(c => {
+      const inC = items.filter(i => i.county === c);
+      return `<div class="card"><h2>${esc(c)} <span class="muted" style="font-weight:400;">${inC.length} 件</span></h2>` +
+        ['工程', '潤特'].map(k => {
+          const rows = inC.filter(i => i.kind === k).sort(nat);
+          if(!rows.length) return '';
+          return `<div style="margin-top:12px;"><b>${k}案件</b> <span class="muted">${rows.length} 件</span>` + rows.map(i => `<div class="ct-row" style="align-items:flex-start;">
+            <span><b>${esc(i.case)}</b> <span class="muted">${esc(i.alias || '')}</span>${stageTxt[i.stage] ? ` <span class="chip" style="margin:0 0 0 4px;">${stageTxt[i.stage]}</span>` : ''}
+              ${i.address ? `<div class="muted" style="font-size:12px;">📍 ${esc(i.address)}</div>` : ''}</span>
+            ${i.folder ? `<a href="${esc(i.folder)}" target="_blank" rel="noopener" style="white-space:nowrap;font-size:13px;">📂 業務資料夾</a>` : '<span class="muted" style="font-size:12px;">無資料夾連結</span>'}</div>`).join('') + '</div>';
+        }).join('') + '</div>';
+    }).join('');
 }
 
 // ---------- 提出預約 ----------
