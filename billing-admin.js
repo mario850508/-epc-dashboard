@@ -73,7 +73,7 @@ function bcaToggleOpen(){ BCA.open = !BCA.open; renderBca(); }
 // 手動標記已請款：舊年度的發票不在尚展 Sheet 裡，沒辦法自動排除，由陽光標（node 傳 '*' ＝整案）。
 async function bcaMark(cs, node, on){
   const what = node === '*' ? cs + ' 的全部節點' : cs + '　' + node;
-  if(on && !confirm(`把「${what}」標為「已請款」？\n標記後不會再出現在可請款／缺件清單。（可在下方「手動標記」取消）`)) return;
+  if(on && !confirm(`把「${what}」標為「已請款」？\n標記後不會再出現在可請款／缺件清單。（可從上方「🗂 手動標記已請款」取消）`)) return;
   try{
     const res = await fetch(API_BASE + '/api/billing/manual', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({vendor: BCA.vendor, case: cs, node, on})});
     const d = await res.json();
@@ -85,8 +85,41 @@ async function bcaMark(cs, node, on){
       BCA.data.partial_count = BCA.data.cases.reduce((s, c) => s + c.nodes.filter(n => n.status === 'partial').length, 0);
       BCA.data.manual = d.manual;
       renderBca();
-    }else{ bcaReload(true); }
+    }else{
+      if(BCA.data) BCA.data.manual = d.manual;
+      renderBca(); bcaRenderManual();
+      bcaReload(true);   // 取消標記後該節點要重新出現，背景重算
+    }
+    bcaRenderManual();
   }catch(e){ showToast('✗ ' + e.message); }
+}
+
+// 「🗂 手動標記已請款」視窗：列出所有手動標記的（案號／節點，或整案），可取消標記
+function bcaOpenManual(){
+  let ov = document.getElementById('bcaManualOv');
+  if(ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'bcaManualOv';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.onclick = e => { if(e.target === ov) ov.remove(); };
+  ov.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:560px;width:100%;max-height:85vh;display:flex;flex-direction:column;color:#1B2333;"><div id="bcaManualBody"></div></div>';
+  document.body.appendChild(ov);
+  bcaRenderManual();
+}
+function bcaRenderManual(){
+  const body = document.getElementById('bcaManualBody');
+  if(!body) return;
+  const man = (BCA.data && BCA.data.manual) || [];
+  const byCase = {};
+  man.forEach(k => { const i = k.indexOf('|'); const c = k.slice(0, i), n = k.slice(i + 1); (byCase[c] = byCase[c] || []).push(n); });
+  const cases = Object.keys(byCase).sort((a, b) => a.localeCompare(b, 'zh-Hant', {numeric: true}));
+  body.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <b style="font-size:16px;">🗂 手動標記已請款（${man.length}）</b>
+      <button onclick="document.getElementById('bcaManualOv').remove()" style="border:none;background:#F1F3F8;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button></div>
+    <div class="inv-muted" style="margin:6px 0 10px;line-height:1.6;">這些是你手動標成「已請款」的節點（舊年度發票不在尚展 Sheet 裡），不會出現在可請款／缺件清單。標錯了可以按 ✕ 取消標記，該節點會重新出現。<br>要新增標記：到「展開明細」，在案件或節點旁按「標為已請款」。</div>
+    <div style="overflow:auto;border:1px solid var(--border);border-radius:10px;">` + (cases.length ? cases.map(c => `<div style="display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);">
+        <b>${invEsc(c)}</b>
+        <span style="text-align:right;">${byCase[c].map(n => `<span style="display:inline-block;background:#F3F4F6;border-radius:10px;padding:2px 4px 2px 9px;margin:2px 0 2px 4px;font-size:13px;">${n === '*' ? '整案' : invEsc(n)} <a href="#" onclick="bcaMark('${invEsc(c)}','${invEsc(n)}',false);return false;" title="取消標記">✕</a></span>`).join('')}</span></div>`).join('') : '<div class="inv-muted" style="padding:14px;text-align:center;">目前沒有手動標記</div>') + '</div>';
 }
 
 function renderBca(){
@@ -99,6 +132,7 @@ function renderBca(){
       ${BCA.pub === null ? '' : `<span class="inv-muted" style="padding:2px 9px;border-radius:10px;background:${BCA.pub ? '#DCFCE7' : '#F3F4F6'};color:${BCA.pub ? '#15803D' : '#6B7280'};font-weight:700;">${BCA.pub ? '已開放給廠商' : '尚未開放給廠商'}</span>`}
       <span style="margin-left:auto;display:flex;gap:8px;">
         ${BCA.pub === null ? '' : `<button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;" onclick="bcaTogglePublic()">${BCA.pub ? '關閉廠商頁面' : '開放給廠商'}</button>`}
+        <button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;" onclick="bcaOpenManual()">🗂 手動標記已請款${d && (d.manual || []).length ? '（' + d.manual.length + '）' : ''}</button>
         <button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;" onclick="bcaReload(true)" ${BCA.busy || BCA.updating ? 'disabled' : ''}>🔄 重新計算</button>
         <button class="btn btn-ghost" style="padding:5px 12px;font-size:12.5px;" onclick="bcaToggleOpen()">${BCA.open ? '收合' : '展開明細'}</button>
       </span></div>`;
@@ -125,8 +159,6 @@ function renderBca(){
         ${c.nodes.map(n => `<div style="margin:4px 0 0 10px;font-size:13px;">${n.status === 'ready' ? '<span style="color:#15803D;font-weight:700;">✅ 可請款</span>' : '<span style="color:#B45309;font-weight:700;">📎 缺件</span>'}　${invEsc(n.node)}　<span class="inv-muted">${n.items.map(i => (i.ok ? '✓' : '✗') + invEsc(i.label) + (i.upload ? '(' + invEsc(i.upload) + ')' : '')).join('、')}${n.since ? '｜' + invEsc(n.since) + ' 起可請款' : ''}</span>
           <button class="btn btn-ghost" style="padding:1px 8px;font-size:11px;margin-left:6px;" onclick="bcaMark('${invEsc(c.case)}','${invEsc(n.node)}',true)">標為已請款</button></div>`).join('')}
       </div>`).join('') + '</div>';
-    const man = d.manual || [];
-    if(man.length) detail += `<div style="margin-top:10px;"><b>手動標記的已請款（${man.length}）</b><div class="inv-muted" style="margin-top:4px;">` + man.map(k => { const [c, n] = k.split('|'); return `<span style="display:inline-block;background:#F3F4F6;border-radius:10px;padding:2px 4px 2px 9px;margin:2px 4px 2px 0;">${invEsc(c)}　${n === '*' ? '整案' : invEsc(n)} <a href="#" onclick="bcaMark('${invEsc(c)}','${invEsc(n)}',false);return false;" title="取消標記">✕</a></span>`; }).join('') + '</div></div>';
   }
   box.innerHTML = `<div class="panel">${head}
     <div style="margin-top:8px;">✅ 可請款 <b style="color:#15803D;">${d.ready_count}</b> 個節點　📎 還缺文件 <b style="color:#B45309;">${d.partial_count}</b> 個節點　<span class="inv-muted">（已請款的已排除：${invEsc(BCA.vendor)}發票明細表＋發票請款頁；更新 ${invEsc(d.generated_at || '')}）</span>${BCA.updating ? ' <span style="color:#B45309;font-weight:700;">⏳ 重新整理中，先顯示上次結果…</span>' : ''}</div>
