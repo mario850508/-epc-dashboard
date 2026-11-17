@@ -410,16 +410,36 @@ async function loadUnmetered(){
   umLoading = false;
   render();
 }
+let umQ = '';
+function umNorm(t){ return String(t || '').toLowerCase().replace(/台/g, '臺').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/\s+/g, ' ').trim(); }
+function umMatch(i, q){
+  const toks = umNorm(q).split(' ').filter(Boolean);
+  if(!toks.length) return true;
+  const hay = umNorm([i.case, i.alias, i.address, i.county, i.kind].join(' ')).replace(/ /g, '');
+  return toks.every(t => hay.includes(t.replace(/ /g, '')));
+}
 function renderUnmetered(){
   const pane = document.getElementById('pane');
   if(!UM){ pane.innerHTML = '<div class="card muted" style="text-align:center;">🏗 案件清單載入中…（約需數秒，請稍候）</div>'; loadUnmetered(); return; }
   if(UM.error){ pane.innerHTML = `<div class="card muted" style="color:#B42318;">載入失敗：${esc(UM.error)}</div>`; return; }
-  const items = UM.items, order = UM.county_order || [];
-  if(!items.length){ pane.innerHTML = '<div class="card muted">目前沒有進行中、尚未掛表的案件。</div>'; return; }
+  if(!UM.items.length){ pane.innerHTML = '<div class="card muted">目前沒有進行中、尚未掛表的案件。</div>'; return; }
+  // 搜尋欄放在清單外面，輸入時只重畫清單，不會失去焦點
+  pane.innerHTML = `<div class="card" style="border-color:#F2C46B;background:#FFF9EC;">以下是${esc(D.vendor)}目前<b>進行中、尚未掛表</b>的案件（共 ${UM.items.length} 件），依縣市分類，再分工程／潤特。點「📂 業務資料夾」可直接開啟該案的雲端資料夾。</div>
+    <div class="searchbox" style="margin:10px 0;"><span class="ic">🔍</span>
+      <input id="umq" type="search" autocomplete="off" placeholder="搜尋案號、別名、地址（例：工程桃園4、龍潭、陳振明）" value="${esc(umQ)}" oninput="umSearch(this.value)"></div>
+    <div id="umlist"></div>`;
+  renderUmList();
+}
+function umSearch(q){ umQ = q; renderUmList(); }
+function renderUmList(){
+  const box = document.getElementById('umlist'); if(!box) return;
+  const order = UM.county_order || [];
+  const items = UM.items.filter(i => umMatch(i, umQ));
+  if(!items.length){ box.innerHTML = `<div class="card muted" style="text-align:center;">找不到符合「${esc(umQ)}」的案件</div>`; return; }
   const stageTxt = {'放樣': '待放樣', '進場': '待進場', '掛表': '待掛表'};
   const counties = [...new Set(items.map(i => i.county))].sort((a, b) => { const x = order.indexOf(a), y = order.indexOf(b); return (x < 0 ? 99 : x) - (y < 0 ? 99 : y) || a.localeCompare(b, 'zh-Hant'); });
   const nat = (a, b) => (a.case || '').localeCompare(b.case || '', 'zh-Hant', {numeric: true});
-  pane.innerHTML = `<div class="card" style="border-color:#F2C46B;background:#FFF9EC;">以下是${esc(D.vendor)}目前<b>進行中、尚未掛表</b>的案件（共 ${items.length} 件），依縣市分類，再分工程／潤特。點「📂 業務資料夾」可直接開啟該案的雲端資料夾。</div>` +
+  box.innerHTML = (umQ.trim() ? `<div class="muted" style="margin:0 4px 8px;">找到 ${items.length} 件</div>` : '') +
     counties.map(c => {
       const inC = items.filter(i => i.county === c);
       return `<div class="card"><h2>${esc(c)} <span class="muted" style="font-weight:400;">${inC.length} 件</span></h2>` +
