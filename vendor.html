@@ -100,6 +100,11 @@
   .case{border:1.5px solid var(--border);background:#fff;border-radius:14px;padding:12px 13px;margin-top:10px;cursor:pointer;}
   .case:hover{border-color:var(--sun-2);}
   .case b{font-size:15.5px;} .case .addr{font-size:13px;color:var(--text-muted);margin-top:2px;}
+  .folder-btn{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;text-decoration:none;font-size:13px;font-weight:700;color:var(--sun-3);background:#FFF4E0;border:1.5px solid #F7D9A8;border-radius:99px;padding:5px 12px;line-height:1.2;transition:background .15s,transform .05s;}
+  .folder-btn:hover{background:#FFE9C2;}
+  .folder-btn:active{transform:scale(.97);}
+  .folder-btn.sm{font-size:12px;padding:3px 10px;margin-left:6px;vertical-align:middle;}
+  .folder-none{white-space:nowrap;font-size:12px;color:var(--muted,#9a8f80);}
   .chip{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:99px;background:#FFF1DC;color:var(--sun-3);margin:6px 6px 0 0;}
   .chip.wait{background:#EEE8FF;color:#6D28D9;}
   .types{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
@@ -253,7 +258,7 @@ async function loadMissing(){
     const gb = document.getElementById('gotbar'); if(gb) gb.innerHTML = gotBannerHtml();
   }
 }
-function folderLink(u){ return u ? ` <a href="${esc(u)}" target="_blank" rel="noopener" style="white-space:nowrap;font-size:12px;">📂 業務資料夾</a>` : ''; }
+function folderLink(u){ return u ? ` <a class="folder-btn sm" href="${esc(u)}" target="_blank" rel="noopener">📂 業務資料夾</a>` : ''; }
 function mvTypes(){ return (MV && MV.types && MV.types.length) ? MV.types : ['竣工圖', '使用執照', '電費單', '其他']; }
 function renderMissing(){
   const pane = document.getElementById('pane');
@@ -424,7 +429,7 @@ function renderUnmetered(){
           return `<div style="margin-top:12px;"><b>${k}案件</b> <span class="muted">${rows.length} 件</span>` + rows.map(i => `<div class="ct-row" style="align-items:flex-start;">
             <span><b>${esc(i.case)}</b> <span class="muted">${esc(i.alias || '')}</span>${stageTxt[i.stage] ? ` <span class="chip" style="margin:0 0 0 4px;">${stageTxt[i.stage]}</span>` : ''}
               ${i.address ? `<div class="muted" style="font-size:12px;">📍 ${esc(i.address)}</div>` : ''}</span>
-            ${i.folder ? `<a href="${esc(i.folder)}" target="_blank" rel="noopener" style="white-space:nowrap;font-size:13px;">📂 業務資料夾</a>` : '<span class="muted" style="font-size:12px;">無資料夾連結</span>'}</div>`).join('') + '</div>';
+            ${i.folder ? `<a class="folder-btn" href="${esc(i.folder)}" target="_blank" rel="noopener">📂 業務資料夾</a>` : '<span class="folder-none">無資料夾連結</span>'}</div>`).join('') + '</div>';
         }).join('') + '</div>';
     }).join('');
 }
