@@ -53,6 +53,24 @@ async function bcaReview(id, status){
   }catch(e){ showToast('✗ ' + e.message); }
 }
 function bcaToggleOpen(){ BCA.open = !BCA.open; renderBca(); }
+// 手動標記已請款：舊年度的發票不在尚展 Sheet 裡，沒辦法自動排除，由陽光標（node 傳 '*' ＝整案）。
+async function bcaMark(cs, node, on){
+  const what = node === '*' ? cs + ' 的全部節點' : cs + '　' + node;
+  if(on && !confirm(`把「${what}」標為「已請款」？\n標記後不會再出現在可請款／缺件清單。（可在下方「手動標記」取消）`)) return;
+  try{
+    const res = await fetch(API_BASE + '/api/billing/manual', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({vendor: BCA.vendor, case: cs, node, on})});
+    const d = await res.json();
+    if(!res.ok) throw new Error(d.error || ('HTTP ' + res.status));
+    if(on && BCA.data){   // 先在畫面上拿掉，不用等重算
+      BCA.data.cases.forEach(c => { if(c.case === cs) c.nodes = c.nodes.filter(n => node !== '*' && n.node !== node); });
+      BCA.data.cases = BCA.data.cases.filter(c => c.nodes.length);
+      BCA.data.ready_count = BCA.data.cases.reduce((s, c) => s + c.nodes.filter(n => n.status === 'ready').length, 0);
+      BCA.data.partial_count = BCA.data.cases.reduce((s, c) => s + c.nodes.filter(n => n.status === 'partial').length, 0);
+      BCA.data.manual = d.manual;
+      renderBca();
+    }else{ BCA.data = null; bcaReload(true); }
+  }catch(e){ showToast('✗ ' + e.message); }
+}
 
 function renderBca(){
   const box = document.getElementById('bcAdmin');
@@ -85,8 +103,12 @@ function renderBca(){
     detail = `<div style="margin:10px 0 6px;"><input class="cert-rename-input" style="max-width:240px;padding:5px 10px;" placeholder="搜尋案號／別名" value="${invEsc(BCA.q)}" oninput="BCA.q=this.value;renderBca()"></div>
       <div style="max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:10px;">` + cases.map(c => `<div style="padding:8px 12px;border-bottom:1px solid var(--border);">
         <b>${invEsc(c.case)}</b> <span class="inv-muted">${invEsc(c.alias)}｜${invEsc(c.county)}</span>
-        ${c.nodes.map(n => `<div style="margin:4px 0 0 10px;font-size:13px;">${n.status === 'ready' ? '<span style="color:#15803D;font-weight:700;">✅ 可請款</span>' : '<span style="color:#B45309;font-weight:700;">📎 缺件</span>'}　${invEsc(n.node)}　<span class="inv-muted">${n.items.map(i => (i.ok ? '✓' : '✗') + invEsc(i.label) + (i.upload ? '(' + invEsc(i.upload) + ')' : '')).join('、')}${n.since ? '｜' + invEsc(n.since) + ' 起可請款' : ''}</span></div>`).join('')}
+        <button class="btn btn-ghost" style="padding:2px 9px;font-size:11.5px;margin-left:6px;" onclick="bcaMark('${invEsc(c.case)}','*',true)">整案標為已請款</button>
+        ${c.nodes.map(n => `<div style="margin:4px 0 0 10px;font-size:13px;">${n.status === 'ready' ? '<span style="color:#15803D;font-weight:700;">✅ 可請款</span>' : '<span style="color:#B45309;font-weight:700;">📎 缺件</span>'}　${invEsc(n.node)}　<span class="inv-muted">${n.items.map(i => (i.ok ? '✓' : '✗') + invEsc(i.label) + (i.upload ? '(' + invEsc(i.upload) + ')' : '')).join('、')}${n.since ? '｜' + invEsc(n.since) + ' 起可請款' : ''}</span>
+          <button class="btn btn-ghost" style="padding:1px 8px;font-size:11px;margin-left:6px;" onclick="bcaMark('${invEsc(c.case)}','${invEsc(n.node)}',true)">標為已請款</button></div>`).join('')}
       </div>`).join('') + '</div>';
+    const man = d.manual || [];
+    if(man.length) detail += `<div style="margin-top:10px;"><b>手動標記的已請款（${man.length}）</b><div class="inv-muted" style="margin-top:4px;">` + man.map(k => { const [c, n] = k.split('|'); return `<span style="display:inline-block;background:#F3F4F6;border-radius:10px;padding:2px 4px 2px 9px;margin:2px 4px 2px 0;">${invEsc(c)}　${n === '*' ? '整案' : invEsc(n)} <a href="#" onclick="bcaMark('${invEsc(c)}','${invEsc(n)}',false);return false;" title="取消標記">✕</a></span>`; }).join('') + '</div></div>';
   }
   box.innerHTML = `<div class="panel">${head}
     <div style="margin-top:8px;">✅ 可請款 <b style="color:#15803D;">${d.ready_count}</b> 個節點　📎 還缺文件 <b style="color:#B45309;">${d.partial_count}</b> 個節點　<span class="inv-muted">（已請款的已排除：${invEsc(BCA.vendor)}發票明細表＋發票請款頁；更新 ${invEsc(d.generated_at || '')}）</span></div>
