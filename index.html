@@ -2687,6 +2687,11 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         </div>
         <button class="btn btn-ghost" style="padding:7px 14px;font-size:12.5px;white-space:nowrap;" onclick="invRefreshAll()" title="重新載入，並把目前分頁「待確認」的發票全部重新比對案場、合約金額、函文">🔄 重新整理＋重新檢查</button>
       </div>
+      <div class="tabs" id="invTopTabs" style="margin-bottom:14px;">
+        <div class="tab active" data-inv-top="invoices" onclick="invTopTab('invoices')">🧾 發票</div>
+        <div class="tab" data-inv-top="epc" onclick="invTopTab('epc')">📥 EPC 請款確認／缺件上傳<span id="invEpcBadge"></span></div>
+      </div>
+      <div id="invMainView">
       <div class="panel">
         <div id="invDrop" class="inv-drop" onclick="document.getElementById('invFileInput').click()">
           <div style="font-size:26px;">🧾</div>
@@ -2696,7 +2701,6 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         </div>
         <div id="invProgress" class="inv-muted" style="margin-top:8px;min-height:18px;"></div>
       </div>
-      <div id="bcAdmin"></div>
       <div id="invAlertBar"></div>
       <div class="tabs" id="invVendorTabs"></div>
       <div id="invSelBar" class="inv-selbar" style="display:none;"></div>
@@ -2708,6 +2712,8 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
         <div id="invBatchBar"></div>
         <div id="invBox"><div class="login-note">載入中…</div></div>
       </div>
+      </div>
+      <div id="bcView" style="display:none;"><div id="bcAdmin"></div></div>
       <datalist id="invCaseList"></datalist>
     </section>
 
@@ -10146,7 +10152,7 @@ async function confirmCertAbbr(id){
 <script src="shipping.js?v=4"></script>
 <script src="meter-check.js?v=22"></script>
 <script src="invoice.js?v=21"></script>
-<script src="billing-admin.js?v=2"></script>
+<script src="billing-admin.js?v=3"></script>
 <script src="missing-docs.js?v=23"></script>
 
 </body>

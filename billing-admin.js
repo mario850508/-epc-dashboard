@@ -1,7 +1,24 @@
 // 請款確認（陽光端，2026-11-17）：發票請款頁上方的面板。
 // 看廠商（尚展）哪些節點文件已齊可以請款、哪些還缺什麼；確認／退回廠商上傳的缺件文件；決定要不要開放給廠商看。
 // 後端：GET /api/billing/overview、GET /api/billing/uploads、POST /api/billing/uploads/<id>/review、GET／POST /api/billing/public
-let BCA = {vendor: '尚展', data: null, uploads: [], pub: null, open: false, busy: false, err: '', q: ''};
+let BCA = {vendor: '尚展', data: null, uploads: [], pub: null, open: true, busy: false, err: '', q: ''};
+
+// 發票請款頁上方分頁：🧾 發票／📥 EPC 請款確認／缺件上傳（2026-11-17 使用者要求分開）
+function invTopTab(t){
+  const epc = t === 'epc';
+  const main = document.getElementById('invMainView'), view = document.getElementById('bcView');
+  if(main) main.style.display = epc ? 'none' : '';
+  if(view) view.style.display = epc ? '' : 'none';
+  document.querySelectorAll('#invTopTabs .tab').forEach(el => el.classList.toggle('active', el.dataset.invTop === t));
+  try{ localStorage.setItem('invTopTab', t); }catch(e){}
+  if(epc && typeof bcaInit === 'function') bcaInit();
+}
+function bcaUpdateBadge(){
+  const el = document.getElementById('invEpcBadge');
+  if(!el) return;
+  const n = (BCA.uploads || []).length;
+  el.innerHTML = n ? ' <span style="background:#E5484D;color:#fff;border-radius:99px;padding:1px 7px;font-size:12px;">' + n + ' 待確認</span>' : '';
+}
 
 async function bcaInit(){
   const box = document.getElementById('bcAdmin');
@@ -75,6 +92,7 @@ async function bcaMark(cs, node, on){
 function renderBca(){
   const box = document.getElementById('bcAdmin');
   if(!box) return;
+  bcaUpdateBadge();
   const d = BCA.data;
   const head = `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
       <b style="font-size:15px;">💰 請款確認（${invEsc(BCA.vendor)}）</b>
