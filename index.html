@@ -3220,7 +3220,13 @@ powershell -ExecutionPolicy Bypass -File "%TEMP%\pdf_watcher.ps1" -Install</text
           <div id="slotTaskDaysWrap" style="display:none;margin-bottom:14px;">
             <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預計施工天數（進場用，屋主會看到；選填，空白＝3～5 天）</label>
             <input type="text" class="quick-mark-input" id="slotTaskDaysLabel" placeholder="例如：4～5 天" style="margin-bottom:4px;">
-            <div style="font-size:11.5px;color:var(--text-muted);">屋主選的是「開始進場」的那一天，屋主頁會依這個天數自動算出預估完工日（不含週六、週日）。</div>
+            <div style="font-size:11.5px;color:var(--text-muted);">屋主選的是「開始進場」的那一天，屋主頁會依這個天數自動算出預估完工日（預設不含週六、週日）。</div>
+            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;">
+              <span style="font-weight:600;">廠商週末也會施工：</span>
+              <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="slotTaskWeekendSat"> 週六</label>
+              <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="slotTaskWeekendSun"> 週日</label>
+              <span style="font-size:11.5px;color:var(--text-muted);">勾了，預估完工日就會把這幾天算進施工日。</span>
+            </div>
           </div>
           <label style="font-size:12px;font-weight:600;display:block;margin-bottom:6px;">預估時間／可選時段（選填，僅供業務、屋主參考，實際時間由雙方協調）</label>
           <div style="font-size:11.5px;color:#92400E;background:#FFF7E6;border-radius:8px;padding:7px 10px;margin-bottom:8px;line-height:1.6;">💡 想讓屋主只選「哪一天」、時間固定（例如 4 天候選日期都只有早上 09:00）：<b>不要勾</b>下面的「交由業務或屋主安排時間」，直接選開始 09:00、結束時間（例如 13:00）。屋主頁每一天就只會出現這個時間，不會列出 10:00、11:00…。</div>
@@ -9268,7 +9274,7 @@ async function generateOpsPdf(id, keepModalOpen){
 // 開機時嘗試恢復上次停留的頁面（見上方 saveNavState/loadNavState 說明），
 // 讀不到有效紀錄、或紀錄的頁籤已經不存在，就一律退回顯示「總覽」。
 </script>
-<script src="slots.js?v=44"></script>
+<script src="slots.js?v=45"></script>
 <script src="vendor-calendar.js?v=3"></script>
 <script>
 // ===================================================================

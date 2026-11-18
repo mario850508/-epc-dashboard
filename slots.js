@@ -574,6 +574,7 @@ function openSlotTaskModal(){
   document.getElementById('slotTaskBuffer').value = '0';
   document.getElementById('slotTaskNoAlt').checked = false;
   const _dl = document.getElementById('slotTaskDaysLabel'); if(_dl) _dl.value = '';
+  setSlotTaskWeekend('');
   updateSlotTaskDaysWrap();
   document.getElementById('slotTaskCaseResults').classList.remove('show');
   document.getElementById('slotTaskTypeDropdown').classList.remove('show');
@@ -638,7 +639,7 @@ function editSlotTask(recordId){
   }
   setv('slotTaskOwnerWinStart', t.owner_win_start || '09:00'); setv('slotTaskOwnerWinEnd', t.owner_win_end || '17:00');
   setv('slotTaskBuffer', String(t.buffer_min || 0));
-  setv('slotTaskDaysLabel', t.days_label || ''); updateSlotTaskDaysWrap();
+  setv('slotTaskDaysLabel', t.days_label || ''); setSlotTaskWeekend(t.weekend || ''); updateSlotTaskDaysWrap();
   document.getElementById('slotTaskNoAlt').checked = !!t.no_alt;
   const has2 = !!(t.owner_win2_start && t.owner_win2_end);
   document.getElementById('slotTaskOwnerWin2On').checked = has2;
@@ -827,6 +828,15 @@ function candidateDatesText(dates){
   }
   return one(ds[0]) + ' ～ ' + one(ds[ds.length - 1]) + '，共 ' + ds.length + ' 天可選' + (missing && onlyWeekend ? '（週末除外）' : (missing ? '（中間有幾天不能選，請以連結為準）' : ''));
 }
+function setSlotTaskWeekend(w){
+  const a = document.getElementById('slotTaskWeekendSat'), b = document.getElementById('slotTaskWeekendSun');
+  if(a) a.checked = String(w || '').includes('六');
+  if(b) b.checked = String(w || '').includes('日');
+}
+function getSlotTaskWeekend(){
+  const a = document.getElementById('slotTaskWeekendSat'), b = document.getElementById('slotTaskWeekendSun');
+  return (a && a.checked ? '六' : '') + (b && b.checked ? '日' : '');
+}
 function updateSlotTaskDaysWrap(){
   const w = document.getElementById('slotTaskDaysWrap');
   if(w) w.style.display = getCheckedSlotTypes('slot-task-type-check').includes('進場') ? '' : 'none';
@@ -869,7 +879,7 @@ async function confirmSlotTask(){
   try{
     const res = await fetch(API_BASE + '/api/vendor-slots/tasks' + (editing ? '/' + encodeURIComponent(editing) : ''), {
       method: editing ? 'PATCH' : 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, companions: COMPANIONS.slotTask, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', ...(estDelegate ? {owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2} : {owner_win_start: '09:00', owner_win_end: '17:00', owner_win2_start: '', owner_win2_end: ''}), owner_name: ownerName, owner_phone: ownerPhone, deadline, buffer_min: parseInt(document.getElementById('slotTaskBuffer').value, 10) || 0, days_label: type.includes('進場') ? (document.getElementById('slotTaskDaysLabel').value || '').trim() : '', no_alt: document.getElementById('slotTaskNoAlt').checked}),
+      body: JSON.stringify({vendor, type, case: caseNo, alias, assignee, companions: COMPANIONS.slotTask, creator: getSlotCreators(), candidate_dates: candidateDates, duration_min: durationMin, est_start: estStart || '', ...(estDelegate ? {owner_win_start: document.getElementById('slotTaskOwnerWinStart').value || '09:00', owner_win_end: document.getElementById('slotTaskOwnerWinEnd').value || '17:00', ...win2} : {owner_win_start: '09:00', owner_win_end: '17:00', owner_win2_start: '', owner_win2_end: ''}), owner_name: ownerName, owner_phone: ownerPhone, deadline, buffer_min: parseInt(document.getElementById('slotTaskBuffer').value, 10) || 0, days_label: type.includes('進場') ? (document.getElementById('slotTaskDaysLabel').value || '').trim() : '', weekend: type.includes('進場') ? getSlotTaskWeekend() : '', no_alt: document.getElementById('slotTaskNoAlt').checked}),
     });
     const data = await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));

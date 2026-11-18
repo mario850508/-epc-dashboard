@@ -162,10 +162,12 @@ function daySpan(label){
   const s = String(label || '').match(/(\d+)/);
   return s ? [parseInt(s[1], 10), parseInt(s[1], 10)] : [3, 5];
 }
-function addWorkDays(iso, n){   // 開始那天算第 1 天，之後跳過週末
+// 2026-11-18：廠商可以週六／週日施工（D.work_weekend 例如 [6]、[0]、[6,0]）——這幾天算進施工日，沒勾的週末仍然跳過
+function isWorkDay(d){ const g = d.getDay(); return (g !== 0 && g !== 6) || (D.work_weekend || []).includes(g); }
+function addWorkDays(iso, n){   // 開始那天算第 1 天，之後跳過沒施工的週末
   const d = new Date(iso + 'T00:00:00');
   let c = 1;
-  while(c < n){ d.setDate(d.getDate() + 1); if(d.getDay() !== 0 && d.getDay() !== 6) c++; }
+  while(c < n){ d.setDate(d.getDate() + 1); if(isWorkDay(d)) c++; }
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 function finishRange(iso){
@@ -176,7 +178,7 @@ function finishRange(iso){
 function weekendNote(iso){
   const end = new Date(finishRange(iso)[1] + 'T00:00:00');
   for(const d = new Date(iso + 'T00:00:00'); d <= end; d.setDate(d.getDate() + 1)){
-    if(d.getDay() === 0 || d.getDay() === 6) return '預估期間包含週六、週日，是否進場依施工團隊安排；若週末需要進場，會再另行通知您。';
+    if((d.getDay() === 0 || d.getDay() === 6) && !isWorkDay(d)) return '預估期間包含' + (d.getDay() === 6 ? '週六' : '週日') + '，是否進場依施工團隊安排；若需要進場，會再另行通知您。';
   }
   return '';
 }
