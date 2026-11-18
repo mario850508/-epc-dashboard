@@ -439,7 +439,7 @@ function renderUmList(){
   const order = UM.county_order || [];
   const items = UM.items.filter(i => umMatch(i, umQ));
   if(!items.length){ box.innerHTML = `<div class="card muted" style="text-align:center;">找不到符合「${esc(umQ)}」的案件</div>`; return; }
-  const stageTxt = {'放樣': '待放樣', '進場': '待進場', '掛表': '待掛表'};
+  const stageTxt = {'放樣': '待放樣', '進場': '待進場', '掛表': '待掛表', '已公證': '已公證・待建檔'};
   const counties = [...new Set(items.map(i => i.county))].sort((a, b) => { const x = order.indexOf(a), y = order.indexOf(b); return (x < 0 ? 99 : x) - (y < 0 ? 99 : y) || a.localeCompare(b, 'zh-Hant'); });
   const nat = (a, b) => (a.case || '').localeCompare(b.case || '', 'zh-Hant', {numeric: true});
   box.innerHTML = (umQ.trim() ? `<div class="muted" style="margin:0 4px 8px;">找到 ${items.length} 件</div>` : '') +
