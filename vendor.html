@@ -38,6 +38,24 @@
   .wide .cal-day{min-height:96px;padding:6px 5px;}
   .wide .cal-day .n{font-size:15px;}
   @media (max-width:900px){ .cal-ev{font-size:10.5px;line-height:1.25;padding:2px 2px;word-break:normal;overflow-wrap:anywhere;} }
+  .cal-ev.x{display:none;}
+  /* 手機（2026-11-19）：七欄太窄，案號文字會一字一行拉得超長 → 日期格子只放小色點，詳細內容看下方「當天行程」清單 */
+  @media (max-width:600px){
+    .wrap{padding:14px 10px 70px;}
+    .card{padding:14px 12px;border-radius:16px;}
+    .cal-grid{gap:3px;}
+    .cal-day{min-height:52px;padding:4px 2px;border-radius:9px;gap:2px;}
+    .cal-day .n{font-size:14px;}
+    .cal-dots{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:3px;}
+    .cal-ev,.cal-ev.x{display:block;width:11px;height:11px;border-radius:50%;padding:0;font-size:0;line-height:0;background:currentColor !important;border-width:2px;}
+    .bc-row{flex-direction:column;gap:6px;}   /* 請款確認：案件在上、節點標籤在下，標籤才不會被擠成兩行 */
+    .bc-chips{text-align:left !important;}
+    .bc-chips > *{white-space:nowrap;}
+    .cal-ev br{display:none;}
+    .cal-more{display:none;}
+    .dp-bg{align-items:flex-end;padding:0;}
+    .dp-box{max-width:none;border-radius:18px 18px 0 0;max-height:75vh;}
+  }
   .dot{width:9px;height:9px;border-radius:50%;} .dot.ok{background:#22A559;} .dot.wait{background:#F2A30C;} .dot.issue{background:#E5484D;}
   .cal-more{font-size:10.5px;color:var(--sun-3);font-weight:700;line-height:1;cursor:pointer;text-decoration:underline;padding:3px 2px;}
   .dp-bg{position:fixed;inset:0;background:rgba(40,28,10,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;}
@@ -520,8 +538,8 @@ function renderBcList(){
   let html = '';
   if(ready.length){
     html += `<div class="card"><h2 style="color:#15803D;">✅ 可以請款 <span class="muted" style="font-weight:400;">${ready.reduce((s, c) => s + c.nodes.filter(n => n.status === 'ready').length, 0)} 個節點</span></h2>` +
-      byCounty(ready).map(g => `<div style="margin-top:10px;"><b>${esc(g.cty)}</b>` + g.rows.map(c => `<div class="ct-row" style="align-items:flex-start;"><span>${caseHead(c)}</span>
-        <span style="text-align:right;">${c.nodes.filter(n => n.status === 'ready').map(bcNodeChip).join('')}</span></div>`).join('') + '</div>').join('') + '</div>';
+      byCounty(ready).map(g => `<div style="margin-top:10px;"><b>${esc(g.cty)}</b>` + g.rows.map(c => `<div class="ct-row bc-row" style="align-items:flex-start;"><span>${caseHead(c)}</span>
+        <span class="bc-chips" style="text-align:right;">${c.nodes.filter(n => n.status === 'ready').map(bcNodeChip).join('')}</span></div>`).join('') + '</div>').join('') + '</div>';
   }
   if(lack.length){
     html += `<div class="card"><h2 style="color:#B45309;">📎 還缺文件 <span class="muted" style="font-weight:400;">${lack.reduce((s, c) => s + c.nodes.filter(n => n.status === 'partial').length, 0)} 個節點</span></h2>` +
@@ -878,7 +896,13 @@ function calGo(delta){
   calMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   renderBooked();
 }
-function calPick(d){ calSel = d; openB = ''; renderBooked(); }
+function calPick(d){
+  calSel = d; openB = ''; renderBooked();
+  // 手機：日期格子只有色點，點了就直接捲到下面「當天行程」
+  if(window.matchMedia && window.matchMedia('(max-width:600px)').matches){
+    const c = document.getElementById('dayCard'); if(c) setTimeout(() => c.scrollIntoView({block: 'start'}), 50);
+  }
+}
 // 日期格子「+N 看全部」→ 跳出小視窗列出當天所有行程；點某一筆就關掉視窗、跳到該筆詳細卡片
 function calDayPopup(iso){
   const bks = ((D && D.bookings) || []).filter(b => b.date === iso).sort((a, b) => a.start.localeCompare(b.start));
@@ -924,7 +948,8 @@ function renderBooked(){
     const ships = shipByDay[iso] || [];
     const evs = list.map(b => { const c = typeColor(b.types); return `<div class="cal-ev" style="background:${c[0]};color:${c[1]};border-color:${ring[bookingStatus(b)]};">${esc((b.case || '').replace(/號$/, ''))}<br><span style="font-weight:600;">${esc((b.types || []).join('+'))}</span></div>`; })
       .concat(ships.map(s => { const c = shipColor(s); return `<div class="cal-ev" style="background:${c[0]};color:${c[1]};">${esc((s.case_no || '').replace(/號$/, ''))}<br><span style="font-weight:600;">${s.equipment === '模組' ? '🟧模組到貨' : '🔌變流器到貨'}</span></div>`; }));
-    const dots = evs.slice(0, 3).join('');
+    // 電腦：最多 3 個色塊＋「+N 看全部」；手機：格子太窄放不下文字，改成小色點（全部都畫），點日期看下方清單
+    const dots = evs.map((h, i) => i >= 3 ? h.replace('class="cal-ev"', 'class="cal-ev x"') : h).join('');
     cells += `<div class="cal-day ${iso === today ? 'today' : ''} ${iso === calSel ? 'sel' : ''}" onclick="calPick('${iso}')"><span class="n">${d}</span>
       <div class="cal-dots">${dots}</div>${evs.length > 3 ? `<span class="cal-more" onclick="event.stopPropagation();calDayPopup('${iso}')">+${evs.length - 3} 看全部</span>` : ''}</div>`;
   }
@@ -946,8 +971,8 @@ function renderBooked(){
       ${upcomingCount ? `<div class="muted" style="margin-top:8px;font-size:13px;">📌 目前已排 <b>${upcomingCount}</b> 筆行程，最後排到 <b>${esc(dayLabel(lastUpcoming))}</b></div>` : ''}
       <div class="muted" style="margin-top:8px;font-size:12.5px;">這份日曆跟陽光窗口看到的是同一份資料；行程改日期或時間後，會需要您重新確認。</div>
     </div>
-    <div class="card">
-      <h2 style="font-size:16px;">📅 ${esc(dayLabel(calSel))}${calSel === today ? '（今天）' : ''}</h2>
+    <div class="card" id="dayCard">
+      <h2 style="font-size:16px;display:flex;justify-content:space-between;align-items:center;gap:8px;"><span>📅 ${esc(dayLabel(calSel))}${calSel === today ? '（今天）' : ''}</span><button class="btn-ghost" style="padding:6px 10px;font-size:13px;" onclick="document.querySelector('.cal-grid').scrollIntoView({block:'center'})">↑ 回日曆</button></h2>
       <label style="margin-top:8px;">您的名字（確認、回報時留給陽光窗口看）</label>
       <input id="byName" placeholder="例如：林先生" value="${esc(lsGet('vp_by'))}" onchange="lsSet('vp_by', this.value.trim())">
       ${dayList.length ? dayList.map(bookingCard).join('') : ''}
