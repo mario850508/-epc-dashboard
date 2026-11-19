@@ -314,7 +314,7 @@ function renderSlotTasks(){
       <span style="font-size:12.5px;flex:1;min-width:140px;">${t.case||''}${t.alias?('　'+t.alias):''}${(t.companions || []).length ? `<br><span style="font-size:11px;color:#6B21A8;">🔗 同時預約：${t.companions.map(escHtml).join('、')}</span>` : ''}</span>
       <span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">候選：${t.candidate_dates.map(d=>fmtDate(d)).join('、')}</span>
       ${t.assignee ? `<span style="font-size:11px;color:var(--text-muted);flex-shrink:0;">指派：${t.assignee}${isBoundName(t.assignee) ? ' <span style="color:#16A34A;font-weight:700;">✓LINE</span>' : ` <span style="color:#D97706;font-weight:700;cursor:pointer;" title="按一下複製綁定連結給業務" onclick="copyRepBindLink('${t.assignee.replace(/'/g, '')}')">⚠️未綁LINE</span>`}</span>` : ''}
-      ${t.deadline ? (() => { const over = new Date(t.deadline) < new Date(); return `<span style="font-size:11px;font-weight:700;flex-shrink:0;color:${over ? '#D64545' : '#B45309'};">⏰ ${fmtDeadline(t.deadline)}${over ? '（已逾期）' : ''}</span>`; })() : ''}
+      ${t.deadline ? (() => { const over = new Date(t.deadline) < new Date(); return `<span style="font-size:11px;font-weight:700;flex-shrink:0;color:${over ? '#D64545' : '#B45309'};">⏰ ${fmtDeadline(t.deadline)}${t.deadline_auto ? '（預設）' : ''}${over ? '（已逾期）' : ''}</span>`; })() : ''}
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="editSlotTask('${t.record_id}')">✏️ 編輯</button>
       <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="adjustSlotDeadline('${t.record_id}')">⏰ 期限</button>
       <button class="btn btn-warm-primary" style="padding:4px 10px;font-size:11px;flex-shrink:0;" onclick="openOwnerMessageFor('${t.record_id}')">🏠 屋主版</button>
@@ -337,11 +337,11 @@ async function adjustSlotDeadline(recordId){
   const t = SLOT_TASKS.find(x => x.record_id === recordId);
   if(!t) return;
   let cur = '';
-  if(t.deadline){
+  if(t.deadline && !t.deadline_auto){
     const d = new Date(t.deadline);
     cur = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
   }
-  const input = prompt('業務回覆期限（格式：2026-10-05 18:00，留空＝取消期限）', cur);
+  const input = prompt('業務回覆期限（格式：2026-10-05 18:00，留空＝預設：最早候選日當天 08:00）', cur);
   if(input === null) return;
   let iso = null;
   if(input.trim()){
@@ -357,8 +357,10 @@ async function adjustSlotDeadline(recordId){
     const data = await res.json().catch(() => ({}));
     if(!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
     t.deadline = iso ? new Date(iso).toISOString() : '';
+    t.deadline_auto = false;
+    if(!iso) await loadSlotTasksQuiet();   // 改回預設：重抓一次，拿到後端算好的預設期限
     renderSlotTasks();
-    showToast(iso ? '已更新回覆期限，要通知業務的話請用「複製訊息」重新傳' : '已取消回覆期限');
+    showToast(iso ? '已更新回覆期限，要通知業務的話請用「複製訊息」重新傳' : '已改回預設（最早候選日當天 08:00）');
   }catch(err){
     showToast('調整失敗：' + err.message);
   }
@@ -647,7 +649,7 @@ function editSlotTask(recordId){
   if(has2){ setv('slotTaskOwnerWin2Start', t.owner_win2_start); setv('slotTaskOwnerWin2End', t.owner_win2_end); }
   // 回覆期限
   slotDeadlineTouched = true;
-  if(t.deadline){
+  if(t.deadline && !t.deadline_auto){
     const d = new Date(t.deadline);
     if(!isNaN(d)){
       setv('slotTaskDeadlineDate', d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'));

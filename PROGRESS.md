@@ -366,3 +366,6 @@ eparse_full.log。
 - 資料：任務表新欄位「施工週末」（fldw42WA4RKmv9sxs，文字：六／日／六日；空白＝週末不施工）。`FIELD_TASK_WEEKEND`、`_clean_weekend`、`_owner_weekend_days`；屋主 API 回 `work_weekend`（JS getDay：六＝6、日＝0）。建立／修改任務都吃 `weekend`。
 - 前端：主控台指派任務表單「預計施工天數」下方兩個勾（slots.js v45）；owner.html `isWorkDay` 讓 addWorkDays／週末提醒只對「沒勾的週末」生效。只有進場（多天施工）會用。
 - 注意：這只影響屋主頁的預估完工日與週末提醒文字；候選開始日期本來就由 PM 自己挑，週六日可以選。
+
+## 2026-11-19 預設回覆期限
+- slots.js v46：deadline_auto 的任務標「（預設）」，編輯時不預填；期限留空＝改回預設。
