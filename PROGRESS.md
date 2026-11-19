@@ -369,3 +369,6 @@ eparse_full.log。
 
 ## 2026-11-19 預設回覆期限
 - slots.js v46：deadline_auto 的任務標「（預設）」，編輯時不預填；期限留空＝改回預設。
+
+## 2026-11-19 廠商日曆「+N」小視窗
+- vendor.html：日曆格子「+N 看全部」→ 跳出小視窗列出當天所有行程（含到貨）；點一筆關閉視窗並跳到該筆詳細卡片。`calDayPopup/calPopupClose/calPopupGo`。
