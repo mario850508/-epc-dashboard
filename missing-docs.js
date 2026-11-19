@@ -53,6 +53,7 @@ async function mdLoad(){
   }
   mdRenderForm();
   mdRender();
+  mdSuppliedPopup();
 }
 
 function mdRenderForm(){
@@ -661,4 +662,63 @@ async function mdHandoverCancel(from){
     await mdLoad();
     mdHandoverOpen();
   }catch(e){ alert('取消失敗：' + (e.message || e)); }
+}
+
+// ---------- 業務已補件提示（2026-11-19）：業務按了「✅ 已補件」→ 進頁面時跳出，可一鍵確認並傳「補件完成」卡片給廠商 ----------
+function mdSupAcked(){ try{ return JSON.parse(localStorage.getItem('md_sup_ack') || '[]'); }catch(e){ return []; } }
+function mdSupPending(){
+  const acked = new Set(mdSupAcked());
+  return MD_ITEMS.filter(i => i.status === '缺件' && i.supplied && !acked.has(i.id + '|' + i.supplied));
+}
+function mdSuppliedPopup(force){
+  if(!force){ try{ if(sessionStorage.getItem('md_sup_dismiss')) return; }catch(e){} }
+  const list = mdSupPending();
+  let ov = document.getElementById('mdSupOverlay');
+  if(!list.length){ if(ov) ov.remove(); return; }
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'mdSupOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px;';
+    document.body.appendChild(ov);
+  }
+  const byVendor = new Map();
+  list.forEach(i => { const v = i.vendor || '（未填廠商）'; if(!byVendor.has(v)) byVendor.set(v, []); byVendor.get(v).push(i); });
+  const byCase = its => { const m = new Map(); its.forEach(i => { const k = i.alias || i.case_no; if(!m.has(k)) m.set(k, []); m.get(k).push(i); }); return [...m.entries()]; };
+  ov.innerHTML = `<div style="background:#fff;border-radius:14px;width:100%;max-width:560px;padding:18px 20px;max-height:92vh;overflow:auto;">
+    <div style="font-weight:700;font-size:16px;">📬 業務已補件，請確認（${list.length} 項）</div>
+    <div style="font-size:13px;color:#666;margin:4px 0 10px;line-height:1.6;">以下是業務／業務助理按了「✅ 已補件」的資料。先點「📂 資料夾」確認檔案齊全，再按該廠商的「📣 一鍵通知廠商」：會把這些項目標成<b>已取得</b>，並開 LINE 讓你選廠商群組、送出「補件完成」字卡。</div>
+    ${[...byVendor.entries()].map(([v, its]) => `<div style="border:1px solid #E5E7EB;border-radius:10px;padding:8px 10px;margin-bottom:10px;">
+      <div style="font-weight:700;">◆ ${mdEsc(v)} <span class="md-sub">${its.length} 項</span></div>
+      ${byCase(its).map(([name, rows]) => `<div style="font-size:13px;padding:5px 0;border-top:1px dashed #eee;">
+        <b>${mdEsc(name)}</b>${rows[0].handover_from ? `<span class="md-sub">（${mdEsc(rows[0].handover_from)}的案件）</span>` : ''}
+        ${rows[0].folder ? ` <a href="${mdEsc(rows[0].folder)}" target="_blank" rel="noopener" style="white-space:nowrap;">📂 資料夾</a>` : ''}
+        <div>${rows.map(r => mdEsc(r.doc_type) + (r.note ? '<span class="md-sub">（' + mdEsc(r.note) + '）</span>' : '')).join('、')}
+          <span class="md-sub">・${mdEsc(rows[0].rep || '')} ${mdMD(rows[0].supplied)} 補件</span></div></div>`).join('')}
+      <div style="text-align:right;margin-top:6px;"><button class="btn btn-primary md-btn" onclick='mdSuppliedSend(${JSON.stringify(v).replace(/'/g, "&#39;")}, ${JSON.stringify(its.map(i => i.id))})'>📣 一鍵通知廠商（${its.length} 項）</button></div></div>`).join('')}
+    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+      <button class="btn btn-ghost md-btn" onclick="mdSuppliedLater()">先關閉（這次不再跳）</button>
+      <button class="btn btn-ghost md-btn" onclick="mdSuppliedAck()" title="這幾項之後不再跳出提醒（仍可在「業務已補件」篩選看到）">知道了，不用再提醒</button>
+    </div></div>`;
+}
+function mdSuppliedLater(){ try{ sessionStorage.setItem('md_sup_dismiss', '1'); }catch(e){} const ov = document.getElementById('mdSupOverlay'); if(ov) ov.remove(); }
+function mdSuppliedAck(){
+  const acked = new Set(mdSupAcked()); mdSupPending().forEach(i => acked.add(i.id + '|' + i.supplied));
+  try{ localStorage.setItem('md_sup_ack', JSON.stringify([...acked].slice(-400))); }catch(e){}
+  const ov = document.getElementById('mdSupOverlay'); if(ov) ov.remove();
+}
+async function mdSuppliedSend(vendor, ids){
+  if(!confirm('確定已看過資料夾、資料齊全嗎？\n\n按「確定」會：\n① 把「' + vendor + '」這 ' + ids.length + ' 項標成「已取得」\n② 開 LINE 讓你選廠商群組，送出「補件完成」字卡')) return;
+  const w = window.open('', '_blank');   // 先開空白分頁，等 API 回來再導到 LINE（避免被瀏覽器擋彈出視窗）
+  try{
+    const res = await fetch(API_BASE + '/api/missing-docs/supplied-confirm', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({vendor, ids})});
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    if(d.share_url && w){ w.location.href = d.share_url; MD_SHARE_PENDING = false; }
+    else{ if(w) w.close(); alert('已把 ' + d.count + ' 項標成「已取得」。\n這邊沒有 LINE 分享連結，請用上方「📣 通知廠商已補件」複製文字傳給廠商。'); }
+    await mdLoad();
+    mdSuppliedPopup(true);
+  }catch(e){
+    if(w) w.close();
+    alert('處理失敗：' + (e.message || e));
+  }
 }

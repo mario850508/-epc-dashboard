@@ -429,10 +429,10 @@ function renderVendorShare(msg, ok){
         <div class="hint" style="margin-top:4px;">${esc(c.subtitle)}</div>${secs}
         <div class="hint" style="margin-top:10px;">${esc(c.footer)}</div></div></div>`;
     }).join('');
-    app.innerHTML = `<div class="hint" style="margin-bottom:8px;">共 ${VSHARE.count} 張字卡，業務收到後可以左右滑動。每個案場都有「上傳」和「已補件」按鈕。</div>${cardsHtml}
-      <button class="btn-line" onclick="startVendorShare()">📤 選擇業務／群組並傳送</button>
+    app.innerHTML = `<div class="hint" style="margin-bottom:8px;">${VSHARE.mode === 'got' ? `共 ${VSHARE.count} 張「補件完成」字卡，請選要傳給哪家廠商的群組。` : `共 ${VSHARE.count} 張字卡，業務收到後可以左右滑動。每個案場都有「上傳」和「已補件」按鈕。`}</div>${cardsHtml}
+      <button class="btn-line" onclick="startVendorShare()">${VSHARE.mode === 'got' ? '📤 選擇廠商群組並傳送' : '📤 選擇業務／群組並傳送'}</button>
       ${msg ? `<div style="margin-top:10px;font-size:13px;color:${ok ? '#16A34A' : '#c0392b'};font-weight:700;">${msg}</div>` : ''}
-      <div class="hint" style="margin-top:12px;">字卡會以你自己的 LINE 帳號傳給你選的人或群組，可以一次選多個。傳送後，這批缺件會自動記成「已通知」。</div>`;
+      <div class="hint" style="margin-top:12px;">字卡會以你自己的 LINE 帳號傳給你選的人或群組，可以一次選多個。傳送後，這批缺件會自動記成「${VSHARE.mode === 'got' ? '已通知廠商' : '已通知'}」。</div>`;
     return;
   }
   const c = VSHARE.card;
