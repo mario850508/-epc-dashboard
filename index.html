@@ -7702,6 +7702,7 @@ function pdfDoneState(x){
   let cloud;
   if(x.status === '已歸檔') cloud = ['ok', '☁ 已歸檔至雲端'];
   else if(/^⚠ 同類型已存在/.test(lastArc)) cloud = ['bad', '☁ 同類型已存在'];
+  else if(x.no_archive && x.trimmed_note) cloud = ['bad', '☁ 大檔・請手動放 G 槽'];   // 原檔超過 5MB，雲端只有前 6 頁，不能自動歸檔
   else if(x.no_archive) cloud = ['na', '☁ 不歸檔'];
   else if(/^⚠ 歸檔失敗/.test(lastArc)) cloud = ['bad', '☁ 歸檔失敗'];
   else cloud = ['wait', '☁ 等待歸檔'];
@@ -7711,7 +7712,7 @@ function pdfDoneState(x){
   else if(atLines.some(t => t.startsWith('✓'))) at = ['ok', 'Airtable 已更新'];
   else if(atLines.length) at = ['na', 'Airtable 無需更新'];
   else at = ['na', 'Airtable 未更新'];
-  return {cloud, at, cloudTip: arcLines.join('\n') || cloud[1], atTip: atLines.join('\n') || '確認時沒有寫回 Airtable'};
+  return {cloud, at, cloudTip: arcLines.join('\n') || (x.no_archive && x.trimmed_note ? x.trimmed_note : cloud[1]), atTip: atLines.join('\n') || '確認時沒有寫回 Airtable'};
 }
 function pdfDoneTags(x){
   if(x.status !== '已確認' && x.status !== '已歸檔') return '';
