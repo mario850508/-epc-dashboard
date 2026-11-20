@@ -608,21 +608,49 @@ async function mcUploadDoc(caseNo, kind, file){
 // 2026-11-20：依協議書範本產出 Word。先跳出預覽視窗（資料自動帶好、可以改），按「產出 Word」下載。
 const AG_NODES = ['簽約款', '同意備案款', '材料訂購款', '工班進場款', '掛錶驗收款', '設備登記款', '正式售電款'];
 let AG_STATE = null;
-function mcCloseAgreement(){ const m = document.getElementById('mcAgModal'); if(m) m.remove(); }
-async function mcGenAgreement(caseNo){
+let AG_MONTH = '', AG_CASE = '', AG_SAVE_T = null, AG_DIRTY = false;
+// 預覽視窗的內容（發票號碼、各期金額…）存回 Airtable：關掉再打開、換電腦都還在
+async function mcAgSaveDraft(clear){
+  if(!AG_STATE || !AG_CASE) return;
+  if(!clear && !AG_DIRTY) return;   // 沒改過就不存，才不會把還沒補的發票資料凍住
+  if(!clear && document.getElementById('mcAgModal')) mcAgRead();
+  clearTimeout(AG_SAVE_T);
+  try{
+    await fetch(API_BASE + '/api/meter-check/agreement/draft', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({month: AG_MONTH, case_no: AG_CASE, draft: clear ? null : AG_STATE}),
+    });
+  }catch(e){}
+}
+function mcCloseAgreement(){
+  const m = document.getElementById('mcAgModal');
+  if(m){ mcAgSaveDraft(); m.remove(); }
+}
+async function mcGenAgreement(caseNo, fresh){
   const c = ((MC_DATA && MC_DATA.cases) || []).find(x => x.case_no === caseNo);
   if(!c) return;
   const r = mcCompare(c);
   if(r.state !== 'adj'){ showToast('這案沒有需要調整的項目'); return; }
   showToast('準備協議書資料中…');
+  const month = (MC_DATA && MC_DATA.month) || MC_MONTH;
   try{
-    const res = await fetch(API_BASE + '/api/meter-check/agreement/prefill', {
+    const pre = fetch(API_BASE + '/api/meter-check/agreement/prefill', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({case_no: caseNo, cap_from: mcContractCap(c), cap_to: mcCapOk(c), price_from: mcContractPrice(c), price_to: mcPriceOk(c)}),
     });
+    const drf = fresh ? Promise.resolve(null)
+      : fetch(API_BASE + '/api/meter-check/agreement/draft?month=' + encodeURIComponent(month) + '&case_no=' + encodeURIComponent(caseNo))
+          .then(x => x.json()).then(x => x.draft || null).catch(() => null);
+    const res = await pre;
     const d = await res.json().catch(() => ({}));
     if(!res.ok || d.error) throw new Error(d.error || res.status);
-    AG_STATE = d;
+    const draft = await drf;
+    AG_MONTH = month; AG_CASE = caseNo; AG_DIRTY = false;
+    if(draft && Array.isArray(draft.payments) && draft.payments.length){
+      draft.warnings = d.warnings || [];
+      AG_STATE = draft;
+      AG_STATE._restored = draft._saved || '已儲存';
+    }else AG_STATE = d;
     mcShowAgreement();
   }catch(e){ showToast('準備協議書失敗：' + e.message); }
 }
@@ -654,6 +682,7 @@ function mcAgRead(){
 }
 function mcAgRecalc(fromTotal){
   mcAgRead();
+  AG_DIRTY = true;
   const d = AG_STATE;
   if(!fromTotal){   // 單價或新容量改了 → 重算新總價（單價×容量 四捨五入到百位 ×1.05）
     d.total_to = Math.round(Math.floor(Number(d.unit_to) * Number(d.cap_to) / 100 + 0.5) * 100 * 1.05);
@@ -673,7 +702,9 @@ function mcShowAgreement(keep){
     + '<td><input id="ag_d' + i + '" class="quick-mark-input" style="width:90px;padding:3px 6px;" value="' + mcEsc(p.date) + '" placeholder="2026/1/30"></td></tr>').join('');
   const body = '<div style="padding:14px 16px;overflow:auto;max-height:78vh;">'
     + (d.warnings && d.warnings.length ? '<div style="background:#FFF4E5;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:12.5px;color:#B54708;line-height:1.7;">⚠️ ' + d.warnings.map(mcEsc).join('<br>⚠️ ') + '</div>' : '')
-    + '<div class="cert-src" style="margin-bottom:8px;">資料已自動帶入（工程合約、專案細節、發票請款），請核對、需要的話直接改；改了單價或新容量，按「🔄 重算各期」。</div>'
+    + (d._restored ? '<div style="background:#E8F5E9;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:12.5px;color:#1B5E20;line-height:1.7;">✅ 已載入上次儲存的內容（' + mcEsc(d._restored) + '）。'
+        + '<button class="btn btn-ghost" style="padding:1px 8px;font-size:12px;margin-left:8px;" onclick="mcAgReset()">↺ 捨棄，重新帶入最新資料</button></div>' : '')
+    + '<div class="cert-src" style="margin-bottom:8px;">資料已自動帶入（工程合約、專案細節、發票請款），請核對、需要的話直接改；改了單價或新容量，按「🔄 重算各期」。內容會自動儲存，關掉再開還在。</div>'
     + '<div style="font-weight:700;margin:6px 0;">乙方（' + mcEsc(d.vendor) + '）</div><div style="display:flex;gap:8px;flex-wrap:wrap;">'
     + f('vendor_name', '公司名稱', 200) + f('vendor_rep', '代表人', 90) + f('vendor_tax', '統一編號', 100) + f('vendor_addr', '地址', 280) + '</div>'
     + '<div style="font-weight:700;margin:12px 0 6px;">電廠資訊・原合約</div><div style="display:flex;gap:8px;flex-wrap:wrap;">'
@@ -699,14 +730,23 @@ function mcShowAgreement(keep){
     m.id = 'mcAgModal';
     m.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
     m.onclick = e => { if(e.target === m) mcCloseAgreement(); };
+    m.addEventListener('change', () => { AG_DIRTY = true; clearTimeout(AG_SAVE_T); AG_SAVE_T = setTimeout(() => mcAgSaveDraft(), 1500); });
     document.body.appendChild(m);
   }
   m.innerHTML = '<div style="background:var(--card,#fff);border-radius:14px;width:min(860px,100%);box-shadow:0 20px 60px rgba(0,0,0,.25);">'
     + '<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border,#E3E6EA);"><b>📝 工程變更協議書｜' + mcEsc(d.case_name) + '</b>'
     + '<button class="btn btn-ghost" style="margin-left:auto;padding:3px 10px;" onclick="mcCloseAgreement()">✕</button></div>' + body + '</div>';
 }
+async function mcAgReset(){
+  if(!confirm('捨棄已儲存的內容（發票號碼、金額…），重新從系統帶入最新資料？')) return;
+  const cn = AG_CASE;
+  await mcAgSaveDraft(true);
+  const m = document.getElementById('mcAgModal'); if(m) m.remove();
+  mcGenAgreement(cn, true);
+}
 async function mcAgDownload(){
   mcAgRead();
+  AG_DIRTY = true;
   const d = AG_STATE;
   showToast('產生協議書中…');
   try{
@@ -721,7 +761,8 @@ async function mcAgDownload(){
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    showToast('已產出 ' + name + '，請用 Word 開啟檢查、列印簽署');
+    showToast('已產出 ' + name + '，請用 Word 開啟檢查、列印簽署（內容已儲存，下次打開還在）');
+    mcAgSaveDraft();
   }catch(e){ showToast('產生失敗：' + e.message); }
 }
 // 上傳雙方簽完的協議書：後端走公文更名流程確認（檔名 簡稱_日期_協議書）、背景程式歸檔到 03 契約，調整處理改成「協議書已完成」
