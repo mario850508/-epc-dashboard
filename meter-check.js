@@ -327,7 +327,7 @@ function renderMeterCheck(){
       + ' onchange="mcSave(\'' + cn + '\',\'adj\',this.value)">'
       + MC_ADJ.map(x => '<option' + (x === cur ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
       + '<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;">'
-      + '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;" title="依這案的容量／電價差異產生協議書（範本做好後啟用）" onclick="mcGenAgreement(\'' + cn + '\')">📝 產出協議書</button>'
+      + '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;" title="依這案的容量／電價差異產生工程變更協議書（Word）" onclick="mcGenAgreement(\'' + cn + '\')">📝 產出協議書</button>'
       + '<button class="btn btn-ghost" style="padding:2px 8px;font-size:11.5px;" title="雙方簽完後上傳：自動歸檔到案場資料夾 03 契約，並改成「協議書已完成」" onclick="mcPickAgreement(\'' + cn + '\')">⬆ 上傳協議書</button></div>'
       + (c.by || c.updated ? sub(mcEsc([c.by, c.updated].filter(Boolean).join(' '))) : '');
   };
@@ -605,8 +605,124 @@ async function mcUploadDoc(caseNo, kind, file){
 
 // ---- 協議書（2026-11-04）----
 // 產出：範本還沒提供，先放按鈕（之後依這案的容量／電價差異自動產生）
-function mcGenAgreement(caseNo){
-  showToast('「產出協議書」還在準備中：等協議書範本給我之後，這顆鈕就會自動產出');
+// 2026-11-20：依協議書範本產出 Word。先跳出預覽視窗（資料自動帶好、可以改），按「產出 Word」下載。
+const AG_NODES = ['簽約款', '同意備案款', '材料訂購款', '工班進場款', '掛錶驗收款', '設備登記款', '正式售電款'];
+let AG_STATE = null;
+function mcCloseAgreement(){ const m = document.getElementById('mcAgModal'); if(m) m.remove(); }
+async function mcGenAgreement(caseNo){
+  const c = ((MC_DATA && MC_DATA.cases) || []).find(x => x.case_no === caseNo);
+  if(!c) return;
+  const r = mcCompare(c);
+  if(r.state !== 'adj'){ showToast('這案沒有需要調整的項目'); return; }
+  showToast('準備協議書資料中…');
+  try{
+    const res = await fetch(API_BASE + '/api/meter-check/agreement/prefill', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({case_no: caseNo, cap_from: mcContractCap(c), cap_to: mcCapOk(c), price_from: mcContractPrice(c), price_to: mcPriceOk(c)}),
+    });
+    const d = await res.json().catch(() => ({}));
+    if(!res.ok || d.error) throw new Error(d.error || res.status);
+    AG_STATE = d;
+    mcShowAgreement();
+  }catch(e){ showToast('準備協議書失敗：' + e.message); }
+}
+function mcAgPlan(){
+  // 已開發票的期別金額不動；其餘期別依原比例分攤「新總價 − 已開發票」，最後一期補尾差（跟後端同一套算法）
+  const d = AG_STATE, tot = Number(d.total_to) || 0;
+  const paid = d.payments.filter(p => p.invoice || p.paid), free = d.payments.filter(p => !(p.invoice || p.paid));
+  paid.forEach(p => { p.new = Number(p.orig) || 0; });
+  let pool = tot - paid.reduce((s, p) => s + (Number(p.orig) || 0), 0), refund = 0;
+  if(free.length){
+    if(pool < 0){ refund = -pool; pool = 0; }
+    const base = free.reduce((s, p) => s + (Number(p.orig) || 0), 0) || 1;
+    let acc = 0;
+    free.forEach((p, i) => {
+      if(i === free.length - 1) p.new = Math.round(pool) - acc;
+      else { p.new = Math.round(pool * (Number(p.orig) || 0) / base); acc += p.new; }
+    });
+  }else refund = Math.max(0, paid.reduce((s, p) => s + (Number(p.orig) || 0), 0) - tot);
+  d.refund = Math.round(refund);
+}
+function mcAgRead(){
+  // 把畫面上的輸入值讀回 AG_STATE
+  const g = id => (document.getElementById(id) || {}).value;
+  const d = AG_STATE;
+  ['vendor_name', 'vendor_rep', 'vendor_tax', 'vendor_addr', 'case_name', 'addr_cell', 'contract_no', 'sign_y', 'sign_m', 'sign_d',
+   'cap_from', 'cap_to', 'price_from', 'price_to', 'unit_from', 'unit_to', 'total_from', 'total_to', 'refund', 'date_y', 'date_m', 'date_d'].forEach(k => { if(g('ag_' + k) !== undefined) d[k] = g('ag_' + k); });
+  d.payments.forEach((p, i) => { p.orig = g('ag_o' + i); p.new = g('ag_n' + i); p.invoice = g('ag_i' + i); p.date = g('ag_d' + i); });
+  d.items = ['容量', '電價'].filter((x, i) => (document.getElementById('ag_it' + i) || {}).checked);
+}
+function mcAgRecalc(fromTotal){
+  mcAgRead();
+  const d = AG_STATE;
+  if(!fromTotal){   // 單價或新容量改了 → 重算新總價（單價×容量 四捨五入到百位 ×1.05）
+    d.total_to = Math.round(Math.floor(Number(d.unit_to) * Number(d.cap_to) / 100 + 0.5) * 100 * 1.05);
+  }
+  mcAgPlan();
+  mcShowAgreement(true);
+}
+function mcShowAgreement(keep){
+  const d = AG_STATE;
+  const v = k => mcEsc(d[k] == null ? '' : d[k]);
+  const f = (k, label, w, type) => '<label style="display:flex;flex-direction:column;font-size:12px;gap:2px;">' + label
+    + '<input id="ag_' + k + '" class="quick-mark-input" ' + (type ? 'type="' + type + '" step="any" ' : '') + 'style="width:' + (w || 140) + 'px;padding:4px 6px;" value="' + v(k) + '"></label>';
+  const pay = d.payments.map((p, i) => '<tr><td style="white-space:nowrap;">' + p.node + (p.invoice || p.paid ? ' <span class="cert-src">（已開發票，金額不動）</span>' : '') + '</td>'
+    + '<td><input id="ag_o' + i + '" type="number" class="quick-mark-input" style="width:90px;padding:3px 6px;" value="' + mcEsc(p.orig) + '"></td>'
+    + '<td><input id="ag_n' + i + '" type="number" class="quick-mark-input" style="width:90px;padding:3px 6px;" value="' + mcEsc(p.new) + '"></td>'
+    + '<td><input id="ag_i' + i + '" class="quick-mark-input" style="width:110px;padding:3px 6px;" value="' + mcEsc(p.invoice) + '"></td>'
+    + '<td><input id="ag_d' + i + '" class="quick-mark-input" style="width:90px;padding:3px 6px;" value="' + mcEsc(p.date) + '" placeholder="2026/1/30"></td></tr>').join('');
+  const body = '<div style="padding:14px 16px;overflow:auto;max-height:78vh;">'
+    + (d.warnings && d.warnings.length ? '<div style="background:#FFF4E5;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:12.5px;color:#B54708;line-height:1.7;">⚠️ ' + d.warnings.map(mcEsc).join('<br>⚠️ ') + '</div>' : '')
+    + '<div class="cert-src" style="margin-bottom:8px;">資料已自動帶入（工程合約、專案細節、發票請款），請核對、需要的話直接改；改了單價或新容量，按「🔄 重算各期」。</div>'
+    + '<div style="font-weight:700;margin:6px 0;">乙方（' + mcEsc(d.vendor) + '）</div><div style="display:flex;gap:8px;flex-wrap:wrap;">'
+    + f('vendor_name', '公司名稱', 200) + f('vendor_rep', '代表人', 90) + f('vendor_tax', '統一編號', 100) + f('vendor_addr', '地址', 280) + '</div>'
+    + '<div style="font-weight:700;margin:12px 0 6px;">電廠資訊・原合約</div><div style="display:flex;gap:8px;flex-wrap:wrap;">'
+    + f('case_name', '名稱', 110) + f('addr_cell', '「地址」欄（範本放別名）', 190) + f('contract_no', '合約編號', 120)
+    + f('sign_y', '原合約簽訂 民國年', 80, 'number') + f('sign_m', '月', 50, 'number') + f('sign_d', '日', 50, 'number') + '</div>'
+    + '<div style="font-weight:700;margin:12px 0 6px;">變更內容　<span class="cert-src">本次變更項目：</span>'
+    + ['容量', '電價'].map((x, i) => '<label style="margin-left:8px;font-weight:400;"><input type="checkbox" id="ag_it' + i + '"' + (d.items.includes(x) ? ' checked' : '') + '> ' + x + '</label>').join('') + '</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+    + f('cap_from', '容量 原合約', 90, 'number') + f('cap_to', '容量 本協議', 90, 'number')
+    + f('price_from', '躉購電價 原合約', 100, 'number') + f('price_to', '躉購電價 本協議', 100, 'number')
+    + f('unit_from', '工程單價 原合約(未稅)', 120, 'number') + f('unit_to', '工程單價 本協議(未稅)', 120, 'number')
+    + f('total_from', '工程總價 原合約(含稅)', 120, 'number') + f('total_to', '工程總價 本協議(含稅)', 120, 'number') + '</div>'
+    + '<div style="font-weight:700;margin:12px 0 6px;">付款期程（含稅）　<button class="btn btn-ghost" style="padding:2px 8px;font-size:12px;" onclick="mcAgRecalc()">🔄 重算各期</button>'
+    + '　<span class="cert-src">差額須退款：</span><input id="ag_refund" type="number" class="quick-mark-input" style="width:80px;padding:3px 6px;" value="' + mcEsc(d.refund || 0) + '"></div>'
+    + '<table class="mc-table"><thead><tr><th>項目</th><th>原合約</th><th>本協議</th><th>發票號碼</th><th>支付日期</th></tr></thead><tbody>' + pay + '</tbody></table>'
+    + '<div style="font-weight:700;margin:12px 0 6px;">本協議日期（民國）</div><div style="display:flex;gap:8px;">'
+    + f('date_y', '年', 70, 'number') + f('date_m', '月', 50, 'number') + f('date_d', '日', 50, 'number') + '</div>'
+    + '<div style="margin-top:16px;display:flex;gap:8px;"><button class="btn btn-primary" style="padding:6px 16px;" onclick="mcAgDownload()">📝 產出 Word</button>'
+    + '<button class="btn btn-ghost" style="padding:6px 14px;" onclick="mcCloseAgreement()">關閉</button></div></div>';
+  let m = document.getElementById('mcAgModal');
+  if(!m){
+    m = document.createElement('div');
+    m.id = 'mcAgModal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    m.onclick = e => { if(e.target === m) mcCloseAgreement(); };
+    document.body.appendChild(m);
+  }
+  m.innerHTML = '<div style="background:var(--card,#fff);border-radius:14px;width:min(860px,100%);box-shadow:0 20px 60px rgba(0,0,0,.25);">'
+    + '<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border,#E3E6EA);"><b>📝 工程變更協議書｜' + mcEsc(d.case_name) + '</b>'
+    + '<button class="btn btn-ghost" style="margin-left:auto;padding:3px 10px;" onclick="mcCloseAgreement()">✕</button></div>' + body + '</div>';
+}
+async function mcAgDownload(){
+  mcAgRead();
+  const d = AG_STATE;
+  showToast('產生協議書中…');
+  try{
+    const res = await fetch(API_BASE + '/api/meter-check/agreement/generate', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(Object.assign({}, d, {payments: d.payments.map(p => ({node: p.node, orig: Number(p.orig) || 0, new: Number(p.new) || 0, invoice: p.invoice || '', date: p.date || ''}))})),
+    });
+    if(!res.ok){ const e = await res.json().catch(() => ({})); throw new Error(e.error || res.status); }
+    const blob = await res.blob();
+    let name = d.case_name + '_工程變更協議書.docx';
+    try{ name = decodeURIComponent(res.headers.get('X-Filename') || '') || name; }catch(e){}
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    showToast('已產出 ' + name + '，請用 Word 開啟檢查、列印簽署');
+  }catch(e){ showToast('產生失敗：' + e.message); }
 }
 // 上傳雙方簽完的協議書：後端走公文更名流程確認（檔名 簡稱_日期_協議書）、背景程式歸檔到 03 契約，調整處理改成「協議書已完成」
 function mcPickAgreement(caseNo){
